@@ -387,4 +387,18 @@ class PluginProjectreportsBoqimport
         $stats = self::addLines($oid, $lines, $entity, (int) $o['suppliers_id'], (int) $o['taxes_id'], (bool) ($o['set_prices'] ?? true), $mult);
         return [$oid, $stats];
     }
+
+    /**
+     * Make a row safe to open in Excel/LibreOffice: text that starts with = + - @ (or a tab / carriage return) is
+     * prefixed with an apostrophe so it is shown as text instead of being run as a formula. Numbers are kept as is.
+     */
+    public static function csvSafe(array $row): array
+    {
+        return array_map(static function ($v) {
+            if (is_string($v) && $v !== '' && !is_numeric($v) && in_array($v[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+                return "'" . $v;
+            }
+            return $v;
+        }, $row);
+    }
 }

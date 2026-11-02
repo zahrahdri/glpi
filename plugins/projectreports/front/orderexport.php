@@ -20,9 +20,9 @@ header('Content-Type: text/csv; charset=UTF-8');
 header('Content-Disposition: attachment; filename="' . $name . '.csv"');
 $out = fopen('php://output', 'w');
 fwrite($out, "\xEF\xBB\xBF");
-fputcsv($out, ['Quantity', 'Type', 'Reference', 'Manufacturer reference', 'Unit price (before tax)', 'Unit price (discounted)', 'Line total']);
+fputcsv($out, PluginProjectreportsBoqimport::csvSafe(['Quantity', 'Type', 'Reference', 'Manufacturer reference', 'Unit price (before tax)', 'Unit price (discounted)', 'Line total']));
 foreach (PluginProjectreportsOrderexport::lines($oid) as $row) {
-    fputcsv($out, $row);
+    fputcsv($out, PluginProjectreportsBoqimport::csvSafe($row));
 }
 fclose($out);
 exit;

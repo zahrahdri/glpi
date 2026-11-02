@@ -36,16 +36,16 @@ header('Content-Type: text/csv; charset=UTF-8');
 header('Content-Disposition: attachment; filename="' . $name . '.csv"');
 $out = fopen('php://output', 'w');
 fwrite($out, "\xEF\xBB\xBF");
-fputcsv($out, ['Supplier', $sup['supplier']]);
-fputcsv($out, ['Model', $est['model']['name'] ?? $key, 'Devices', $devices]);
+fputcsv($out, PluginProjectreportsBoqimport::csvSafe(['Supplier', $sup['supplier']]));
+fputcsv($out, PluginProjectreportsBoqimport::csvSafe(['Model', $est['model']['name'] ?? $key, 'Devices', $devices]));
 fputcsv($out, []);
-fputcsv($out, ['Part number', 'Spare part number', 'Description', 'Source', 'Qty per device', 'Unit price (before tax)', 'Line total for all devices (before tax)']);
+fputcsv($out, PluginProjectreportsBoqimport::csvSafe(['Part number', 'Spare part number', 'Description', 'Source', 'Qty per device', 'Unit price (before tax)', 'Line total for all devices (before tax)']));
 foreach ($sup['lines'] as $l) {
-    fputcsv($out, [$l['part'], $l['spare'], $l['desc'] ?? '', $l['source'], $l['qty'], $l['price'], $l['qty'] * $l['price'] * $devices]);
+    fputcsv($out, PluginProjectreportsBoqimport::csvSafe([$l['part'], $l['spare'], $l['desc'] ?? '', $l['source'], $l['qty'], $l['price'], $l['qty'] * $l['price'] * $devices]));
 }
 fputcsv($out, []);
-fputcsv($out, ['', '', '', '', '', 'Total before tax', $sup['all_total']]);
-fputcsv($out, ['', '', '', '', '', 'VAT (%)', $sup['vat']]);
-fputcsv($out, ['', '', '', '', '', 'Total with VAT', $sup['all_total'] * (1 + $sup['vat'] / 100)]);
+fputcsv($out, PluginProjectreportsBoqimport::csvSafe(['', '', '', '', '', 'Total before tax', $sup['all_total']]));
+fputcsv($out, PluginProjectreportsBoqimport::csvSafe(['', '', '', '', '', 'VAT (%)', $sup['vat']]));
+fputcsv($out, PluginProjectreportsBoqimport::csvSafe(['', '', '', '', '', 'Total with VAT', $sup['all_total'] * (1 + $sup['vat'] / 100)]));
 fclose($out);
 exit;

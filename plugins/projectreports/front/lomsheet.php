@@ -74,24 +74,24 @@ if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Disposition: attachment; filename="LOM_' . preg_replace('/[^A-Za-z0-9._-]+/', '_', $m['name']) . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['Model', $m['name'], 'Product number', $m['part'], 'Devices in use', $n]);
+    fputcsv($out, PluginProjectreportsBoqimport::csvSafe(['Model', $m['name'], 'Product number', $m['part'], 'Devices in use', $n]));
     fputcsv($out, []);
     $head = ['Part Number', 'Spare Part number', 'Description', 'Qty per device', 'Qty for all devices'];
     if ($prices) {
         array_push($head, 'Lowest LOP unit price', 'Supplier');
     }
-    fputcsv($out, $head);
+    fputcsv($out, PluginProjectreportsBoqimport::csvSafe($head));
     foreach ($parts as $p) {
         $row = [$p['part'], $p['spare'], $p['description'], $p['qty'], $p['qty'] * $n];
         if ($prices) {
             array_push($row, $p['lop']['price'] ?? '', $p['lop']['supplier'] ?? '');
         }
-        fputcsv($out, $row);
+        fputcsv($out, PluginProjectreportsBoqimport::csvSafe($row));
     }
     fputcsv($out, []);
-    fputcsv($out, ['Device', 'Serial number', 'Inventory number', 'Location', 'Rack', 'Status', 'In service since', 'Age (years)', 'Warranty end', 'Photos']);
+    fputcsv($out, PluginProjectreportsBoqimport::csvSafe(['Device', 'Serial number', 'Inventory number', 'Location', 'Rack', 'Status', 'In service since', 'Age (years)', 'Warranty end', 'Photos']));
     foreach ($devices as $d) {
-        fputcsv($out, [$d['name'], $d['serial'], $d['otherserial'], $d['location'], $d['rack'], $d['status'], $d['in_service'] ?? '', $d['age'] ?? '', $d['warranty_end'] ?? '', count($d['photos'])]);
+        fputcsv($out, PluginProjectreportsBoqimport::csvSafe([$d['name'], $d['serial'], $d['otherserial'], $d['location'], $d['rack'], $d['status'], $d['in_service'] ?? '', $d['age'] ?? '', $d['warranty_end'] ?? '', count($d['photos'])]));
     }
     fclose($out);
     exit;

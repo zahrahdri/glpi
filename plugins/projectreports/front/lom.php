@@ -26,7 +26,7 @@ if (($_GET['export'] ?? '') === 'csv') {
     if ($prices) {
         array_push($head, 'Lowest LOP price', 'Supplier', 'Suppliers with a price');
     }
-    fputcsv($out, $head);
+    fputcsv($out, PluginProjectreportsBoqimport::csvSafe($head));
     foreach ($items as $i) {
         $row = [$i['category_label'], $i['name'], $i['part'], $i['units'] ?: '', $i['power'] ?: '', $i['weight'] ?: '',
             $i['depth'] ?: '', $i['in_use'], count($i['pictures']), $i['parts']];
@@ -34,7 +34,7 @@ if (($_GET['export'] ?? '') === 'csv') {
             $best = $i['offers'][0] ?? null;
             array_push($row, $best ? $best['price'] : '', $best ? $best['supplier'] : '', count($i['offers']));
         }
-        fputcsv($out, $row);
+        fputcsv($out, PluginProjectreportsBoqimport::csvSafe($row));
     }
     fclose($out);
     exit;
