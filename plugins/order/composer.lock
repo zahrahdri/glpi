@@ -1,0 +1,78 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "9983e2a4f2c2e3a6e4da04c757167a2d",
+    "packages": [
+        {
+            "name": "sboden/odtphp",
+            "version": "3.2.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/sboden/odtphp.git",
+                "reference": "989e51fa6edaaf9010b27aa14c5556ca4f14f6f2"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/sboden/odtphp/zipball/989e51fa6edaaf9010b27aa14c5556ca4f14f6f2",
+                "reference": "989e51fa6edaaf9010b27aa14c5556ca4f14f6f2",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.1"
+            },
+            "require-dev": {
+                "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+                "drupal/coder": "^8.3",
+                "phpunit/phpunit": "^10.4",
+                "scrutinizer/ocular": "^1.9",
+                "symfony/var-dumper": "^6.4"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.0-dev"
+                }
+            },
+            "autoload": {
+                "files": [
+                    "lib/pclzip.lib.php"
+                ],
+                "psr-4": {
+                    "Odtphp\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-3.0-only"
+            ],
+            "description": "ODT document generator (plugin replacement for cybermonde/odtphp)",
+            "homepage": "https://github.com/sboden/odtphp",
+            "keywords": [
+                "odt",
+                "php"
+            ],
+            "support": {
+                "issues": "https://github.com/sboden/odtphp/issues",
+                "source": "https://github.com/sboden/odtphp/tree/3.2.1"
+            },
+            "time": "2025-07-24T20:26:09+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": {},
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": {
+        "php": ">=8.2"
+    },
+    "platform-dev": {},
+    "platform-overrides": {
+        "php": "8.2.99"
+    },
+    "plugin-api-version": "2.9.0"
+}

@@ -1,0 +1,94 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * DataInjection plugin for GLPI
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of DataInjection.
+ *
+ * DataInjection is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * DataInjection is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with DataInjection. If not, see <http://www.gnu.org/licenses/>.
+ * -------------------------------------------------------------------------
+ * @copyright Copyright (C) 2007-2023 by DataInjection plugin team.
+ * @license   GPLv2 https://www.gnu.org/licenses/gpl-2.0.html
+ * @link      https://github.com/pluginsGLPI/datainjection
+ * -------------------------------------------------------------------------
+ */
+
+
+
+class PluginDatainjectionContact_SupplierInjection extends Contact_Supplier implements PluginDatainjectionInjectionInterface
+{
+    public static function getTable($classname = null)
+    {
+
+        $parenttype = get_parent_class(self::class);
+        return $parenttype::getTable();
+    }
+
+
+    public function isPrimaryType()
+    {
+
+        return false;
+    }
+
+
+    public function connectedTo()
+    {
+
+        return ['Contact', 'Supplier'];
+    }
+
+    public function isNullable($field)
+    {
+        return true; // By default, all fields can be null
+    }
+
+
+    /**
+    * @see plugins/datainjection/inc/PluginDatainjectionInjectionInterface::getOptions()
+   **/
+    public function getOptions($primary_type = '')
+    {
+        return [100 => ['table' => 'glpi_suppliers', 'field' => 'name', 'linkfield' => 'suppliers_id', 'name' => __('Associated suppliers'), 'displaytype' => 'relation', 'relationclass' => 'Contact_Supplier', 'injectable' => true]];
+    }
+
+
+    /**
+    * @see plugins/datainjection/inc/PluginDatainjectionInjectionInterface::addOrUpdateObject()
+   **/
+    public function addOrUpdateObject($values = [], $options = [])
+    {
+
+        $lib = new PluginDatainjectionCommonInjectionLib($this, $values, $options);
+        $lib->processAddOrUpdate();
+        return $lib->getInjectionResults();
+    }
+
+
+    /**
+    * @param string $primary_type
+    * @param array $values
+   **/
+    public function addSpecificNeededFields($primary_type, $values)
+    {
+
+        $fields[getForeignKeyFieldForTable(getTableForItemType($primary_type))]
+          = $values[$primary_type]['id'];
+        return $fields;
+    }
+}

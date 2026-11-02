@@ -4,6 +4,9 @@
 !/marketplace/.gitkeep
 /plugins/*
 !/plugins/.gitkeep
+# Plugins shipped with this project
+!/plugins/datainjection/
+!/plugins/order/
 /files/*/*
 !/files/*/.gitkeep
 /.buildpath

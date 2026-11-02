@@ -1,0 +1,31 @@
+{
+    "name": "glpi-plugin/order",
+    "require": {
+        "php": ">=8.2",
+        "sboden/odtphp": "^3.2"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "autoloader-suffix": "PluginOrder",
+        "platform": {
+            "php": "8.2.99"
+        },
+        "sort-packages": true
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/teclib/odtphp/"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "GlpiPlugin\\Order\\Tests\\": "tests"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Glpi\\Tools\\": "../../tools/src/"
+        }
+    }
+}
