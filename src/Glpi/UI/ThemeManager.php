@@ -49,7 +49,7 @@ use function Safe\scandir;
  */
 class ThemeManager
 {
-    public const DEFAULT_THEME = 'auror';
+    public const DEFAULT_THEME = 'modern';
     public const CORE_THEME_ROOT = GLPI_ROOT . '/css/palettes/';
 
     private array $core_themes = [];
@@ -86,6 +86,7 @@ class ThemeManager
                 new Theme('icecream', 'Ice Cream', false, false),
                 new Theme('lightblue', 'Light Blue', false, false),
                 new Theme('midnight', 'Midnight', true, false),
+                new Theme('modern', 'Modern', false, false),
                 new Theme('premiumred', 'Premium Red', false, false),
                 new Theme('purplehaze', 'Purple Haze', false, false),
                 new Theme('teclib', 'Teclib', false, false),

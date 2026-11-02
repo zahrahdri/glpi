@@ -32,88 +32,124 @@
 
 {% extends 'layout/page_card_notlogged.html.twig' %}
 
+{% block page_block %}
+    <main id="page" class="page-anonymous login-page" role="main" tabindex="-1">
+        <section class="login-brand" aria-hidden="true">
+            <div class="login-brand-inner">
+                <span class="login-brand-logo"></span>
+                <div class="login-brand-text">
+                    <h1>{{ __('IT and service management, in one place') }}</h1>
+                    <p>{{ __('Track assets, handle requests and keep your teams informed.') }}</p>
+                </div>
+                <ul class="login-brand-features">
+                    <li><i class="ti ti-headset"></i>{{ __('Assistance') }}</li>
+                    <li><i class="ti ti-package"></i>{{ __('Assets') }}</li>
+                    <li><i class="ti ti-layout-dashboard"></i>{{ __('Dashboard') }}</li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="login-panel">
+            <div class="login-panel-inner">
+                <span class="glpi-logo login-panel-logo" title="GLPI"></span>
+                {{ block('content_block') }}
+                <div class="login-footer text-muted">
+                    {{ block('footer_block') }}
+                    <a href="{{ help_url() }}" class="login-help">
+                        <i class="ti ti-help" aria-hidden="true"></i>
+                        {{ __('Help') }}
+                    </a>
+                </div>
+            </div>
+        </section>
+    </main>
+{% endblock %}
+
 {% block content_block %}
-    <form action="{{ path('front/login.php') }}" method="post" data-submit-once>
+    <form action="{{ path('front/login.php') }}" method="post" data-submit-once class="login-form">
         <input type="hidden" name="noAUTO" value="{{ noAuto }}"/>
         <input type="hidden" name="redirect" value="{{ redirect }}"/>
+
+        <div class="login-heading">
+            <h2>{{ __('Login to your account') }}</h2>
+        </div>
+
         {% if text_login|length > 0 %}
-            <div class="rich_text_container text-center">
+            <div class="rich_text_container login-text mb-4">
                 {{ text_login|safe_html }}
             </div>
         {% endif %}
-        <div class="row justify-content-center">
-            <div class="col-md-5">
-                <div class="card-header mb-4">
-                    <h2 class="mx-auto">{{ __('Login to your account') }}</h2>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="login_name">{{ __('Login') }}</label>
-                    <input type="text" class="form-control" id="login_name" name="login_name" placeholder="" autocomplete="username"/>
-                </div>
-                <div class="mb-4">
-                    <div class="d-flex">
-                        <label class="form-label" for="login_password">
-                            {{ __('Password') }}
-                        </label>
-                    </div>
-                    <input type="password" class="form-control" id="login_password" name="login_password" placeholder="" autocomplete="current-password"/>
-                </div>
 
-                {% if config('display_login_source') %}
-                    <div class="mb-3">
-                        <label class="form-label" for="dropdown_auth{{ rand }}">{{ __('Login source') }}</label>
-                        {{ auth_dropdown_login|raw }}
-                    </div>
-                {% endif %}
-
-                {% if config('login_remember_time') %}
-                    <div class="mb-2">
-                        <label class="form-check" for="login_remember">
-                            <input type="checkbox" class="form-check-input" id="login_remember" name="login_remember" {{ config('login_remember_default') ? 'checked' : '' }}/>
-                            <span class="form-check-label">{{ __('Remember me') }}</span>
-                        </label>
-                    </div>
-                {% endif %}
-
-                <div class="form-footer">
-                    <button type="submit" name="submit" class="btn btn-primary w-100 mb-2">
-                        {{ __('Sign in') }}
-                    </button>
-                    {% if show_lost_password %}
-                        <div class="ms-auto text-center forgot_password {{ config('display_login_source') ? 'd-none' : '' }}">
-                            <a href="{{ path('front/lostpassword.php?lostpassword=1') }}">
-                                {{ __('Forgotten password?') }}
-                            </a>
-                        </div>
-                        {% if config('display_login_source') %}
-                            <script>
-                                $(() => {
-                                    if ($('select[name="auth"]').val() === 'local') {
-                                        $('.forgot_password').removeClass('d-none');
-                                    }
-                                    $('select[name="auth"]').on('change', function () {
-                                        if ($(this).val() === 'local') {
-                                            $('.forgot_password').removeClass('d-none');
-                                        } else {
-                                            $('.forgot_password').addClass('d-none');
-                                        }
-                                    });
-                                });
-                            </script>
-                        {% endif %}
-                    {% endif %}
-                </div>
+        <div class="mb-3">
+            <label class="form-label" for="login_name">{{ __('Login') }}</label>
+            <div class="input-icon">
+                <span class="input-icon-addon"><i class="ti ti-user" aria-hidden="true"></i></span>
+                <input type="text" class="form-control form-control-lg" id="login_name" name="login_name" placeholder="" autocomplete="username"/>
             </div>
-
-            {% if right_panel %}
-                <div class="col-auto px-2 text-center">
-                    {{ call_plugin_hook(constant('Glpi\\Plugin\\Hooks::DISPLAY_LOGIN')) }}
-                </div>
-            {% endif %}
         </div>
+        <div class="mb-3">
+            <div class="d-flex align-items-center">
+                <label class="form-label" for="login_password">{{ __('Password') }}</label>
+                {% if show_lost_password %}
+                    <span class="ms-auto form-label-description forgot_password {{ config('display_login_source') ? 'd-none' : '' }}">
+                        <a href="{{ path('front/lostpassword.php?lostpassword=1') }}">{{ __('Forgotten password?') }}</a>
+                    </span>
+                {% endif %}
+            </div>
+            <div class="input-icon">
+                <span class="input-icon-addon"><i class="ti ti-lock" aria-hidden="true"></i></span>
+                <input type="password" class="form-control form-control-lg" id="login_password" name="login_password" placeholder="" autocomplete="current-password"/>
+            </div>
+        </div>
+
+        {% if config('display_login_source') %}
+            <div class="mb-3">
+                <label class="form-label" for="dropdown_auth{{ rand }}">{{ __('Login source') }}</label>
+                {{ auth_dropdown_login|raw }}
+            </div>
+        {% endif %}
+
+        {% if config('login_remember_time') %}
+            <div class="mb-3">
+                <label class="form-check" for="login_remember">
+                    <input type="checkbox" class="form-check-input" id="login_remember" name="login_remember" {{ config('login_remember_default') ? 'checked' : '' }}/>
+                    <span class="form-check-label">{{ __('Remember me') }}</span>
+                </label>
+            </div>
+        {% endif %}
+
+        <div class="form-footer mt-4">
+            <button type="submit" name="submit" class="btn btn-primary btn-lg w-100">
+                {{ __('Sign in') }}
+            </button>
+        </div>
+
+        {% if show_lost_password and config('display_login_source') %}
+            <script>
+                $(() => {
+                    if ($('select[name="auth"]').val() === 'local') {
+                        $('.forgot_password').removeClass('d-none');
+                    }
+                    $('select[name="auth"]').on('change', function () {
+                        if ($(this).val() === 'local') {
+                            $('.forgot_password').removeClass('d-none');
+                        } else {
+                            $('.forgot_password').addClass('d-none');
+                        }
+                    });
+                });
+            </script>
+        {% endif %}
+
+        {% if right_panel %}
+            <div class="login-plugins mt-4 text-center">
+                {{ call_plugin_hook(constant('Glpi\\Plugin\\Hooks::DISPLAY_LOGIN')) }}
+            </div>
+        {% endif %}
+
         {% if config('use_public_faq') %}
-            <div class="text-center mt-4 border-top">
-                <a class="btn btn-outline-secondary mt-4" href="{{ path('front/helpdesk.faq.php') }}">
+            <div class="login-faq text-center mt-4 pt-4">
+                <a class="btn btn-outline-secondary w-100" href="{{ path('front/helpdesk.faq.php') }}">
                     <i class="ti ti-help" aria-hidden="true"></i>&nbsp;
                     {{ __('FAQ') }}
                 </a>
@@ -123,7 +159,7 @@
 {% endblock %}
 
 {% block footer_block %}
-    {{ copyright_message|raw }}
+    <div class="login-copyright">{{ copyright_message|raw }}</div>
 
     {% if must_call_cron %}
         <div style="background-image: url('{{ path('/front/cron.php') }}');"></div>

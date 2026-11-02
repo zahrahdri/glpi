@@ -70,6 +70,7 @@
    <div class="skip-links">
       <a class="visually-hidden-focusable skip-link" href="#page">{{ __('Go to main content') }}</a>
    </div>
+   {% block page_block %}
    <main id="page" class="page-anonymous" role="main" tabindex="-1">
       <div class="flex-fill d-flex flex-column justify-content-center py-4 mt-4">
          {% set style = null %}
@@ -97,6 +98,7 @@
                   </div>
                </div>
             </main>
+   {% endblock %}
 
             <div class="text-center text-muted mt-3">
                {% block footer_block %}{% endblock %}

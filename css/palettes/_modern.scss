@@ -1,0 +1,188 @@
+/*!
+ * ---------------------------------------------------------------------
+ *
+ * GLPI - Gestionnaire Libre de Parc Informatique
+ *
+ * http://glpi-project.org
+ *
+ * @copyright 2015-2026 Teclib' and contributors.
+ * @copyright 2003-2014 by the INDEPNET Development Team.
+ * @licence   https://www.gnu.org/licenses/gpl-3.0.html
+ *
+ * ---------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of GLPI.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * ---------------------------------------------------------------------
+ */
+
+// "Modern" palette: a clean, light theme with an indigo accent, a deep slate
+// sidebar, softer surfaces, rounder corners and gentle shadows.
+:root[data-glpi-theme="modern"] {
+    // Core colors
+    --tblr-primary-rgb: 79, 70, 229; // #4f46e5
+    --tblr-primary: #4f46e5;
+    --tblr-primary-fg: #fff;
+    --tblr-primary-darken: #4338ca;
+    --tblr-link-color-rgb: 79, 70, 229;
+    --tblr-link-hover-color-rgb: 67, 56, 202;
+    --tblr-body-bg: #f5f6fa;
+    --tblr-body-bg-rgb: 245, 246, 250;
+    --tblr-bg-surface: #fff;
+    --tblr-bg-surface-secondary: #f8f9fc;
+    --tblr-bg-surface-tertiary: #f1f3f8;
+    --tblr-border-color: #e6e8f0;
+    --tblr-border-color-translucent: rgb(15, 23, 42, 8%);
+    --tblr-muted: #64748b;
+    --tblr-secondary: #64748b;
+
+    // Shape
+    --tblr-border-radius: 8px;
+    --tblr-border-radius-sm: 6px;
+    --tblr-border-radius-lg: 12px;
+    --tblr-box-shadow: 0 1px 2px rgb(15, 23, 42, 4%), 0 4px 12px rgb(15, 23, 42, 4%);
+    --tblr-box-shadow-card: 0 1px 2px rgb(15, 23, 42, 4%), 0 4px 12px rgb(15, 23, 42, 4%);
+    --glpi-modern-shadow-lg: 0 10px 30px rgb(15, 23, 42, 8%), 0 2px 6px rgb(15, 23, 42, 4%);
+
+    // Navigation
+    --glpi-mainmenu-bg: #0f172a; // slate-900
+    --glpi-mainmenu-fg: #e2e8f0;
+    --glpi-mainmenu-fg-muted: #94a3b8;
+    --glpi-mainmenu-active-bg: rgb(99, 102, 241, 22%);
+
+    // Tabs
+    --glpi-tabs-bg: transparent;
+    --glpi-tabs-fg: var(--tblr-muted);
+    --glpi-tabs-border-color: transparent;
+    --glpi-tabs-active-bg: var(--tblr-bg-surface);
+    --glpi-tabs-active-fg: var(--tblr-primary);
+    --glpi-tabs-active-border-color: transparent;
+
+    // Forms and badges
+    --glpi-form-header-fg: #4f46e5;
+    --glpi-badge-bg: #eef2ff;
+    --glpi-badge-fg: #4338ca;
+    --glpi-search-bg: #fff;
+
+    // Helpdesk
+    --glpi-helpdesk-header: #e0e7ff;
+    --glpi-helpdesk-tiles-section-bg: #f5f6fa;
+    --glpi-illustrations-gradient-1: hsl(239deg, 84%, 94%);
+    --glpi-illustrations-gradient-2: hsl(239deg, 84%, 78%);
+    --glpi-illustrations-gradient-3: hsl(243deg, 75%, 59%);
+
+    // Swatches shown in the theme picker
+    --glpi-palette-color-1: #0f172a;
+    --glpi-palette-color-2: #f5f6fa;
+    --glpi-palette-color-3: #4f46e5;
+    --glpi-palette-color-4: #22d3ee;
+
+    // ---- Component refinements, limited to this theme ----
+    body {
+        -webkit-font-smoothing: antialiased;
+        letter-spacing: -0.005em;
+    }
+
+    .card {
+        border-color: var(--tblr-border-color);
+        border-radius: var(--tblr-border-radius-lg);
+        box-shadow: var(--tblr-box-shadow-card);
+    }
+
+    .btn {
+        border-radius: var(--tblr-border-radius);
+        font-weight: 500;
+    }
+
+    .btn-primary {
+        box-shadow: 0 1px 2px rgb(79, 70, 229, 25%);
+    }
+
+    .form-control,
+    .form-select,
+    .select2-container--default .select2-selection {
+        border-radius: var(--tblr-border-radius);
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+        border-color: #a5b4fc;
+        box-shadow: 0 0 0 3px rgb(99, 102, 241, 18%);
+    }
+
+    // Sidebar
+    .sidebar.navbar-vertical {
+        border-inline-end: 0;
+
+        .nav-link,
+        .dropdown-item {
+            border-radius: var(--tblr-border-radius);
+        }
+
+        .navbar-nav {
+            padding-inline: 0.5rem;
+        }
+    }
+
+    // Top bar
+    .page > header.navbar,
+    .navbar.header {
+        background: rgb(255, 255, 255, 85%);
+        backdrop-filter: saturate(180%) blur(8px);
+        border-bottom: 1px solid var(--tblr-border-color);
+    }
+
+    // Tabs look like a segmented control
+    .nav-tabs {
+        border-bottom: 0;
+        gap: 0.25rem;
+
+        .nav-link {
+            border: 0;
+            border-radius: var(--tblr-border-radius);
+            font-weight: 500;
+
+            &.active {
+                box-shadow: var(--tblr-box-shadow-card);
+            }
+        }
+    }
+
+    // Home dashboard cards
+    .dashboard {
+        .card {
+            border: 0;
+            border-radius: var(--tblr-border-radius-lg) !important;
+            box-shadow: var(--tblr-box-shadow-card);
+            transition: box-shadow .15s ease, transform .15s ease;
+        }
+
+        .grid-stack-item:hover .card {
+            box-shadow: var(--glpi-modern-shadow-lg);
+        }
+
+        .big-number .formatted-number .number {
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .toolbar .btn {
+            border-radius: var(--tblr-border-radius);
+        }
+    }
+}

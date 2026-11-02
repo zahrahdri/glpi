@@ -36,5 +36,19 @@
 {% set menu = ['central', 'central'] %}
 
 {% block content %}
+    {% set current_user = get_current_user() %}
+    {% set first_name = current_user is not null ? (current_user.fields['firstname']|default('') ?: current_user.getFriendlyName()) : '' %}
+    <div class="central-welcome">
+        <div>
+            <h1 class="central-welcome-title">
+                {% if first_name is not empty %}
+                    {{ __('Welcome back, %s')|format(first_name) }}
+                {% else %}
+                    {{ __('Welcome back') }}
+                {% endif %}
+            </h1>
+            <p class="central-welcome-subtitle">{{ __('Here is an overview of your activity.') }}</p>
+        </div>
+    </div>
     {% do central.display() %}
 {% endblock content %}

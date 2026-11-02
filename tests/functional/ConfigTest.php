@@ -354,6 +354,7 @@ class ConfigTest extends DbTestCase
             'icecream'        => 'Ice Cream',
             'lightblue'       => 'Light Blue',
             'midnight'        => 'Midnight',
+            'modern'          => 'Modern',
             'premiumred'      => 'Premium Red',
             'purplehaze'      => 'Purple Haze',
             'teclib'          => 'Teclib',

@@ -1,0 +1,190 @@
+/*!
+ * ---------------------------------------------------------------------
+ *
+ * GLPI - Gestionnaire Libre de Parc Informatique
+ *
+ * http://glpi-project.org
+ *
+ * @copyright 2015-2026 Teclib' and contributors.
+ * @copyright 2003-2014 by the INDEPNET Development Team.
+ * @licence   https://www.gnu.org/licenses/gpl-3.0.html
+ *
+ * ---------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of GLPI.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * ---------------------------------------------------------------------
+ */
+
+// Split-screen login page: a brand panel colored from the active theme on one
+// side and the sign-in form on the other. On small screens only the form shows.
+.login-page {
+    display: flex;
+    min-height: 100vh;
+    background: var(--tblr-bg-surface);
+
+    .login-brand {
+        position: relative;
+        display: none;
+        flex: 1 1 55%;
+        overflow: hidden;
+        color: #fff;
+        background:
+            radial-gradient(circle at 15% 20%, rgb(var(--tblr-primary-rgb), 55%) 0, transparent 45%),
+            radial-gradient(circle at 85% 85%, rgb(34, 211, 238, 28%) 0, transparent 40%),
+            var(--glpi-mainmenu-bg);
+
+        // Soft grid pattern for depth
+        &::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgb(255, 255, 255, 5%) 1px, transparent 1px),
+                linear-gradient(90deg, rgb(255, 255, 255, 5%) 1px, transparent 1px);
+            background-size: 48px 48px;
+            mask-image: linear-gradient(180deg, #000 0%, transparent 85%);
+        }
+
+        @media (min-width: 992px) {
+            display: flex;
+        }
+    }
+
+    .login-brand-inner {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 3rem;
+        width: 100%;
+        max-width: 38rem;
+        padding: 3.5rem 4rem;
+    }
+
+    .login-brand-logo {
+        display: block;
+        width: 140px;
+        height: 77px;
+        background: var(--glpi-logo-light-login) no-repeat left center / contain;
+    }
+
+    .login-brand-text {
+        h1 {
+            font-size: 2.5rem;
+            line-height: 1.15;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            color: #fff;
+            margin-bottom: 1rem;
+        }
+
+        p {
+            font-size: 1.125rem;
+            color: rgb(255, 255, 255, 72%);
+            margin: 0;
+            max-width: 28rem;
+        }
+    }
+
+    .login-brand-features {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+
+        li {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.9rem;
+            border-radius: 999px;
+            background: rgb(255, 255, 255, 8%);
+            border: 1px solid rgb(255, 255, 255, 12%);
+            font-size: 0.875rem;
+            color: rgb(255, 255, 255, 85%);
+        }
+    }
+
+    .login-panel {
+        display: flex;
+        flex: 1 1 45%;
+        align-items: center;
+        justify-content: center;
+        padding: 2.5rem 1.5rem;
+        background: var(--tblr-bg-surface);
+    }
+
+    .login-panel-inner {
+        width: 100%;
+        max-width: 24rem;
+    }
+
+    .glpi-logo.login-panel-logo {
+        display: block;
+        width: 140px;
+        height: 77px;
+        margin-bottom: 2rem;
+        content: none;
+        background: var(--logo, var(--glpi-logo-dark-login)) no-repeat left center / contain;
+
+        @media (min-width: 992px) {
+            display: none;
+        }
+    }
+
+    .login-heading {
+        margin-bottom: 1.75rem;
+
+        h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin: 0;
+        }
+    }
+
+    .form-control-lg {
+        font-size: 0.95rem;
+    }
+
+    .login-faq {
+        border-top: 1px solid var(--tblr-border-color);
+    }
+
+    .login-footer {
+        margin-top: 2.5rem;
+        font-size: 0.8rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+
+        .login-help {
+            color: var(--tblr-muted);
+        }
+    }
+}
+
+[dir="rtl"] .login-page {
+    .login-brand-logo,
+    .glpi-logo.login-panel-logo {
+        background-position: right center;
+    }
+}

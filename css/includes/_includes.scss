@@ -83,6 +83,8 @@ $is-dark: false !default;
 @import "components/itilobject/status";
 @import "components/setup/dropdowns_list";
 @import "pages/search";
+@import "pages/login";
+@import "pages/central";
 @import "../legacy/includes/inputs";
 @import "../legacy/includes/styles";
 @import "../legacy/includes/impact";

@@ -114,7 +114,7 @@ SCSS,
         $this->login();
         $theme = ThemeManager::getInstance()->getCurrentTheme();
         $this->assertInstanceOf(Theme::class, $theme);
-        $this->assertSame('auror', $theme->getKey());
+        $this->assertSame('modern', $theme->getKey());
     }
 
     public function testGetTheme(): void
