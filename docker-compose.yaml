@@ -3,7 +3,7 @@ services:
     build:
       context: ".docker/app"
       args:
-        PHP_VERSION: "8.4"
+        PHP_VERSION: "8.5"
     restart: "unless-stopped"
     volumes:
       - ".:/var/www/glpi:rw"
