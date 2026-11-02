@@ -7,6 +7,7 @@
 # Plugins shipped with this project
 !/plugins/datainjection/
 !/plugins/order/
+!/plugins/projectreports/
 /files/*/*
 !/files/*/.gitkeep
 /.buildpath

@@ -1,0 +1,629 @@
+{
+ "version": 1,
+ "forms": [
+  {
+   "id": 3006,
+   "uuid": "01a62691-272b-40ed-8994-f37ab6405736",
+   "name": "Capacity request: Modernization",
+   "header": "<p>Request the <b>replacement or upgrade</b> of an existing device. Have the device hostname and a migration plan ready.</p>",
+   "description": "<p>Replace or upgrade an existing server, storage or network device.</p>",
+   "entity_name": "Root Entity",
+   "is_recursive": true,
+   "is_active": true,
+   "render_layout": "step_by_step",
+   "submit_button_visibility_strategy": "always_visible",
+   "illustration": "asset-server",
+   "submit_button_conditions": [],
+   "sections": [
+    {
+     "id": 3006,
+     "uuid": "9a1080e3-e1dd-4bfa-9bf6-0833cbd0b307",
+     "name": "About the request",
+     "description": "<p>Tell us who is asking and what kind of request this is.</p>",
+     "rank": 0,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
+     "id": 3007,
+     "uuid": "61721d7f-2ca0-42dc-8f78-79ab6da1987d",
+     "name": "Project & timeline",
+     "description": "<p>Which project is this for, how urgent is it, and where should it run?</p>",
+     "rank": 1,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
+     "id": 3012,
+     "uuid": "ed596b21-9603-4345-be32-6b23d7a2c09b",
+     "name": "Device to modernize",
+     "description": "<p>Which device is being replaced or upgraded, and how will you migrate?</p>",
+     "rank": 2,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
+     "id": 3014,
+     "uuid": "7173a2ca-7a5e-476c-9afb-63a3060d7832",
+     "name": "Justification & cost",
+     "description": "<p>This is what the approving manager reads first. Be specific: numbers convince faster than adjectives.</p>",
+     "rank": 3,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
+     "id": 3015,
+     "uuid": "1a1d925e-565d-48bc-bbaf-4a6cbcb70bfc",
+     "name": "Approval",
+     "description": "<p>Choose who approves this request.</p>",
+     "rank": 4,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    }
+   ],
+   "comments": [
+    {
+     "id": 3002,
+     "uuid": "b01c4155-ddab-4378-90db-aac6619e8350",
+     "name": "What happens next",
+     "description": "<ol><li>Your manager approves or refuses the request in GLPI.</li><li>The capacity team checks free capacity and, if needed, prepares a BOQ against the project budget.</li><li>Resources are delivered and the ticket is solved. You follow every step in the ticket.</li></ol>",
+     "vertical_rank": 1,
+     "horizontal_rank": null,
+     "section_id": 3015,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    }
+   ],
+   "questions": [
+    {
+     "id": 3086,
+     "uuid": "190300bf-4974-4c47-95a5-43e03f3508f9",
+     "name": "Requester department",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeRadio",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "dept1": "ITS",
+       "dept2": "Non-ITS"
+      }
+     },
+     "section_id": 3006,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3087,
+     "uuid": "ad32473b-162f-4b6d-ba61-3543d3b1f925",
+     "name": "Requesting team",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeShortText",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "<p>Your team becomes the ticket&#039;s requester group, so the request is counted for it in the reports.</p>",
+     "default_value": null,
+     "extra_data": null,
+     "section_id": 3006,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3088,
+     "uuid": "f4012e5b-068c-4101-9077-ab384fc59d9e",
+     "name": "Request type",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeRadio",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": null,
+     "description": "<p>This form is for <b>Modernization</b> requests. For another type, use its own form in the service catalog.</p>",
+     "default_value": "type3",
+     "extra_data": {
+      "options": {
+       "type3": "Modernization"
+      }
+     },
+     "section_id": 3006,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3089,
+     "uuid": "e8d18df6-c81e-4669-ae6f-608fc0bd69b3",
+     "name": "Project",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeItem",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": null,
+     "description": "<p>Only projects you are a member of are listed. If yours is missing, ask the project manager to add you to the project team.</p>",
+     "default_value": {
+      "items_id": 0
+     },
+     "extra_data": {
+      "itemtype": "Project",
+      "root_items_id": 0,
+      "subtree_depth": 0,
+      "selectable_tree_root": false
+     },
+     "section_id": 3007,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3091,
+     "uuid": "fab09f41-32d6-4c56-bfb4-cd2d6d633dca",
+     "name": "Priority",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeUrgency",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "<p>How urgently the resources are needed. This sets the ticket&#039;s urgency and priority.</p>",
+     "default_value": 3,
+     "extra_data": null,
+     "section_id": 3007,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3092,
+     "uuid": "2241b70f-a5fc-4ea7-b8e2-a8ddc48edc14",
+     "name": "Project phase",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "phase1": "POC",
+       "phase2": "UAT / IAT",
+       "phase3": "Production",
+       "phase4": "DR"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 3007,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3093,
+     "uuid": "ac48a1e0-b7da-46b0-a422-538be63811a5",
+     "name": "Required by (go-live date)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDateTime",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "is_default_value_current_time": 0,
+      "is_date_enabled": 1,
+      "is_time_enabled": 0
+     },
+     "section_id": 3007,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3094,
+     "uuid": "b3122e3f-ca67-4331-b040-fdff42049cc4",
+     "name": "Site",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "site1": "T1",
+       "site2": "T2",
+       "site3": "T3",
+       "site4": "Karaj",
+       "site5": "Ahvaz",
+       "site6": "Shiraz",
+       "site7": "Mashhad",
+       "site8": "Esfahan",
+       "site9": "Tabriz"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 3007,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3125,
+     "uuid": "ecc5056a-5be1-4209-b10f-c066f7f0d250",
+     "name": "Device type",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "md1": "Server",
+       "md2": "Storage",
+       "md3": "Network device"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 3012,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3126,
+     "uuid": "26c8bef3-7a87-4d5a-8305-fda96649500f",
+     "name": "Device hostname",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeShortText",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 3012,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3127,
+     "uuid": "d7b3723f-e1c9-4bce-8227-954cb88e700f",
+     "name": "Rack location",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeShortText",
+     "is_mandatory": false,
+     "vertical_rank": 0,
+     "horizontal_rank": 2,
+     "description": "<p>For example: T1 / Hall A / Rack A05 / U30.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 3012,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3128,
+     "uuid": "f5ab065d-4f81-4f97-996b-f903eb57db04",
+     "name": "What should change?",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
+     "is_mandatory": false,
+     "vertical_rank": 1,
+     "horizontal_rank": null,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 3012,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3129,
+     "uuid": "a5333f69-0890-44fb-9ef4-47e2224c6304",
+     "name": "Migration plan",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeFile",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": null,
+     "description": "<p>Attach the migration plan (steps, downtime window, rollback).</p>",
+     "default_value": null,
+     "extra_data": null,
+     "section_id": 3012,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3136,
+     "uuid": "98ceed38-087a-4520-bd7f-5408b55d75a2",
+     "name": "Business justification",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": null,
+     "description": "<p>Why the project needs this now, and what it enables.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 3014,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3137,
+     "uuid": "ad30c5a6-b02b-48d1-9625-711be44ff50e",
+     "name": "Sizing / calculation evidence",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": null,
+     "description": "<p>How you sized it: users, transactions per second, data growth, current utilization.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 3014,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3138,
+     "uuid": "e0626cf4-4799-47ff-aef1-2065c7036b1a",
+     "name": "Impact if delayed or denied",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": false,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "imp1": "Low: workaround available",
+       "imp2": "Medium: project slips",
+       "imp3": "High: service degraded",
+       "imp4": "Critical: revenue or regulatory risk"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 3014,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3139,
+     "uuid": "fc06c48c-0fd3-4d27-93b8-6cf29c4ed6c5",
+     "name": "Estimated cost (Rial)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": false,
+     "vertical_rank": 2,
+     "horizontal_rank": 1,
+     "description": "<p>Leave empty if you do not know. The capacity team prices it from the BOQ.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 3014,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3140,
+     "uuid": "eec68189-0c4b-48bb-a802-d380c7411d65",
+     "name": "Related ticket or reference",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeShortText",
+     "is_mandatory": false,
+     "vertical_rank": 2,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 3014,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3142,
+     "uuid": "0f09055f-98d4-4e2a-a8e4-2c643b7e9a19",
+     "name": "Approving manager",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeObserver",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": null,
+     "description": "<p>The manager receives an approval request in GLPI. Work starts only after approval.</p>",
+     "default_value": {
+      "users_ids": [],
+      "groups_ids": [],
+      "suppliers_ids": []
+     },
+     "extra_data": {
+      "is_multiple_actors": false,
+      "enabled_types": [
+       "User"
+      ]
+     },
+     "section_id": 3015,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    }
+   ],
+   "policies": [
+    {
+     "strategy": "Glpi\\Form\\AccessControl\\ControlType\\AllowList",
+     "config": {
+      "user_ids": [
+       "all",
+       "admin",
+       "user"
+      ],
+      "group_ids": [],
+      "profile_ids": []
+     },
+     "is_active": true
+    },
+    {
+     "strategy": "Glpi\\Form\\AccessControl\\ControlType\\DirectAccess",
+     "config": {
+      "token": "h3OwOxUUtpEvlXfGSEEz2XNWHWVBbl1AX3QM9Ios",
+      "allow_unauthenticated": false
+     },
+     "is_active": false
+    }
+   ],
+   "destinations": [
+    {
+     "id": 3010,
+     "itemtype": "Glpi\\Form\\Destination\\FormDestinationTicket",
+     "name": "Ticket",
+     "config": {
+      "glpi-form-destination-commonitilfield-titlefield": {
+       "value": "Capacity request: Modernization"
+      },
+      "glpi-form-destination-commonitilfield-contentfield_auto": "1",
+      "glpi-form-destination-commonitilfield-itilfollowupfield": {
+       "strategy": "no_followup"
+      },
+      "glpi-form-destination-commonitilfield-itiltaskfield": {
+       "strategy": "no_task"
+      },
+      "glpi-form-destination-commonitilfield-validationfield": {
+       "strategy_configs": [
+        {
+         "strategy": "specific_answers",
+         "specific_validationtemplates_ids": [],
+         "specific_question_ids": [
+          3142
+         ],
+         "specific_actors": [],
+         "specific_validation_step_id": null
+        }
+       ]
+      },
+      "glpi-form-destination-commonitilfield-templatefield": {
+       "strategy": "default_template"
+      },
+      "glpi-form-destination-commonitilfield-entityfield": {
+       "strategy": "form_filler"
+      },
+      "glpi-form-destination-commonitilfield-requesttypefield": {
+       "strategy": "last_valid_answer"
+      },
+      "glpi-form-destination-commonitilfield-itilcategoryfield": {
+       "strategy": "last_valid_answer"
+      },
+      "glpi-form-destination-commonitilfield-statusfield": {
+       "value": "default_status"
+      },
+      "glpi-form-destination-commonitilfield-requestsourcefield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-urgencyfield": {
+       "strategy": "last_valid_answer"
+      },
+      "glpi-form-destination-commonitilfield-locationfield": {
+       "strategy": "last_valid_answer"
+      },
+      "glpi-form-destination-commonitilfield-requesterfield": {
+       "strategies": [
+        "form_filler",
+        "specific_answer"
+       ],
+       "specific_itilactors_ids": null,
+       "specific_question_ids": [
+        3087
+       ]
+      },
+      "glpi-form-destination-commonitilfield-observerfield": {
+       "strategies": [
+        "form_filler"
+       ],
+       "specific_itilactors_ids": null,
+       "specific_question_ids": null
+      },
+      "glpi-form-destination-commonitilfield-assigneefield": {
+       "strategies": [
+        "form_filler_supervisor",
+        "specific_values"
+       ],
+       "specific_itilactors_ids": {
+        "User": [
+         "admin"
+        ]
+       },
+       "specific_question_ids": null
+      },
+      "glpi-form-destination-commonitilfield-slattofield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-slattrfield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-olattofield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-olattrfield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-associateditemsfield": {
+       "strategies": [
+        "last_valid_answer"
+       ],
+       "specific_question_ids": null
+      },
+      "glpi-form-destination-commonitilfield-linkeditilobjectsfield": {
+       "strategy_configs": [
+        {
+         "strategy": null,
+         "linktype": "1",
+         "specific_destination_ids": [],
+         "specific_question_ids": [],
+         "specific_itilobject": []
+        }
+       ]
+      }
+     },
+     "creation_strategy": "always_created",
+     "conditions": []
+    }
+   ],
+   "translations": [],
+   "data_requirements": [
+    {
+     "itemtype": "Entity",
+     "name": "Root Entity"
+    },
+    {
+     "itemtype": "User",
+     "name": "admin"
+    },
+    {
+     "itemtype": "User",
+     "name": "user"
+    },
+    {
+     "itemtype": "User",
+     "name": "admin"
+    }
+   ],
+   "custom_types_requirements": [],
+   "plugin_requirements": []
+  }
+ ]
+}

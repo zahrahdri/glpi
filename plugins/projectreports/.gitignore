@@ -1,0 +1,5 @@
+*.tar.bz2
+*.zip
+.DS_Store
+.idea/
+.vscode/
