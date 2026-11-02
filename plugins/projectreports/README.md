@@ -171,7 +171,11 @@ Everything is named DEMO and `--remove` deletes exactly that (your own kits and 
 
 ## Extras
 
-- `extras/forms/capacity-request-1-new-project.json` … `-4-release.json`: the capacity request, one form per request type (import all four)
+- `extras/forms/capacity-request-1-new-project.json` … `-4-release.json`: the capacity request, one form per request type
+  (New project, Expansion, Modernization, Release resources). **Installing or updating the plugin imports them into
+  Administration › Forms automatically.** A form whose name already exists in GLPI is skipped, so nothing is
+  duplicated or overwritten. Users named in the forms (e.g. `admin` as default assignee) are matched by login; a login
+  that does not exist is replaced by the user who installs the plugin.
 - `extras/forms/project-based-capacity-planning-request-v2.json`: the earlier single form (all four types in one)
   (Administration › Forms › Import). Import creates a new form; deactivate the old one afterwards.
 - `public/templates/BOQ_MODEL.csv`: the template for standard kit files (Part Number, Qty, …).

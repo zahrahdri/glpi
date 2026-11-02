@@ -18,6 +18,7 @@ function plugin_projectreports_install()
     PluginProjectreportsPlan::install(); // 1.22.13: LOM plans checked against budgets
     PluginProjectreportsDemand::install(); // 1.22.16: approved requests linked to a budget
     $migration->executeMigration();
+    PluginProjectreportsForms::install(); // 1.23.0: capacity request forms in Administration › Forms
     PluginProjectreportsDashboard::removeAll(); // 1.18.1: no more dashboards or widgets
     return true;
 }
