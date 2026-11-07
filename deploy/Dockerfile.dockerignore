@@ -1,0 +1,17 @@
+# Used only by deploy/Dockerfile (BuildKit reads <Dockerfile>.dockerignore).
+.git
+node_modules
+vendor
+public/build
+public/lib
+config/*
+!config/.gitkeep
+files
+marketplace/*
+tests
+.docker
+.devcontainer
+*.log
+.composer.hash
+.package.hash
+locales/*.mo

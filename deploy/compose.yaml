@@ -1,0 +1,57 @@
+# GLPI with the capacity planning plugins, ready to run:
+#   cp deploy/.env.example deploy/.env      (then set the passwords)
+#   docker compose -f deploy/compose.yaml up -d --build
+# Then open http://localhost:8080  (login glpi / glpi, change it straight away)
+name: glpi-capacity
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        PHP_VERSION: "8.5"
+    image: glpi-capacity:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${GLPI_PORT:-8080}:80"
+    environment:
+      GLPI_DB_HOST: db
+      GLPI_DB_NAME: ${DB_NAME:-glpi}
+      GLPI_DB_USER: ${DB_USER:-glpi}
+      GLPI_DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in deploy/.env}
+      GLPI_LANGUAGE: ${GLPI_LANGUAGE:-en_GB}
+      GLPI_DEMO_DATA: ${GLPI_DEMO_DATA:-0}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - glpi_config:/var/glpi/config
+      - glpi_files:/var/glpi/files
+      - glpi_marketplace:/var/www/glpi/marketplace
+
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${DB_NAME:-glpi}
+      MARIADB_USER: ${DB_USER:-glpi}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in deploy/.env}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in deploy/.env}
+      TZ: ${TZ:-UTC}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+
+volumes:
+  glpi_config:
+  glpi_files:
+  glpi_marketplace:
+  db_data:
