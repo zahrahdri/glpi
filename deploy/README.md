@@ -23,6 +23,25 @@ enables the three plugins and imports the four capacity request forms into Admin
 Set `GLPI_DEMO_DATA=1` in `deploy/.env` before the first start to load sample projects, budgets, orders and racks for
 Tools › Project reports. Everything it creates is named `DEMO`.
 
+## Moving an existing GLPI to this setup
+
+If GLPI already runs in Docker with its whole folder in one volume (for example containers `glpi-app` and `glpi-db`,
+GLPI in `/var/www/html/glpi`), keep its data with:
+
+```bash
+bash deploy/migrate-from-glpi-docker.sh
+```
+
+It builds the new image, stops the old containers (it does not delete them), backs up the old database, settings,
+documents and plugins to `backups/<date>/`, copies them into the new setup and upgrades that copy (GLPI 11 → 12 and
+the three plugins). Log in afterwards with your usual account. The old volumes are only read, so going back is:
+
+```bash
+docker compose -f deploy/compose.yaml stop && docker start glpi-db glpi-app
+```
+
+Other container names or paths: `OLD_APP=… OLD_DB=… OLD_GLPI_PATH=… bash deploy/migrate-from-glpi-docker.sh`.
+
 ## Everyday commands
 
 | What | Command (from the repository root) |
