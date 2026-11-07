@@ -6,7 +6,8 @@
 ARG PHP_VERSION=8.5
 
 # ---- 1. JavaScript/CSS libraries (public/lib, public/build) ----
-FROM node:24-bookworm-slim AS assets
+# Full image (not -slim): it has git, python3, make and a compiler, which some npm install scripts call.
+FROM node:24-bookworm AS assets
 WORKDIR /src
 # .npmrc matters: it allows a known peer-dependency mismatch (legacy-peer-deps); without it npm ci stops with ERESOLVE.
 COPY package.json package-lock.json .npmrc ./
