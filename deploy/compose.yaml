@@ -12,6 +12,7 @@ services:
       args:
         PHP_VERSION: "8.5"
     image: glpi-capacity:latest
+    pull_policy: build   # always built here, never downloaded
     restart: unless-stopped
     depends_on:
       db:
