@@ -12,7 +12,10 @@ WORKDIR /src
 # .npmrc matters: it allows a known peer-dependency mismatch (legacy-peer-deps); without it npm ci stops with ERESOLVE.
 COPY package.json package-lock.json .npmrc ./
 COPY tools/patches/npm tools/patches/npm
-RUN npm ci --no-audit --no-fund
+# On failure, print npm's own log so the build output shows the real cause (not just the exit code).
+RUN npm ci --no-audit --no-fund --foreground-scripts \
+    || { code=$?; echo "===== npm failed (exit $code); end of npm's log:"; tail -n 60 /root/.npm/_logs/*-debug-0.log 2>/dev/null; \
+         echo "===== node $(node -v), npm $(npm -v), $(uname -m)"; exit $code; }
 COPY . .
 RUN npm run build:pack && npm run build:vue
 
