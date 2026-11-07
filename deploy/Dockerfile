@@ -28,8 +28,19 @@ FROM php:${PHP_VERSION}-apache
 COPY --from=mlocati/php-extension-installer:2 /usr/bin/install-php-extensions /usr/local/bin/
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 
+# Debian packages over HTTPS (some networks block plain HTTP to deb.debian.org). DEBIAN_MIRROR replaces
+# deb.debian.org for the main packages (<mirror>/debian); security updates stay on deb.debian.org, over HTTPS.
+ARG DEBIAN_MIRROR=https://deb.debian.org
 RUN set -eux; \
-    apt-get update; \
+    for f in /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list; do \
+        [ -f "$f" ] || continue; \
+        sed -i -E 's#http://(deb|security)\.debian\.org#https://\1.debian.org#g' "$f"; \
+        sed -i -E "s#https://deb\.debian\.org/debian([[:space:]]|\$)#${DEBIAN_MIRROR%/}/debian\1#g" "$f"; \
+    done; \
+    grep -rh '^URIs:\|^deb ' /etc/apt/sources.list.d/ /etc/apt/sources.list 2>/dev/null || true
+
+RUN set -eux; \
+    apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update; \
     apt-get install -y --no-install-recommends gettext git patch unzip; \
     install-php-extensions bcmath bz2 exif gd intl ldap mysqli zip; \
     rm -rf /var/lib/apt/lists/*; \

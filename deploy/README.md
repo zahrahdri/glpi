@@ -66,6 +66,13 @@ docker run --rm -v glpi-capacity_glpi_config:/data -v "$PWD":/backup alpine tar 
 
 Keep `glpi-config.tgz` with the database dump: it holds the key GLPI uses to encrypt stored passwords.
 
+## If the build fails
+
+- **Hangs on `apt-get update`, then `Connection failed` for deb.debian.org**: your network can't reach Debian's
+  package server. The build already uses HTTPS; if it still fails, set `DEBIAN_MIRROR` in `deploy/.env` to a
+  Debian mirror you can reach (one that has `/debian`), then build again with `--build`.
+- **`pull access denied for glpi-capacity`**: harmless with older files; this image is built locally, never downloaded.
+
 ## Files
 
 - `Dockerfile` builds the image (JavaScript libraries in a Node stage, then PHP + Apache).
