@@ -8,7 +8,8 @@ ARG PHP_VERSION=8.5
 # ---- 1. JavaScript/CSS libraries (public/lib, public/build) ----
 FROM node:24-bookworm-slim AS assets
 WORKDIR /src
-COPY package.json package-lock.json ./
+# .npmrc matters: it allows a known peer-dependency mismatch (legacy-peer-deps); without it npm ci stops with ERESOLVE.
+COPY package.json package-lock.json .npmrc ./
 COPY tools/patches/npm tools/patches/npm
 RUN npm ci --no-audit --no-fund
 COPY . .
@@ -22,7 +23,7 @@ COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends gettext patch unzip; \
+    apt-get install -y --no-install-recommends gettext git patch unzip; \
     install-php-extensions bcmath bz2 exif gd intl ldap mysqli zip; \
     rm -rf /var/lib/apt/lists/*; \
     a2enmod rewrite headers
