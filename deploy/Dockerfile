@@ -12,8 +12,11 @@ WORKDIR /src
 # .npmrc matters: it allows a known peer-dependency mismatch (legacy-peer-deps); without it npm ci stops with ERESOLVE.
 COPY package.json package-lock.json .npmrc ./
 COPY tools/patches/npm tools/patches/npm
-# On failure, print npm's own log so the build output shows the real cause (not just the exit code).
-RUN npm ci --no-audit --no-fund --foreground-scripts \
+# --ignore-scripts: npm would otherwise run package.json's "dependencies" script, which calls PHP (not in this stage)
+# to write .package.hash; that file is written in the PHP stage below. The only script the build needs is
+# patch-package (GLPI's fix for gettext.js), run by hand. On failure, npm's own log is printed.
+RUN { npm ci --no-audit --no-fund --ignore-scripts \
+      && node node_modules/patch-package/index.js --patch-dir tools/patches/npm; } \
     || { code=$?; echo "===== npm failed (exit $code); end of npm's log:"; tail -n 60 /root/.npm/_logs/*-debug-0.log 2>/dev/null; \
          echo "===== node $(node -v), npm $(npm -v), $(uname -m)"; exit $code; }
 COPY . .
