@@ -23,6 +23,19 @@ enables the three plugins and imports the four capacity request forms into Admin
 Set `GLPI_DEMO_DATA=1` in `deploy/.env` before the first start to load sample projects, budgets, orders and racks for
 Tools › Project reports. Everything it creates is named `DEMO`.
 
+## Using a ready-made image instead of building
+
+If you were given the image file (`glpi-capacity-image.tar.gz`), nothing has to be built or downloaded except MariaDB:
+
+```bash
+docker load -i glpi-capacity-image.tar.gz
+cp deploy/.env.example deploy/.env      # then set the two passwords
+docker compose -f deploy/compose.image.yaml up -d
+```
+
+That image runs PHP 8.3 on Ubuntu 24.04 (GLPI supports 8.3 to 8.5) and is built for Intel/AMD (`amd64`); on an Apple
+Silicon Mac, Docker Desktop runs it through Rosetta. It uses the same volumes as `compose.yaml`.
+
 ## Moving an existing GLPI to this setup
 
 If GLPI already runs in Docker with its whole folder in one volume (for example containers `glpi-app` and `glpi-db`,
