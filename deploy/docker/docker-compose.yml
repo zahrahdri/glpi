@@ -1,17 +1,22 @@
+# GLPI 11.0.11 (new login page) using your EXISTING database.
+# No database container is created; GLPI connects to the database
+# configured in your existing config/config_db.php.
+
 services:
   glpi:
     build: .
     image: glpi-custom:11.0.11
     container_name: glpi
     restart: unless-stopped
-    depends_on:
-      - db
     ports:
-      - "8080:80"
+      - "${GLPI_PORT:-8080}:80"
+    extra_hosts:
+      # lets the container reach a database running on this server
+      - "host.docker.internal:host-gateway"
     volumes:
-      - glpi_config:/var/www/glpi/config
-      - glpi_files:/var/www/glpi/files
-      - glpi_marketplace:/var/www/glpi/marketplace
+      - ${GLPI_CONFIG_DIR}:/var/www/glpi/config
+      - ${GLPI_FILES_DIR}:/var/www/glpi/files
+      - ${GLPI_MARKETPLACE_DIR}:/var/www/glpi/marketplace
 
   # Runs GLPI automatic actions (notifications, cleanup...) every minute
   glpi-cron:
@@ -22,25 +27,9 @@ services:
       - glpi
     user: www-data
     entrypoint: ["sh", "-c", "while true; do php /var/www/glpi/front/cron.php; sleep 60; done"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
-      - glpi_config:/var/www/glpi/config
-      - glpi_files:/var/www/glpi/files
-      - glpi_marketplace:/var/www/glpi/marketplace
-
-  db:
-    image: mariadb:11.4
-    container_name: glpi-db
-    restart: unless-stopped
-    environment:
-      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-change-me-root}
-      MARIADB_DATABASE: glpi
-      MARIADB_USER: glpi
-      MARIADB_PASSWORD: ${DB_PASSWORD:-change-me}
-    volumes:
-      - glpi_db:/var/lib/mysql
-
-volumes:
-  glpi_config:
-  glpi_files:
-  glpi_marketplace:
-  glpi_db:
+      - ${GLPI_CONFIG_DIR}:/var/www/glpi/config
+      - ${GLPI_FILES_DIR}:/var/www/glpi/files
+      - ${GLPI_MARKETPLACE_DIR}:/var/www/glpi/marketplace
