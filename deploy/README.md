@@ -33,7 +33,7 @@ cp deploy/.env.example deploy/.env      # then set the two passwords
 docker compose -f deploy/compose.image.yaml up -d
 ```
 
-That image runs PHP 8.4.27 (compiled from the official php-8.4.27 source) on Ubuntu 24.04 and is built for Intel/AMD (`amd64`); on an Apple
+That image runs Apache 2.4.69 and PHP 8.4.27 (both compiled from their official source releases) on Ubuntu 24.04 and is built for Intel/AMD (`amd64`); on an Apple
 Silicon Mac, Docker Desktop runs it through Rosetta. It uses the same volumes as `compose.yaml`.
 
 ## Moving an existing GLPI to this setup
