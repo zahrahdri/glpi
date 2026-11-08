@@ -3,7 +3,7 @@
 # Self-contained GLPI image: code, PHP/JS dependencies, compiled translations and the plugins in plugins/.
 # Built from the repository root:  docker compose -f deploy/compose.yaml build   (see deploy/README.md)
 
-ARG PHP_VERSION=8.5
+ARG PHP_VERSION=8.4.27
 
 # ---- 1. JavaScript/CSS libraries (public/lib, public/build) ----
 # Full image (not -slim): it has git, python3, make and a compiler, which some npm install scripts call.

@@ -1,6 +1,6 @@
 # Run GLPI with Docker Compose
 
-A self-contained setup: one image with GLPI 12, PHP 8.5, Apache and the plugins in `plugins/`
+A self-contained setup: one image with GLPI 12, PHP 8.4.27, Apache and the plugins in `plugins/`
 (Data injection, Orders, Project reports), plus a MariaDB 11.4 database.
 Works on Mac (Apple Silicon and Intel), Linux and Windows with Docker Desktop.
 
@@ -33,7 +33,7 @@ cp deploy/.env.example deploy/.env      # then set the two passwords
 docker compose -f deploy/compose.image.yaml up -d
 ```
 
-That image runs PHP 8.3 on Ubuntu 24.04 (GLPI supports 8.3 to 8.5) and is built for Intel/AMD (`amd64`); on an Apple
+That image runs PHP 8.4.27 (compiled from the official php-8.4.27 source) on Ubuntu 24.04 and is built for Intel/AMD (`amd64`); on an Apple
 Silicon Mac, Docker Desktop runs it through Rosetta. It uses the same volumes as `compose.yaml`.
 
 ## Moving an existing GLPI to this setup

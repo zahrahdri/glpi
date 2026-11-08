@@ -10,7 +10,7 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
       args:
-        PHP_VERSION: "8.5"
+        PHP_VERSION: "8.4.27"
         DEBIAN_MIRROR: ${DEBIAN_MIRROR:-https://deb.debian.org}
     image: glpi-capacity:latest
     pull_policy: build   # always built here, never downloaded
