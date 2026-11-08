@@ -1,0 +1,46 @@
+services:
+  glpi:
+    build: .
+    image: glpi-custom:11.0.11
+    container_name: glpi
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8080:80"
+    volumes:
+      - glpi_config:/var/www/glpi/config
+      - glpi_files:/var/www/glpi/files
+      - glpi_marketplace:/var/www/glpi/marketplace
+
+  # Runs GLPI automatic actions (notifications, cleanup...) every minute
+  glpi-cron:
+    image: glpi-custom:11.0.11
+    container_name: glpi-cron
+    restart: unless-stopped
+    depends_on:
+      - glpi
+    user: www-data
+    entrypoint: ["sh", "-c", "while true; do php /var/www/glpi/front/cron.php; sleep 60; done"]
+    volumes:
+      - glpi_config:/var/www/glpi/config
+      - glpi_files:/var/www/glpi/files
+      - glpi_marketplace:/var/www/glpi/marketplace
+
+  db:
+    image: mariadb:11.4
+    container_name: glpi-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-change-me-root}
+      MARIADB_DATABASE: glpi
+      MARIADB_USER: glpi
+      MARIADB_PASSWORD: ${DB_PASSWORD:-change-me}
+    volumes:
+      - glpi_db:/var/lib/mysql
+
+volumes:
+  glpi_config:
+  glpi_files:
+  glpi_marketplace:
+  glpi_db:

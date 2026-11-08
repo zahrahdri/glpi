@@ -1,0 +1,208 @@
+{#
+ # ---------------------------------------------------------------------
+ #
+ # GLPI - Gestionnaire Libre de Parc Informatique
+ #
+ # http://glpi-project.org
+ #
+ # @copyright 2015-2026 Teclib' and contributors.
+ # @licence   https://www.gnu.org/licenses/gpl-3.0.html
+ #
+ # ---------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of GLPI.
+ #
+ # This program is free software: you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation, either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # This program is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ #
+ # ---------------------------------------------------------------------
+ #}
+
+{#
+ # Split-screen login page: a branded hero panel on the left and the
+ # sign-in form on the right. This page uses its own layout instead of
+ # `layout/page_card_notlogged.html.twig` so the other anonymous pages
+ # (2FA, lost password, maintenance...) keep the classic card layout.
+ #}
+
+{% set theme = current_theme() %}
+{% set css_files = [
+    {'path': 'lib/base.css'},
+    {'path': 'lib/tabler.css'},
+    {'path': 'css/glpi.scss'},
+    {'path': 'css/core_palettes.scss'},
+    {'path': 'css/standalone/login.scss'},
+] %}
+{% for theme_path in get_custom_themes_paths() %}
+    {% set css_files = css_files|merge([{'path': theme_path}]) %}
+{% endfor %}
+
+{% set js_files = [
+    {'path': 'lib/base.js'},
+    {'path': 'js/common.js'},
+    {'path': 'lib/fuzzy.js'},
+]|merge(get_plugins_js_scripts_files(true)) %}
+{% set js_modules = []|merge(get_plugins_js_modules_files(true)) %}
+{% set custom_header_tags = [] %}
+{% set is_anonymous_page = true %}
+
+{{ include('layout/parts/head.html.twig') }}
+<body class="welcome-anonymous glpi-login">
+    <div class="skip-links">
+        <a class="visually-hidden-focusable skip-link" href="#page">{{ __('Go to main content') }}</a>
+    </div>
+
+    <div class="glpi-login-split">
+        {# ---------- Hero panel ---------- #}
+        <aside class="glpi-login-hero">
+            <div class="glpi-login-hero-grid" aria-hidden="true"></div>
+
+            <div class="glpi-login-hero-logo">
+                <span class="glpi-logo" title="GLPI" role="img" aria-label="GLPI"></span>
+            </div>
+
+            <div class="glpi-login-hero-text">
+                <h1>{{ __('Plan capacity. Forecast growth. Stay ahead.') }}</h1>
+                <p>{{ __('One view of your infrastructure: track what you have, see how it is used and know what you will need next.') }}</p>
+            </div>
+
+            <ul class="glpi-login-hero-features">
+                <li><i class="ti ti-server-2" aria-hidden="true"></i>{{ __('Infrastructure inventory') }}</li>
+                <li><i class="ti ti-gauge" aria-hidden="true"></i>{{ __('Capacity planning') }}</li>
+                <li><i class="ti ti-chart-line" aria-hidden="true"></i>{{ __('Growth forecasting') }}</li>
+            </ul>
+        </aside>
+
+        {# ---------- Form panel ---------- #}
+        <main id="page" class="glpi-login-form-panel page-anonymous" role="main" tabindex="-1">
+            <div class="glpi-login-form-wrapper">
+                <form action="{{ path('front/login.php') }}" method="post" autocomplete="off" data-submit-once>
+                    <input type="hidden" name="noAUTO" value="{{ noAuto }}"/>
+                    <input type="hidden" name="redirect" value="{{ redirect }}"/>
+                    <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}"/>
+
+                    <h2 class="glpi-login-title">{{ __('Login to your account') }}</h2>
+
+                    {% if text_login|length > 0 %}
+                        <div class="rich_text_container mb-4">
+                            {{ text_login|safe_html }}
+                        </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label" for="login_name">{{ __('Login') }}</label>
+                        <div class="input-icon">
+                            <span class="input-icon-addon">
+                                <i class="ti ti-user" aria-hidden="true"></i>
+                            </span>
+                            <input type="text" class="form-control" id="login_name" name="login_name" placeholder=""/>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="login_password">{{ __('Password') }}</label>
+                        <div class="input-icon">
+                            <span class="input-icon-addon">
+                                <i class="ti ti-lock" aria-hidden="true"></i>
+                            </span>
+                            <input type="password" class="form-control" id="login_password" name="login_password" placeholder="" autocomplete="off"/>
+                        </div>
+                    </div>
+
+                    {% if config('display_login_source') %}
+                        <div class="mb-3">
+                            <label class="form-label" for="dropdown_auth{{ rand }}">{{ __('Login source') }}</label>
+                            {{ auth_dropdown_login|raw }}
+                        </div>
+                    {% endif %}
+
+                    {% if config('login_remember_time') %}
+                        <div class="mb-4">
+                            <label class="form-check" for="login_remember">
+                                <input type="checkbox" class="form-check-input" id="login_remember" name="login_remember" {{ config('login_remember_default') ? 'checked' : '' }}/>
+                                <span class="form-check-label">{{ __('Remember me') }}</span>
+                            </label>
+                        </div>
+                    {% endif %}
+
+                    <div class="form-footer mt-0">
+                        <button type="submit" name="submit" class="btn btn-primary w-100 glpi-login-submit">
+                            {{ __('Sign in') }}
+                        </button>
+                        {% if show_lost_password %}
+                            <div class="mt-3 text-center forgot_password {{ config('display_login_source') ? 'd-none' : '' }}">
+                                <a href="{{ path('front/lostpassword.php?lostpassword=1') }}">
+                                    {{ __('Forgotten password?') }}
+                                </a>
+                            </div>
+                            {% if config('display_login_source') %}
+                                <script>
+                                    $(() => {
+                                        if ($('select[name="auth"]').val() === 'local') {
+                                            $('.forgot_password').removeClass('d-none');
+                                        }
+                                        $('select[name="auth"]').on('change', function () {
+                                            if ($(this).val() === 'local') {
+                                                $('.forgot_password').removeClass('d-none');
+                                            } else {
+                                                $('.forgot_password').addClass('d-none');
+                                            }
+                                        });
+                                    });
+                                </script>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+
+                    {% if right_panel %}
+                        <div class="glpi-login-plugins mt-4 text-center">
+                            {{ call_plugin_hook(constant('Glpi\\Plugin\\Hooks::DISPLAY_LOGIN')) }}
+                        </div>
+                    {% endif %}
+
+                    {% if config('use_public_faq') %}
+                        <div class="mt-4 pt-4 border-top text-center">
+                            <a class="btn btn-outline-secondary" href="{{ path('front/helpdesk.faq.php') }}">
+                                <i class="ti ti-help" aria-hidden="true"></i>&nbsp;
+                                {{ __('FAQ') }}
+                            </a>
+                        </div>
+                    {% endif %}
+                </form>
+
+                <div class="glpi-login-footer">
+                    <div class="glpi-login-copyright">
+                        {{ copyright_message|raw }}
+                    </div>
+                    <a class="glpi-login-help" href="{{ config('helpdesk_doc_url')|default('https://glpi-project.org/documentation') }}" target="_blank" rel="noopener">
+                        <i class="ti ti-help-circle" aria-hidden="true"></i>
+                        {{ __('Help') }}
+                    </a>
+                </div>
+
+                {% if must_call_cron %}
+                    <div style="background-image: url('{{ path('/front/cron.php') }}');"></div>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+
+    <script type="text/javascript">
+        $(function () {
+            $('#login_name').focus();
+        });
+    </script>
+</body>
+</html>
