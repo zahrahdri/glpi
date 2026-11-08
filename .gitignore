@@ -63,3 +63,6 @@ phpstan.neon
 /tests/e2e/.env.local
 !/tests/e2e/.env
 /backups/
+
+# Must stay after /**/*.min.js: the Project reports plugin needs its chart library
+!/plugins/projectreports/public/lib/*.min.js
