@@ -1,0 +1,313 @@
+/*!
+ * ---------------------------------------------------------------------
+ *
+ * GLPI - Gestionnaire Libre de Parc Informatique
+ *
+ * http://glpi-project.org
+ *
+ * @copyright 2015-2026 Teclib' and contributors.
+ * @licence   https://www.gnu.org/licenses/gpl-3.0.html
+ *
+ * ---------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of GLPI.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * ---------------------------------------------------------------------
+ */
+
+// Split-screen login page (templates/pages/login.html.twig)
+
+$login-accent: #4f46e5;
+$login-accent-rgb: 79, 70, 229;
+$login-hero-bg: #0f172a;
+$login-breakpoint: 992px;
+$login-input-height: 2.75rem;
+
+body.glpi-login {
+    min-height: 100vh;
+    margin: 0;
+    background: var(--tblr-bg-surface, #fff);
+
+    // Use the indigo accent for primary controls on this page only
+    --tblr-primary: #{$login-accent};
+    --tblr-primary-rgb: #{$login-accent-rgb};
+    --tblr-primary-fg: #fff;
+    --tblr-link-color: #{$login-accent};
+    --tblr-link-color-rgb: #{$login-accent-rgb};
+}
+
+.glpi-login-split {
+    display: flex;
+    min-height: 100vh;
+
+    @media (max-width: $login-breakpoint - 1px) {
+        flex-direction: column;
+    }
+}
+
+// ---------------------------------------------------------------------
+// Hero panel
+// ---------------------------------------------------------------------
+.glpi-login-hero {
+    position: relative;
+    flex: 0 0 55%;
+    display: flex;
+    flex-direction: column;
+    padding: 4rem;
+    overflow: hidden;
+    color: #fff;
+    background-color: $login-hero-bg;
+    background-image:
+        radial-gradient(circle at 18% 22%, rgba(67, 56, 202, 0.75) 0%, rgba(67, 56, 202, 0) 45%),
+        radial-gradient(circle at 85% 88%, rgba(21, 94, 117, 0.85) 0%, rgba(21, 94, 117, 0) 50%),
+        linear-gradient(160deg, #1e1b4b 0%, $login-hero-bg 55%, #0b2533 100%);
+
+    .glpi-login-hero-grid {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+            linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.6) 60%, rgba(0, 0, 0, 0.25) 100%);
+    }
+
+    > :not(.glpi-login-hero-grid) {
+        position: relative;
+        z-index: 1;
+    }
+
+    .glpi-login-hero-logo .glpi-logo {
+        display: block;
+        content: var(--glpi-logo-light-login);
+        width: 140px;
+        height: auto;
+    }
+
+    .glpi-login-hero-text {
+        margin-top: auto;
+        margin-bottom: auto;
+        max-width: 28rem;
+
+        h1 {
+            margin: 0 0 1rem;
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1.15;
+            letter-spacing: -0.02em;
+            color: #fff;
+        }
+
+        p {
+            margin: 0;
+            font-size: 1.125rem;
+            line-height: 1.45;
+            color: rgba(226, 232, 240, 0.85);
+        }
+    }
+
+    .glpi-login-hero-features {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        max-width: 28rem;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+
+        li {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.9rem;
+            font-size: 0.875rem;
+            color: rgba(241, 245, 249, 0.9);
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 999px;
+            backdrop-filter: blur(4px);
+
+            .ti {
+                font-size: 1.1rem;
+            }
+        }
+    }
+
+    @media (max-width: $login-breakpoint - 1px) {
+        flex: 0 0 auto;
+        padding: 2rem 1.5rem;
+
+        .glpi-login-hero-text {
+            margin: 2rem 0 0;
+
+            h1 {
+                font-size: 1.75rem;
+            }
+
+            p {
+                font-size: 1rem;
+            }
+        }
+
+        .glpi-login-hero-features {
+            display: none;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// Form panel
+// ---------------------------------------------------------------------
+.glpi-login-form-panel {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 2rem;
+    background: var(--tblr-bg-surface, #fff);
+
+    &:focus {
+        outline: none;
+    }
+
+    @media (max-width: $login-breakpoint - 1px) {
+        padding: 2.5rem 1.5rem;
+    }
+}
+
+.glpi-login-form-wrapper {
+    width: 100%;
+    max-width: 24rem;
+
+    .glpi-login-title {
+        margin: 0 0 1.75rem;
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--tblr-body-color, #1e293b);
+    }
+
+    .form-label {
+        font-weight: 500;
+        margin-bottom: 0.4rem;
+    }
+
+    .form-control,
+    .form-select {
+        min-height: $login-input-height;
+        border-radius: 0.5rem;
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+        border-color: $login-accent;
+        box-shadow: 0 0 0 0.2rem rgba($login-accent, 0.25);
+    }
+
+    .input-icon-addon {
+        color: var(--tblr-secondary, #94a3b8);
+
+        .ti {
+            font-size: 1.15rem;
+        }
+    }
+
+    // "Login source" dropdown (select2)
+    .select2-container {
+        width: 100% !important;
+
+        .select2-selection--single {
+            display: flex;
+            align-items: center;
+            min-height: $login-input-height;
+            border-radius: 0.5rem;
+
+            .select2-selection__rendered {
+                line-height: $login-input-height;
+            }
+
+            .select2-selection__arrow {
+                height: $login-input-height;
+            }
+        }
+
+        &.select2-container--focus .select2-selection,
+        &.select2-container--open .select2-selection {
+            border-color: $login-accent;
+            box-shadow: 0 0 0 0.2rem rgba($login-accent, 0.25);
+        }
+    }
+
+    .form-check-input {
+        width: 1.25rem;
+        height: 1.25rem;
+        border-radius: 0.35rem;
+
+        &:checked {
+            background-color: $login-accent;
+            border-color: $login-accent;
+        }
+    }
+
+    .form-check-label {
+        padding-left: 0.25rem;
+    }
+
+    .glpi-login-submit {
+        min-height: 3rem;
+        font-size: 1rem;
+        font-weight: 500;
+        border-radius: 0.5rem;
+        background-color: $login-accent;
+        border-color: $login-accent;
+
+        &:hover,
+        &:focus-visible {
+            background-color: #4338ca;
+            border-color: #4338ca;
+        }
+    }
+
+    .glpi-login-footer {
+        margin-top: 3rem;
+        font-size: 0.85rem;
+
+        .glpi-login-copyright a {
+            color: $login-accent;
+            text-decoration: none;
+
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+
+        .glpi-login-help {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            margin-top: 1rem;
+            color: var(--tblr-secondary, #64748b);
+            text-decoration: none;
+
+            &:hover {
+                color: $login-accent;
+            }
+        }
+    }
+}
