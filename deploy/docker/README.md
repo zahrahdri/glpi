@@ -1,104 +1,71 @@
-# GLPI 11.0.11 with the redesigned login page (Docker)
+# Rebuild the GLPI app image with the new login page
 
-This folder builds a Docker image with:
+For a setup with two containers: `glpi-db` (MariaDB, unchanged) and
+`glpi-app` (image `glpi-php84:1`, GLPI 11.0.11 in the `glpi_data` volume).
 
-- **PHP 8.4.27** on Apache (`php:8.4.27-apache`)
-- the official **GLPI 11.0.11** release
-- the split-screen **login page** (`overlay/`) copied on top of it
+The new image `glpi-php84:2`:
 
-It uses your **existing GLPI database**: no database container is
-created and the database is not modified. GLPI reads the connection
-from your current `config/config_db.php`.
+- is built **from your current `glpi-php84:1`**, so PHP 8.4.27, extensions
+  and Apache stay exactly the same;
+- on start, copies the new login page into `/var/www/html/glpi`
+  (the `glpi_data` volume), compiles its stylesheet and clears GLPI's
+  template cache;
+- saves the original page once as `templates/pages/login.html.twig.orig`;
+- only does this if GLPI **11.0.11** is installed, otherwise leaves the
+  page alone and starts normally.
 
-## Files
+The database container, `glpi_db` and all other GLPI data are not touched.
 
-| File | Purpose |
-|---|---|
-| `Dockerfile` | Builds the image |
-| `docker-compose.yml` | GLPI + cron worker (no database) |
-| `php.ini` | PHP settings for GLPI |
-| `apache-glpi.conf` | Apache site serving `/var/www/glpi/public` |
-| `overlay/` | The new login page files |
-| `.env.example` | Paths to your existing GLPI folders |
+## Steps
 
-## Requirements
+1. Put this folder next to your `docker-compose.yml`, named `glpi-login`:
 
-- Your current GLPI is already **11.0.11** (the image runs 11.0.11 code
-  against your database, so the versions must match).
-- Docker with the Compose plugin.
+   ```
+   your-folder/
+   ├── docker-compose.yml
+   ├── glpi-vhost.conf
+   └── glpi-login/
+       ├── Dockerfile
+       ├── glpi-login-entrypoint.sh
+       └── overlay/...
+   ```
 
-## Install on your server
+2. In `docker-compose.yml`, change only the `glpi` service's `image:` line:
 
-1. **Back up** your database and your GLPI `config`, `files` and
-   `marketplace` folders.
+   ```yaml
+     glpi:
+       build: ./glpi-login
+       image: glpi-php84:2
+   ```
 
-2. Point the container at your existing folders:
+   Leave everything else (db, volumes, ports, vhost) as it is.
+
+3. Build and restart only the app:
 
    ```bash
-   cp .env.example .env
-   nano .env      # set GLPI_CONFIG_DIR, GLPI_FILES_DIR, GLPI_MARKETPLACE_DIR
+   docker compose build glpi
+   docker compose up -d glpi
+   docker compose logs glpi | grep glpi-login
    ```
 
-   `GLPI_CONFIG_DIR` must contain `config_db.php` **and** `glpicrypt.key`.
-   The key decrypts passwords stored in the database (LDAP, mail
-   collectors...), so it must be the original one.
+   You should see `Login page files installed.`
 
-3. **If the database runs on this same server**, the container cannot
-   use `localhost`. In `config_db.php` change:
+4. Open `http://YOUR-SERVER:8080` and reload with Ctrl+F5.
 
-   ```php
-   public $dbhost = 'localhost';
-   ```
-   to
-   ```php
-   public $dbhost = 'host.docker.internal';
-   ```
-
-   Then make sure MySQL/MariaDB accepts the connection from Docker:
-   - `bind-address` must not be `127.0.0.1` only (use `0.0.0.0` or the
-     Docker bridge IP, usually `172.17.0.1`), and
-   - the GLPI database user must be allowed from the Docker network, e.g.
-     `'glpi'@'172.%'` instead of only `'glpi'@'localhost'`.
-
-   If the database is on another server, nothing changes.
-
-4. Let the web server user in the container (uid 33, `www-data`) write
-   to the folders:
-
-   ```bash
-   sudo chown -R 33:33 /path/to/config /path/to/files /path/to/marketplace
-   ```
-
-5. Build and start:
-
-   ```bash
-   docker compose build
-   docker compose up -d
-   ```
-
-6. Open `http://YOUR-SERVER:8080` (or the `GLPI_PORT` you set).
-
-Stop your old web server's GLPI site (or its cron job) once the
-container works, so GLPI's automatic actions don't run twice.
-
-## Build the image only
+## Roll back
 
 ```bash
-docker build -t glpi-custom:11.0.11 deploy/docker
+docker exec glpi-app sh -c 'cd /var/www/html/glpi &&
+  cp templates/pages/login.html.twig.orig templates/pages/login.html.twig &&
+  rm -rf files/_cache/*/templates'
 ```
 
-To move it to a server without internet access:
-
-```bash
-docker save glpi-custom:11.0.11 | gzip > glpi-custom-11.0.11.tar.gz
-# copy the file to the server, then:
-docker load < glpi-custom-11.0.11.tar.gz
-```
+Then set `image: glpi-php84:1` again (remove the `build:` line) and run
+`docker compose up -d glpi`.
 
 ## Notes
 
-- If you serve GLPI over HTTPS, set `session.cookie_secure = On` in
-  `php.ini` and rebuild.
-- The time zone is set to `Asia/Tehran` in `php.ini`; change it if needed.
-- To change the login page, edit the files in `overlay/` and run
-  `docker compose build && docker compose up -d`.
+- After a GLPI upgrade, the page is skipped until `GLPI_LOGIN_VERSION`
+  in the `Dockerfile` and the files in `overlay/` are updated for the new
+  version.
+- To change the login page, edit `overlay/` and repeat step 3.
