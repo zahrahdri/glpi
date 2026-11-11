@@ -1,0 +1,191 @@
+# Change Log
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](http://keepachangelog.com/)
+and this project adheres to [Semantic Versioning](http://semver.org/).
+
+## [2.15.11] - 2026-09-11
+
+### Fixed
+
+- Move to iterator
+- Fix various minor bugs in the import/export workflow
+- Fix an issue where data are not formatted when coming from a field plugin's custom field.
+- Improve import/export workflow
+- Fix validation, permissions and entity handling during imports
+- Improve partial import error reporting
+- Correct user password import and creation handling (policy, history, expiration and confirmation)
+
+## [2.15.10] - 2026-08-07
+
+### Fixed
+
+- Fix crash on mapping/injection screens (`Safe\unserialize` not shipped by GLPI core yet)
+
+## [2.15.9] - 2026-08-04
+
+### Fixed
+
+- Fix crash when importing an ISO8601 datetime value with microseconds/timezone
+- Fix : confirm dialog js escaping
+- Fix negative default value (`-1`) on `glpi_plugin_datainjection_models.entities_id`
+
+## [2.15.8] - 2026-06-24
+
+### Fixed
+
+- Fix query and move to GLPI DBAL
+
+## [2.15.7] - 2026-05-29
+
+### Fixed
+
+- fix escape SQL values
+- normalize group assignment fields for assignable items only
+
+## [2.15.6] - 2026-05-05
+
+### Fixed
+
+- Fix injection loading bar crash
+- Fix missing `Group` field in mappable fields for `Printer` injection
+
+## [2.15.5] - 2026-04-30
+
+### Fixed
+
+- Fix crash when injection model has no mandatory fields defined
+- Fix models created on parent entities can't be used on child entites
+- Fix association of imported data with non-existing groups when the group column is empty in the import file
+- Fix responsible group injection payload normalization so group remains visible in GLPI after import
+- Fix incorrect escaping of apostrophes and accents
+- Fix plugin rights initialization and cleanup
+- Fix injection loading bar
+
+
+## [2.15.4] - 2026-03-16
+
+### Fixed
+
+- Fix model subform not displayed after page reload
+- Rename visibility field label to "Is Private"
+- Restored group selection in mappings
+- Fix special caracters malformed in translations
+- Fix error when displaying the additional information form
+- Fix the `computer contact` injection when the corresponding value in the CSV file is empty
+
+## [2.15.3] - 2025-12-22
+
+### Fixed
+
+- Fix `name` and `locations_id` when updating the `completename`
+- Fix user field updates and email import
+
+### Added
+
+- Handle `Service catalog category`
+
+## [2.15.2] - 2025-11-25
+
+### Fixed
+
+- Fix truncated CSV export
+- Fix injection for `groups_id` and `groups_id_tech` fields
+- Fix missing `purge` action
+- Fix `Model` visibilty criteria
+- Fix user fields nullability to prevent SQL errors during injection
+- Remove groups as import link field
+- Fix `clean` function
+- Prevent fatal error with `Safe\ini_set()`
+
+## [2.14.4] - 2025-11-25
+
+### Fixed
+
+- Fix truncated CSV export
+- Fix missing `purge` action
+
+## [2.15.1] - 2025-10-14
+
+### Fixed
+
+- Fix file upload
+
+## [2.15.0] - 2025-09-30
+
+### Added
+
+- GLPI 11 compatibility
+
+### Fixed
+
+- Fix `NetworkName` ip adresses injection
+- Fix injection to the `date_expiration` of certificates
+- Fix the `Task completed` message during plugin update
+
+## [2.14.3] - 2025-09-16
+
+### Fixed
+
+- Fix `NetworkName` ip adresses injection
+- Fix injection to the `date_expiration` of certificates
+- Fix the `Task completed` message during plugin update
+- Fix `License` injection
+
+## [2.14.2] - 2025-08-22
+
+### Fixed
+
+- Use `global`  configuration for injection links
+- Escape  data when check if already exist
+- Fix injection of `values in entity tabs` when injecting an `entity`
+- Fix `pdffont` field error for users
+- Move `Notepads` search options to the Black List option
+- Fix the SQL error: `Column ‘...’ cannot be null in the query`
+
+
+### Added
+
+- Add option to `replace` (instead of `append`)  the value of multiline text fields (e.g. `comment`)
+
+
+### Removed
+
+- Integration of the WebService plugin (plugin is no longer maintained)
+
+
+## [2.14.1] - 2024-12-27
+
+### Added
+
+- Add injection of the ```Itemtype```, ```Item``` and ```Path``` for the database instance
+
+### Fixed
+
+- Fix relation (`CommonDBRelation`) insertion
+- Fix default entity insertion for a user
+- Fixed `SQL` error when creating new injection model
+- Fixed issue with missing dropdown options
+
+## [2.14.0] - 2024-10-10
+
+### Added
+
+- Display max upload size
+- Add ```default_entity``` to ```User``` injection mapping
+
+### Fixed
+
+- Fix network port unicity
+- Fix visibility of injection models
+- Fix ```CommonDBRelation``` import
+- Fix ```IPAddress``` import which adds a ```lock``` on ```last_update``` field
+- Fix ```Agent``` lost when update dynamic asset
+
+## [2.13.5] - 2024-02-22
+
+
+### Fixed
+
+- Allow lockedfield update

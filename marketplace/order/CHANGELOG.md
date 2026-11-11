@@ -1,0 +1,173 @@
+# Change Log
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](http://keepachangelog.com/)
+and this project adheres to [Semantic Versioning](http://semver.org/).
+
+## [2.12.10] - 2026-09-11
+
+### Fixed
+
+- Fix `Take item delivery` and `Cancel reception` action for `Software License`
+- Fix missing rights checks
+- Fix unescaped output in order/reception forms
+- Fix fatal error on profile deletion caused by a stale `glpi_plugin_order_profiles` relation declaration
+- Fix SQL error during item generation when the reference's template has financial information
+
+## [2.12.9] - 2026-08-04
+
+### Added
+- Add grouped actions to link consumables and related items
+
+## [2.12.8] - 2026-06-24
+
+### Added
+- Add an `Orderable` capacity for GLPI 11 custom asset definitions.
+
+## [2.12.7] - 2026-06-03
+
+### Fixed
+
+- Clean plugin uninstall residual data
+- Fix generate associated item massive action
+- Prevent invalid references and non-existent classes during generate item flow.
+- Remove unnecessary message during plugin installation
+- Update locales
+- Fix getDatabaseRelations() declarations to fix warnings on order deletion
+- Fix `glpi_plugin_order_referencefrees` table not removed on uninstall
+
+
+## [2.12.6] - 2026-02-23
+
+### Fixed
+
+- Fix SQL query error when displaying deliveries
+- Fix error during generate associated material action
+- Fix SQL warning during installation
+
+## [2.12.5] - 2026-01-08
+
+### Fixed
+
+- Fix `Validation` tab from `Order`
+- Fix invalid relations declared
+- Fix uninstall method
+- Fix action to link an existing item
+
+## [2.12.4] - 2025-12-02
+
+### Fixed
+
+- Fix `order` search option from `Bill`
+- Fix SQL error : Truncated incorrect DOUBLE value: `glpi_plugin_order_orders_items.plugin_order_orders_id`
+- Fix missing PDF generation menu
+- Fix warning: Invalid relations declared between `glpi_plugin_order_accountsections` and `glpi_plugin_order_accountsections` table.
+
+### Added
+
+- Add missing `value` / `num_order` from `Bill` search option
+
+## [2.12.3] - 2025-11-25
+
+### Fixed
+
+- Fix SQL syntax errors in cronComputeLateOrders cron task
+
+## [2.12.2] - 2025-11-13
+
+### Fixed
+
+- Restore inline editing functionality in items tab
+- Fix the 'Missing table name' error message on the order.
+- Add missing mass input field for immobilization number.
+
+## [2.12.1] - 2025-10-14
+
+### Fixed
+
+- SQL expression in supplier survey total calculation
+- Add `users_id_tech` field field for tech assignment compatibility
+
+## [2.12.0] - 2025-10-01
+
+### Added
+
+- GLPI 11 compatibility
+
+## [2.11.3] - 2025-10-14
+
+### Fixed
+
+- Add missing mass input field for immobilization number
+- SQL expression in supplier survey total calculation
+
+## [2.11.2] - 2025-08-07
+
+- Update exemple.odt file to include ecotax tags
+- Fix icon for `transfer` action
+- Fix reference form error when ecotax_price field is not set
+- Fix expanding all rows in table shows incorrect reference
+
+## [2.11.1] - 2025-07-11
+
+### Fixed
+
+- Fix ODT export generation
+
+## [2.11.0] - 2025-07-10
+
+### Fixed
+
+- Improved access control checks when updating user preferences
+- Access checks improved for ODT export generation.
+- Added missing access control.
+
+
+### Added
+
+- Add eco responsibility fees
+- Addition of a massive action “Cancel receipt” (in the “attachments” tab)
+- Batch data entry for item generation
+- Add massive selection for delivered items
+- Duplicate the delivery button at the top of the reception list
+
+### Changed
+
+- Implement `Twig` template for order items list and associated items
+
+## [2.10.7] - 2025-03-19
+
+- Fixed the cumulative total order price (TTC) calculation in budgets.
+- Paid invoice changes status to Paid
+
+## [2.10.6] - 2024-03-08
+
+### Changed
+
+- Fix error message during plugin update
+- Fix few errors messages in debug mode
+
+
+## [2.10.5] - 2024-02-23
+
+### Changed
+
+- Restores the ability to clone an order
+
+
+## [1.9.6] - 2017-03-03
+
+**Compatible with GLPI 0.85 and above**
+
+### Added
+
+- add parameter in config (Ask) to allow change of these 3 fields during each reception
+
+### Changed
+
+- fix bill creation on non default GLPI display method
+- fix error in supplier notation
+- fix various minor issues on ODT generation
+- fix wrong call to CONFIG_ASK constant
+- missing getTable function preventing data injection

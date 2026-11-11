@@ -1,0 +1,1418 @@
+{
+ "version": 1,
+ "forms": [
+  {
+   "id": 2006,
+   "uuid": "3772303e-01a1-48a1-ac8f-9930f52a7acc",
+   "name": "Capacity request: Expansion",
+   "header": "<p>Request <b>more capacity</b> for a project that already runs. Submit one request per resource type (compute, storage or GPU).</p>",
+   "description": "<p>More compute, storage or GPU capacity for an existing project.</p>",
+   "entity_name": "Root Entity",
+   "is_recursive": true,
+   "is_active": true,
+   "render_layout": "step_by_step",
+   "submit_button_visibility_strategy": "always_visible",
+   "illustration": "asset-server",
+   "submit_button_conditions": [],
+   "sections": [
+    {
+     "id": 2006,
+     "uuid": "9c7f6bcd-0c28-4f41-b3d9-0d0ae500ab9e",
+     "name": "About the request",
+     "description": "<p>Tell us who is asking and what kind of request this is.</p>",
+     "rank": 0,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
+     "id": 2007,
+     "uuid": "6157675d-2166-4ecb-b5d1-f8e66b53f09c",
+     "name": "Project & timeline",
+     "description": "<p>Which project is this for, how urgent is it, and where should it run?</p>",
+     "rank": 1,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
+     "id": 2008,
+     "uuid": "e782ef19-78b3-4a4f-8892-290f944d8aa8",
+     "name": "What do you need?",
+     "description": "<p>Choose the main resource category. The next step asks only for the details of that category.</p>",
+     "rank": 2,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
+     "id": 2009,
+     "uuid": "8fb36993-f1b3-42cc-9988-2b5c744660e0",
+     "name": "Compute specification",
+     "description": "<p>Sizes are <b>per unit</b>. The total is the quantity times these values.</p>",
+     "rank": 3,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "0b954dc2-34a7-4136-b7d7-01d2ee7bf143",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "cat1"
+      }
+     ]
+    },
+    {
+     "id": 2010,
+     "uuid": "25db4d70-8f0a-4824-80c7-a871b61c795c",
+     "name": "Storage specification",
+     "description": "<p>Tell us what the storage is for, and how much you need.</p>",
+     "rank": 4,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "0b954dc2-34a7-4136-b7d7-01d2ee7bf143",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "cat2"
+      }
+     ]
+    },
+    {
+     "id": 2011,
+     "uuid": "57e24323-7099-4769-8fed-164f52b0f26b",
+     "name": "GPU specification",
+     "description": "<p>Describe the GPU workload so the team can choose the right cards.</p>",
+     "rank": 5,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "0b954dc2-34a7-4136-b7d7-01d2ee7bf143",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "cat3"
+      }
+     ]
+    },
+    {
+     "id": 2014,
+     "uuid": "1b6b2689-cb55-420b-8d70-c9061f7d5f2f",
+     "name": "Justification & cost",
+     "description": "<p>This is what the approving manager reads first. Be specific: numbers convince faster than adjectives.</p>",
+     "rank": 6,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
+     "id": 2015,
+     "uuid": "6928cc88-3369-4104-b90b-7e2aa7b35cd0",
+     "name": "Approval",
+     "description": "<p>Choose who approves this request.</p>",
+     "rank": 7,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    }
+   ],
+   "comments": [
+    {
+     "id": 2001,
+     "uuid": "84b9e3b5-cc6f-4a6a-b09f-9bbb069095ac",
+     "name": "One request per resource type",
+     "description": "<p>Please submit a separate request for each resource type (compute, storage or GPU). Each one can then be approved and delivered on its own.</p>",
+     "vertical_rank": 2,
+     "horizontal_rank": null,
+     "section_id": 2006,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
+     "id": 2002,
+     "uuid": "acc3365d-f529-49e0-928e-cacdae1f5f8d",
+     "name": "What happens next",
+     "description": "<ol><li>Your manager approves or refuses the request in GLPI.</li><li>The capacity team checks free capacity and, if needed, prepares a BOQ against the project budget.</li><li>Resources are delivered and the ticket is solved. You follow every step in the ticket.</li></ol>",
+     "vertical_rank": 1,
+     "horizontal_rank": null,
+     "section_id": 2015,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    }
+   ],
+   "questions": [
+    {
+     "id": 2086,
+     "uuid": "44ac4bf5-1ac6-447f-86b9-ae3f177c26b9",
+     "name": "Requester department",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeRadio",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "dept1": "ITS",
+       "dept2": "Non-ITS"
+      }
+     },
+     "section_id": 2006,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2087,
+     "uuid": "a909bd5b-57c0-4b09-abe3-b9a0925b700b",
+     "name": "Requesting team",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeShortText",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "<p>Your team becomes the ticket&#039;s requester group, so the request is counted for it in the reports.</p>",
+     "default_value": null,
+     "extra_data": null,
+     "section_id": 2006,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2088,
+     "uuid": "1c147d99-4031-4de5-bc50-011b6fb515b9",
+     "name": "Request type",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeRadio",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": null,
+     "description": "<p>This form is for <b>Expansion</b> requests. For another type, use its own form in the service catalog.</p>",
+     "default_value": "type2",
+     "extra_data": {
+      "options": {
+       "type2": "Expansion"
+      }
+     },
+     "section_id": 2006,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2089,
+     "uuid": "f563853e-4e73-4aea-b58b-60d8873f8516",
+     "name": "Project",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeItem",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": null,
+     "description": "<p>Only projects you are a member of are listed. If yours is missing, ask the project manager to add you to the project team.</p>",
+     "default_value": {
+      "items_id": 0
+     },
+     "extra_data": {
+      "itemtype": "Project",
+      "root_items_id": 0,
+      "subtree_depth": 0,
+      "selectable_tree_root": false
+     },
+     "section_id": 2007,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2091,
+     "uuid": "3d4fa492-1600-4f62-b201-22c35cd30746",
+     "name": "Priority",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeUrgency",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "<p>How urgently the resources are needed. This sets the ticket&#039;s urgency and priority.</p>",
+     "default_value": 3,
+     "extra_data": null,
+     "section_id": 2007,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2092,
+     "uuid": "f7adc00c-c6b8-4a9b-8755-4bbd3e74680d",
+     "name": "Project phase",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "phase1": "POC",
+       "phase2": "UAT / IAT",
+       "phase3": "Production",
+       "phase4": "DR"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2007,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2093,
+     "uuid": "b028fcfb-241a-4c33-ac25-4e228eaa2ef7",
+     "name": "Required by (go-live date)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDateTime",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "is_default_value_current_time": 0,
+      "is_date_enabled": 1,
+      "is_time_enabled": 0
+     },
+     "section_id": 2007,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2094,
+     "uuid": "afec8466-fe47-4acd-a8c7-89871595311b",
+     "name": "Site",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "site1": "T1",
+       "site2": "T2",
+       "site3": "T3",
+       "site4": "Karaj",
+       "site5": "Ahvaz",
+       "site6": "Shiraz",
+       "site7": "Mashhad",
+       "site8": "Esfahan",
+       "site9": "Tabriz"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2007,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2095,
+     "uuid": "0b954dc2-34a7-4136-b7d7-01d2ee7bf143",
+     "name": "Resource category",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeRadio",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": null,
+     "description": "<p><b>Compute</b>: servers, virtual machines, containers. <b>Storage</b>: primary, backup or archive capacity. <b>GPU</b>: AI/ML, rendering or HPC.</p>",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "cat1": "Compute",
+       "cat2": "Storage",
+       "cat3": "GPU"
+      }
+     },
+     "section_id": 2008,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2096,
+     "uuid": "b9b6736b-e38b-4c19-83ce-4136c42130a0",
+     "name": "Resource type",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "rt1": "Physical server",
+       "rt2": "Virtual machine",
+       "rt3": "Container / Kubernetes",
+       "rt4": "Cloud instance"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2009,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2097,
+     "uuid": "be474f9c-c730-4e28-8c4d-bf0202eacfa0",
+     "name": "Quantity",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "<p>Number of servers, VMs or nodes.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2009,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2098,
+     "uuid": "ddfe1904-1cbe-4b82-9c19-4d70b3a22a29",
+     "name": "Server role",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeShortText",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 2,
+     "description": "<p>For example: database, application, web, middleware.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2009,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2099,
+     "uuid": "b543a69a-37d8-4641-8f3a-da10076252d8",
+     "name": "vCPU / cores per unit",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2009,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2100,
+     "uuid": "197de5af-e7a3-4d2f-90a5-1122d7861b49",
+     "name": "Memory per unit (GB)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2009,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2101,
+     "uuid": "2617e2be-ad46-4aad-840e-614c3475ea34",
+     "name": "Local disk per unit (GB)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": false,
+     "vertical_rank": 1,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2009,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2102,
+     "uuid": "4a33c12c-a96e-4585-b62b-81306c0957ef",
+     "name": "Network interfaces",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 3,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "nic1": "1 NIC",
+       "nic2": "2 NIC",
+       "nic3": "3 NIC",
+       "nic4": "4 NIC",
+       "nic5": "5 NIC",
+       "nic6": "6 NIC"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2009,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2103,
+     "uuid": "f194bf7b-4954-42a8-aa06-c1ba968abc5e",
+     "name": "Local disk RAID",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "raid1": "RAID 0",
+       "raid2": "RAID 1",
+       "raid3": "RAID 5",
+       "raid4": "RAID 6",
+       "raid5": "RAID 10"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2009,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "b9b6736b-e38b-4c19-83ce-4136c42130a0",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "rt1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2104,
+     "uuid": "a0e64c59-10fd-4d00-b2ff-bfa662cb861d",
+     "name": "Deployment type",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "dep1": "Standalone",
+       "dep2": "Cluster"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2009,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2105,
+     "uuid": "3402fcc4-63ad-493c-9d0e-130f5f844e5b",
+     "name": "Node role",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "node1": "Primary",
+       "node2": "Replica",
+       "node3": "Standby",
+       "node4": "DR"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2009,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "a0e64c59-10fd-4d00-b2ff-bfa662cb861d",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "dep2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2106,
+     "uuid": "52fdc923-fbaa-4087-a294-1ee006228616",
+     "name": "Other requirements",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
+     "is_mandatory": false,
+     "vertical_rank": 3,
+     "horizontal_rank": null,
+     "description": "<p>Operating system, network zones, backup needs, anything else the team should know.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2009,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2107,
+     "uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+     "name": "Storage purpose",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": null,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "sp1": "Primary storage",
+       "sp2": "Backup",
+       "sp3": "Archive"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2010,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2108,
+     "uuid": "2768ef7e-46bf-4014-bfe1-718d8a7e91e6",
+     "name": "Capacity",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2010,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp1"
+      },
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "or",
+       "value": "sp3"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2109,
+     "uuid": "01cdc461-0dfa-4285-9e98-f9829f3af0b0",
+     "name": "Unit",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "u2",
+     "extra_data": {
+      "options": {
+       "u1": "GB",
+       "u2": "TB"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2010,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp1"
+      },
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "or",
+       "value": "sp3"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2110,
+     "uuid": "4f473feb-4733-4246-bb1d-121848f60701",
+     "name": "Storage type",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "st1": "Local disk",
+       "st2": "iSCSI",
+       "st3": "NAS",
+       "st4": "Ceph"
+      },
+      "is_multiple_dropdown": true
+     },
+     "section_id": 2010,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2111,
+     "uuid": "718f74fa-ac06-43bd-bb08-853b05b55909",
+     "name": "Performance tier",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "tier1": "HDD",
+       "tier2": "SSD",
+       "tier3": "NVMe",
+       "tier4": "Hybrid",
+       "tier5": "All-flash"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2010,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2112,
+     "uuid": "1e4b4d9c-b303-4916-b9d5-6d2982fea237",
+     "name": "IOPS requirement",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "iops1": "Low",
+       "iops2": "Medium",
+       "iops3": "High"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2010,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2113,
+     "uuid": "8dde795d-905d-419c-924d-6839ed97a7b4",
+     "name": "Backup target",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "bt1": "iSCSI",
+       "bt2": "NAS",
+       "bt3": "Ceph"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2010,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2114,
+     "uuid": "75fb4a14-1e7c-4960-a6ce-5916d63fc97f",
+     "name": "Backup frequency",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "bf1": "Hourly",
+       "bf2": "Daily",
+       "bf3": "Weekly",
+       "bf4": "Monthly",
+       "bf5": "Continuous"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2010,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2115,
+     "uuid": "93c2c34e-5a30-4bc9-8e4b-c74047689edc",
+     "name": "Backup retention",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "br1": "7 days",
+       "br2": "30 days",
+       "br3": "90 days",
+       "br4": "1 year"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2010,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2116,
+     "uuid": "5f767447-30bd-4ce9-b44a-e6ed4376a33e",
+     "name": "Data to protect (GB)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 3,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2010,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2117,
+     "uuid": "1d95fe3c-cb54-4079-8d14-31f3da5e4c43",
+     "name": "Archive media",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 4,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "am1": "NAS",
+       "am2": "Ceph",
+       "am3": "Tape"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2010,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp3"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2118,
+     "uuid": "ad1779b8-9c88-4819-af2b-40d3483cc825",
+     "name": "Archive retention",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 4,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "ar1": "1 year",
+       "ar2": "3 years",
+       "ar3": "5 years",
+       "ar4": "7 years",
+       "ar5": "10 years",
+       "ar6": "Permanent"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2010,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp3"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2119,
+     "uuid": "3fce8cc0-0214-4277-b5a1-738f40349049",
+     "name": "How often is it read?",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": false,
+     "vertical_rank": 4,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "aa1": "Rarely (audit only)",
+       "aa2": "Monthly",
+       "aa3": "Weekly",
+       "aa4": "Daily"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2010,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp3"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2120,
+     "uuid": "fbca3d7c-30a4-4cc9-9bdd-6ab95950e098",
+     "name": "Workload type",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "gw1": "AI/ML training",
+       "gw2": "AI/ML inference",
+       "gw3": "Rendering / graphics",
+       "gw4": "High-performance computing",
+       "gw5": "Video processing / transcoding",
+       "gw6": "Other"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2011,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2121,
+     "uuid": "a1ee92c0-2a63-4f66-b265-4862c89bc95b",
+     "name": "Environment",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "ge1": "Production",
+       "ge2": "Staging",
+       "ge3": "Development"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2011,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2122,
+     "uuid": "53033fff-351e-4be1-95cf-9341a36f0c35",
+     "name": "Number of GPUs",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2011,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2123,
+     "uuid": "1f679606-5141-4e6d-8935-3c518639bef8",
+     "name": "VRAM per GPU",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "vr1": "16 GB",
+       "vr2": "24 GB",
+       "vr3": "40 GB",
+       "vr4": "80 GB",
+       "vr5": "Other"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2011,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2124,
+     "uuid": "837013c7-cb6b-4076-a58a-f23cacbdb632",
+     "name": "Deployment",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "gd1": "Dedicated physical server (bare metal)",
+       "gd2": "VM with GPU passthrough",
+       "gd3": "Shared / vGPU"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2011,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2136,
+     "uuid": "e675e671-5a80-47a2-afda-d27c7f939105",
+     "name": "Business justification",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": null,
+     "description": "<p>Why the project needs this now, and what it enables.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2014,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2137,
+     "uuid": "fc44af68-2e16-4c45-8830-8a1686719f18",
+     "name": "Sizing / calculation evidence",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": null,
+     "description": "<p>How you sized it: users, transactions per second, data growth, current utilization.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2014,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2138,
+     "uuid": "c380a5c3-ec14-4fe9-89a3-38653ef9b451",
+     "name": "Impact if delayed or denied",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": false,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "imp1": "Low: workaround available",
+       "imp2": "Medium: project slips",
+       "imp3": "High: service degraded",
+       "imp4": "Critical: revenue or regulatory risk"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2014,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2139,
+     "uuid": "054fc967-965e-4ad5-908a-05dafb35953a",
+     "name": "Estimated cost (Rial)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": false,
+     "vertical_rank": 2,
+     "horizontal_rank": 1,
+     "description": "<p>Leave empty if you do not know. The capacity team prices it from the BOQ.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2014,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2140,
+     "uuid": "99a3f736-1633-456f-950f-73d36001b1d2",
+     "name": "Related ticket or reference",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeShortText",
+     "is_mandatory": false,
+     "vertical_rank": 2,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2014,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2141,
+     "uuid": "d725ccdb-d9f9-4bd6-a127-6a2810d6c298",
+     "name": "Architecture / technical design",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeFile",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": null,
+     "description": "<p>Diagram or design document.</p>",
+     "default_value": null,
+     "extra_data": null,
+     "section_id": 2014,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2142,
+     "uuid": "6e1e265a-ec5b-4b46-91bc-25c9ddd98c76",
+     "name": "Approving manager",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeObserver",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": null,
+     "description": "<p>The manager receives an approval request in GLPI. Work starts only after approval.</p>",
+     "default_value": {
+      "users_ids": [],
+      "groups_ids": [],
+      "suppliers_ids": []
+     },
+     "extra_data": {
+      "is_multiple_actors": false,
+      "enabled_types": [
+       "User"
+      ]
+     },
+     "section_id": 2015,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    }
+   ],
+   "policies": [
+    {
+     "strategy": "Glpi\\Form\\AccessControl\\ControlType\\AllowList",
+     "config": {
+      "user_ids": [
+       "all",
+       "admin",
+       "user"
+      ],
+      "group_ids": [],
+      "profile_ids": []
+     },
+     "is_active": true
+    },
+    {
+     "strategy": "Glpi\\Form\\AccessControl\\ControlType\\DirectAccess",
+     "config": {
+      "token": "h3OwOxUUtpEvlXfGSEEz2XNWHWVBbl1AX3QM9Ios",
+      "allow_unauthenticated": false
+     },
+     "is_active": false
+    }
+   ],
+   "destinations": [
+    {
+     "id": 2010,
+     "itemtype": "Glpi\\Form\\Destination\\FormDestinationTicket",
+     "name": "Ticket",
+     "config": {
+      "glpi-form-destination-commonitilfield-titlefield": {
+       "value": "Capacity request: Expansion"
+      },
+      "glpi-form-destination-commonitilfield-contentfield_auto": "1",
+      "glpi-form-destination-commonitilfield-itilfollowupfield": {
+       "strategy": "no_followup"
+      },
+      "glpi-form-destination-commonitilfield-itiltaskfield": {
+       "strategy": "no_task"
+      },
+      "glpi-form-destination-commonitilfield-validationfield": {
+       "strategy_configs": [
+        {
+         "strategy": "specific_answers",
+         "specific_validationtemplates_ids": [],
+         "specific_question_ids": [
+          2142
+         ],
+         "specific_actors": [],
+         "specific_validation_step_id": null
+        }
+       ]
+      },
+      "glpi-form-destination-commonitilfield-templatefield": {
+       "strategy": "default_template"
+      },
+      "glpi-form-destination-commonitilfield-entityfield": {
+       "strategy": "form_filler"
+      },
+      "glpi-form-destination-commonitilfield-requesttypefield": {
+       "strategy": "last_valid_answer"
+      },
+      "glpi-form-destination-commonitilfield-itilcategoryfield": {
+       "strategy": "last_valid_answer"
+      },
+      "glpi-form-destination-commonitilfield-statusfield": {
+       "value": "default_status"
+      },
+      "glpi-form-destination-commonitilfield-requestsourcefield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-urgencyfield": {
+       "strategy": "last_valid_answer"
+      },
+      "glpi-form-destination-commonitilfield-locationfield": {
+       "strategy": "last_valid_answer"
+      },
+      "glpi-form-destination-commonitilfield-requesterfield": {
+       "strategies": [
+        "form_filler",
+        "specific_answer"
+       ],
+       "specific_itilactors_ids": null,
+       "specific_question_ids": [
+        2087
+       ]
+      },
+      "glpi-form-destination-commonitilfield-observerfield": {
+       "strategies": [
+        "form_filler"
+       ],
+       "specific_itilactors_ids": null,
+       "specific_question_ids": null
+      },
+      "glpi-form-destination-commonitilfield-assigneefield": {
+       "strategies": [
+        "form_filler_supervisor",
+        "specific_values"
+       ],
+       "specific_itilactors_ids": {
+        "User": [
+         "admin"
+        ]
+       },
+       "specific_question_ids": null
+      },
+      "glpi-form-destination-commonitilfield-slattofield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-slattrfield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-olattofield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-olattrfield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-associateditemsfield": {
+       "strategies": [
+        "last_valid_answer"
+       ],
+       "specific_question_ids": null
+      },
+      "glpi-form-destination-commonitilfield-linkeditilobjectsfield": {
+       "strategy_configs": [
+        {
+         "strategy": null,
+         "linktype": "1",
+         "specific_destination_ids": [],
+         "specific_question_ids": [],
+         "specific_itilobject": []
+        }
+       ]
+      }
+     },
+     "creation_strategy": "always_created",
+     "conditions": []
+    }
+   ],
+   "translations": [],
+   "data_requirements": [
+    {
+     "itemtype": "Entity",
+     "name": "Root Entity"
+    },
+    {
+     "itemtype": "User",
+     "name": "admin"
+    },
+    {
+     "itemtype": "User",
+     "name": "user"
+    },
+    {
+     "itemtype": "User",
+     "name": "admin"
+    }
+   ],
+   "custom_types_requirements": [],
+   "plugin_requirements": []
+  }
+ ]
+}

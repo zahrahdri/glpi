@@ -1,0 +1,371 @@
+<?php
+
+/**
+ * -------------------------------------------------------------------------
+ * DataInjection plugin for GLPI
+ * -------------------------------------------------------------------------
+ *
+ * LICENSE
+ *
+ * This file is part of DataInjection.
+ *
+ * DataInjection is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * DataInjection is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with DataInjection. If not, see <http://www.gnu.org/licenses/>.
+ * -------------------------------------------------------------------------
+ * @copyright Copyright (C) 2007-2023 by DataInjection plugin team.
+ * @license   GPLv2 https://www.gnu.org/licenses/gpl-2.0.html
+ * @link      https://github.com/pluginsGLPI/datainjection
+ * -------------------------------------------------------------------------
+ */
+
+
+
+class PluginDatainjectionNetworkportInjection extends NetworkPort implements PluginDatainjectionInjectionInterface
+{
+    public static function getTable($classname = null)
+    {
+
+        $parenttype = get_parent_class(self::class);
+        return $parenttype::getTable();
+    }
+
+
+    public function isPrimaryType()
+    {
+
+        return false;
+    }
+
+
+    public function connectedTo()
+    {
+        /** @var array $CFG_GLPI */
+        global $CFG_GLPI;
+
+        return $CFG_GLPI["networkport_types"];
+    }
+
+    public function isNullable($field)
+    {
+        return true; // By default, all fields can be null
+    }
+
+
+    /**
+    * @see plugins/datainjection/inc/PluginDatainjectionInjectionInterface::getOptions()
+   **/
+    public function getOptions($primary_type = '')
+    {
+
+        $tab                      = Search::getOptions(get_parent_class($this));
+
+        $tab[4]['checktype']      = 'mac';
+
+        //To manage vlans : relies on a CommonDBRelation object !
+        $tab[51]['name']          = sprintf(__('%1$s: %2$s'), __('Connected to'), __('Device name'));
+        $tab[51]['field']         = 'netname';
+        $tab[51]['table']         = getTableForItemType('NetworkPort');
+        $tab[51]['linkfield']     = "netname";
+        $tab[51]['injectable']    = true;
+        $tab[51]['displaytype']   = 'text';
+        $tab[51]['checktype']     = 'text';
+
+        $tab[52]['name']          = sprintf(__('%1$s: %2$s'), __('Connected to'), __('Port number'));
+        $tab[52]['field']         = 'netport';
+        $tab[52]['table']         = getTableForItemType('NetworkPort');
+        $tab[52]['linkfield']     = "netport";
+        $tab[52]['injectable']    = true;
+        $tab[52]['displaytype']   = 'text';
+        $tab[52]['checktype']     = 'text';
+
+        $tab[53]['name']          = sprintf(
+            __('%1$s: %2$s'),
+            __('Connected to'),
+            __('Port MAC address', 'datainjection'),
+        );
+        $tab[53]['field']         = 'netmac';
+        $tab[53]['table']         = getTableForItemType('NetworkPort');
+        $tab[53]['linkfield']     = "netmac";
+        $tab[53]['injectable']    = true;
+        $tab[53]['displaytype']   = 'text';
+        $tab[53]['checktype']     = 'text';
+
+        //To manage vlans : relies on a CommonDBRelation object !
+        $tab[100]['name']          = __('VLAN');
+        $tab[100]['field']         = 'name';
+        $tab[100]['table']         = getTableForItemType('Vlan');
+        $tab[100]['linkfield']     = getForeignKeyFieldForTable($tab[100]['table']);
+        $tab[100]['displaytype']   = 'relation';
+        $tab[100]['relationclass'] = 'NetworkPort_Vlan';
+        $tab[100]['storevaluein']  = $tab[100]['linkfield'];
+
+        $blacklist     = PluginDatainjectionCommonInjectionLib::getBlacklistedOptions(get_parent_class($this));
+        $notimportable = [20, 21];
+
+        $options['ignore_fields'] = array_merge($blacklist, $notimportable);
+
+        $options['displaytype']   = ["dropdown"           => [9],
+            "multiline_text"     => [16],
+            "instantiation_type" => [87],
+        ];
+
+        return PluginDatainjectionCommonInjectionLib::addToSearchOptions($tab, $options, $this);
+    }
+
+
+    /**
+    * @param string $primary_type
+    * @param array $values
+   **/
+    public function addSpecificNeededFields($primary_type, $values)
+    {
+
+        if (isset($values[$primary_type]['instantiation_type'])) {
+            $fields['instantiation_type'] = $values[$primary_type]['instantiation_type'];
+        } else {
+            $fields['instantiation_type'] = "NetworkPortEthernet";
+        }
+
+        return $fields;
+    }
+
+
+    /**
+    * @param array $info      array
+    * @param array $option    array
+   **/
+    public function showAdditionalInformation($info = [], $option = [])
+    {
+
+        switch ($option['displaytype']) {
+            case 'instantiation_type':
+                $instantiations = [];
+                $class          = get_parent_class($this);
+                foreach ($class::getNetworkPortInstantiations() as $inst_type) {
+                    if (call_user_func([$inst_type, 'canCreate'])) {
+                        $instantiations[$inst_type] = call_user_func([$inst_type, 'getTypeName']);
+                    }
+                }
+
+                Dropdown::showFromArray(
+                    'instantiation_type',
+                    $instantiations,
+                    ['value' => 'NetworkPortEthernet'],
+                );
+                break;
+
+            default:
+                break;
+        }
+    }
+
+
+    /**
+    * @see plugins/datainjection/inc/PluginDatainjectionInjectionInterface::addOrUpdateObject()
+   **/
+    public function addOrUpdateObject($values = [], $options = [])
+    {
+
+        $lib = new PluginDatainjectionCommonInjectionLib($this, $values, $options);
+        $lib->processAddOrUpdate();
+        return $lib->getInjectionResults();
+    }
+
+
+    /**
+    * @param array $fields_toinject    array
+    * @param array $options            array
+   **/
+    public function checkPresent($fields_toinject = [], $options = []): array
+    {
+        return $this->getUnicityRequest($fields_toinject['NetworkPort'], $options['checks']);
+    }
+
+
+
+    /**
+    * @param array $fields_toinject
+    * @param array $options
+   **/
+    public function checkParameters($fields_toinject, $options)
+    {
+
+        $fields_tocheck = [];
+        switch ($options['checks']['port_unicity']) {
+            case PluginDatainjectionCommonInjectionLib::UNICITY_NETPORT_LOGICAL_NUMBER:
+                $fields_tocheck = ['logical_number'];
+                break;
+
+            case PluginDatainjectionCommonInjectionLib::UNICITY_NETPORT_LOGICAL_NUMBER_MAC:
+                $fields_tocheck = ['logical_number', 'mac'];
+                break;
+
+            case PluginDatainjectionCommonInjectionLib::UNICITY_NETPORT_LOGICAL_NUMBER_NAME:
+                $fields_tocheck = ['logical_number', 'name'];
+                break;
+
+            case PluginDatainjectionCommonInjectionLib::UNICITY_NETPORT_LOGICAL_NUMBER_NAME_MAC:
+                $fields_tocheck = ['logical_number', 'mac', 'name'];
+                break;
+
+            case PluginDatainjectionCommonInjectionLib::UNICITY_NETPORT_MACADDRESS:
+                $fields_tocheck = ['mac'];
+                break;
+
+            case PluginDatainjectionCommonInjectionLib::UNICITY_NETPORT_NAME:
+                $fields_tocheck = ['name'];
+                break;
+        }
+
+        $check_status = true;
+        foreach ($fields_tocheck as $field) {
+            if (
+                !isset($fields_toinject[$field])
+                || ($fields_toinject[$field] == PluginDatainjectionCommonInjectionLib::EMPTY_VALUE)
+            ) {
+                $check_status = false;
+            }
+        }
+
+        return $check_status;
+    }
+
+
+    /**
+     * Build where sql request to look for a network port
+     *
+     * @param array $fields_toinject    array    the fields to insert into DB
+     * @param array $options            array
+     **/
+    public function getUnicityRequest($fields_toinject = [], $options = []): array
+    {
+        $where = [];
+        switch ($options['port_unicity']) {
+            case PluginDatainjectionCommonInjectionLib::UNICITY_NETPORT_LOGICAL_NUMBER:
+                $where['logical_number'] = $fields_toinject['logical_number'] ?? '';
+                break;
+
+            case PluginDatainjectionCommonInjectionLib::UNICITY_NETPORT_LOGICAL_NUMBER_MAC:
+                $where['logical_number'] = $fields_toinject['logical_number'] ?? '';
+                $where['mac']            = $fields_toinject['mac'] ?? '';
+                break;
+
+            case PluginDatainjectionCommonInjectionLib::UNICITY_NETPORT_LOGICAL_NUMBER_NAME:
+                $where['logical_number'] = $fields_toinject['logical_number'] ?? '';
+                $where['name']           = $fields_toinject['name'] ?? '';
+                break;
+
+            case PluginDatainjectionCommonInjectionLib::UNICITY_NETPORT_LOGICAL_NUMBER_NAME_MAC:
+                $where['logical_number'] = $fields_toinject['logical_number'] ?? '';
+                $where['name']           = $fields_toinject['name'] ?? '';
+                $where['mac']            = $fields_toinject['mac'] ?? '';
+                break;
+
+            case PluginDatainjectionCommonInjectionLib::UNICITY_NETPORT_MACADDRESS:
+                $where['mac'] = $fields_toinject['mac'] ?? '';
+                break;
+
+            case PluginDatainjectionCommonInjectionLib::UNICITY_NETPORT_NAME:
+                $where['name'] = $fields_toinject['name'] ?? '';
+                break;
+        }
+
+        return $where;
+    }
+
+
+    /**
+    * Check if at least mac or ip is defined otherwise block import
+    *
+    * @param array $values    array    the values to inject
+    *
+    * @return boolean true if check ok, false if not ok
+   **/
+    public function lastCheck($values = [])
+    {
+        return !((!isset($values['NetworkPort']['name']) || empty($values['NetworkPort']['name'])) && (!isset($values['NetworkPort']['mac']) || empty($values['NetworkPort']['mac'])) && (!isset($values['NetworkPort']['instantiation_type']) || empty($values['NetworkPort']['instantiation_type'])));
+    }
+
+
+    /**
+    * @param array $values
+    * @param boolean $add                (true by default)
+    * @param array|null $rights    array
+   **/
+    public function processAfterInsertOrUpdate($values, $add = true, $rights = [])
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+
+        //Should the port be connected to another one ?
+        $use_name            = (isset($values['NetworkPort']["netname"])
+                            || !empty($values['NetworkPort']["netname"]));
+        $use_logical_number  = (isset($values['NetworkPort']["netport"])
+                            || !empty($values['NetworkPort']["netport"]));
+        $use_mac             = (isset($values['NetworkPort']["netmac"])
+                            || !empty($values['NetworkPort']["netmac"]));
+
+        if (!$use_name && !$use_logical_number && !$use_mac) {
+            return false;
+        }
+
+        // Find port in database
+        $criteria = [
+            'glpi_networkports.itemtype'            => 'NetworkEquipment',
+            'glpi_networkequipments.is_template'    => 0,
+            'glpi_networkequipments.entities_id'    => $values['NetworkPort']["entities_id"],
+        ];
+        if ($use_name) {
+            $criteria['glpi_networkequipments.name'] = $values['NetworkPort']["netname"];
+        }
+
+        if ($use_logical_number) {
+            $criteria['glpi_networkports.logical_number'] = $values['NetworkPort']["netport"];
+        }
+
+        if ($use_mac) {
+            $criteria['glpi_networkports.mac'] = $values['NetworkPort']["netmac"];
+        }
+
+        $result = $DB->request([
+            'SELECT'     => 'glpi_networkports.id',
+            'FROM'       => 'glpi_networkports',
+            'INNER JOIN' => [
+                'glpi_networkequipments' => [
+                    'ON' => [
+                        'glpi_networkports'      => 'items_id',
+                        'glpi_networkequipments' => 'id',
+                    ],
+                ],
+            ],
+            'WHERE'      => $criteria,
+        ]);
+
+        //if at least one parameter is given
+        if (count($result) === 1) {
+            //Get data for this port
+            $netport         = $result->current();
+            $netport_netport = new NetworkPort_NetworkPort();
+            //If this port already connected to another one ?
+            if (!$netport_netport->getOppositeContact((int) $netport['id'])) {
+                //No, add a new port to port connection
+                $tmp['networkports_id_1'] = $values['NetworkPort']['id'];
+                $tmp['networkports_id_2'] = $netport['id'];
+                $netport_netport->add($tmp);
+            }
+        }
+
+        //TODO add injection warning if no port found or more than one
+        return null;
+    }
+}

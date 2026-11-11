@@ -1,0 +1,694 @@
+{#
+ # -------------------------------------------------------------------------
+ # Order plugin for GLPI
+ # -------------------------------------------------------------------------
+ #
+ # LICENSE
+ #
+ # This file is part of Order.
+ #
+ # Order is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+ # Order is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY; without even the implied warranty of
+ # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ # GNU General Public License for more details.
+ #
+ # You should have received a copy of the GNU General Public License
+ # along with Order. If not, see <http://www.gnu.org/licenses/>.
+ # -------------------------------------------------------------------------
+ # @copyright Copyright (C) 2009-2023 by Order plugin team.
+ # @copyright 2015-2025 Teclib' and contributors.
+ # @copyright 2003-2014 by the INDEPNET Development Team.
+ # @licence   https://www.gnu.org/licenses/gpl-3.0.html
+ # @license   GPLv3 https://www.gnu.org/licenses/gpl-3.0.html
+ # @link      https://github.com/pluginsGLPI/order
+ # -------------------------------------------------------------------------
+ #}
+
+{% set datatable_id = datatable_id|default('datatable' ~ random()) %}
+{% set showmassiveactions = showmassiveactions and canedit %}
+{% set table_visible = table_visible|default(false) %}
+{% set entries = entries|default([]) %}
+{% set columns = columns|default({}) %}
+{% set formatters = formatters|default({}) %}
+{% set filters = filters|default({}) %}
+{% set total_number = total_number|default(0) %}
+{% set start = start|default(0) %}
+{% set limit = limit|default(15) %}
+{% set displayed_count = displayed_count|default(0) %}
+{% set sort = sort|default('') %}
+{% set order = order|default('ASC') %}
+{% set countainer_name = countainer_name|default('') %}
+{% set nosort = nosort|default(false) %}
+
+{% if hide_and_show is defined and hide_and_show %}
+    <button id="toggle-table-{{ datatable_id }}" class="btn btn-link btn-sm mb-2" type="button">
+        {% if table_visible %}
+            <i class="ti ti-sort-ascending"></i>
+            <span>{{ __('Collapse all', 'order') }}</span>
+        {% else %}
+            <i class="ti ti-sort-descending"></i>
+            <span>{{ __('Expand all', 'order') }}</span>
+        {% endif %}
+    </button>
+    <input type="hidden" name="{{ countainer_name }}" value="true">
+{% endif %}
+
+{% if form_action is defined %}
+    <form method="post" name="order_updatedetail_form{{ rand|default(random()) }}" id="order_updatedetail_form{{ rand|default(random()) }}" action="{{ form_action }}">
+        <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}">
+{% endif %}
+
+{% if hidden_fields is defined %}
+    {% for field_name, field_value in hidden_fields %}
+        <input type="hidden" name="{{ field_name }}" value="{{ field_value }}" />
+    {% endfor %}
+{% endif %}
+
+{% if total_number < 1 and filters|length == 0 %}
+    <table id="{{ datatable_id }}" class="table">
+        <thead>
+        {% if super_header is defined and super_header is not empty %}
+            {% set super_header_label = super_header is array ? super_header['label'] : super_header %}
+            {% if super_header_label is not empty %}
+                {% set super_header_raw = super_header is array ? super_header['is_raw'] : false %}
+                <tr>
+                    <th colspan="1">
+                        {{ super_header_raw ? super_header_label|raw : super_header_label }}
+                    </th>
+                </tr>
+            {% endif %}
+        {% endif %}
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    <div class="alert alert-info">
+                        {{ __('No results found') }}
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+{% else %}
+    {% set total_cols = columns|length + (showmassiveactions ? 1 : 0) + (nofilter ? 0 : 1) %}
+    <div name="{{ datatable_id }}" class="table-responsive" {% if showmassiveactions %} id="{{ massiveactionparams['container'] }}" {% endif %} {% if not table_visible %}style="display: none;"{% endif %}>
+        {% if showmassiveactions %}
+            <div class="mb-2">
+                {% do call('Html::showMassiveActions', [massiveactionparams|default([])]) %}
+            </div>
+        {% endif %}
+        <table id="{{ datatable_id }}" class="table {{ table_class_style|default('table-hover') }} mb-1">
+            <thead>
+                {% if super_header is defined and super_header is not empty %}
+                    {% set super_header_label = super_header is array ? super_header['label'] : super_header %}
+                    {% set super_header_raw = super_header is array ? super_header['is_raw'] : false %}
+                    <tr>
+                        {% if super_header_raw is not same as 'th_elements' %}<th colspan="{{ total_cols }}">{% endif %}
+                            {{ super_header_raw ? super_header_label|raw : super_header_label }}
+                        {% if super_header_raw is not same as 'th_elements' %}</th>{% endif %}
+                    </tr>
+                {% endif %}
+                {% if no_header is not defined or no_header == false %}
+                    <tr>
+                        {% if showmassiveactions %}
+                            <th style="width: 30px;">
+                                <div>
+                                    <input class="form-check-input massive_action_checkbox" type="checkbox" id="checkall_{{ massiveactionparams['container'] }}"
+                                        value="" aria-label="{{ __('Check all') }}"
+                                        onclick="checkAsCheckboxes(this, '{{ massiveactionparams['container'] }}', '.massive_action_checkbox');" />
+                                </div>
+                            </th>
+                        {% endif %}
+                        {% for colkey, column in columns %}
+                            {% set column_label = column is array ? column['label'] : column %}
+                            {% set raw_header = column is array ? column['raw_header']|default(false) : false %}
+                            {% set sort_icon = '' %}
+                            {% set new_order = "DESC" %}
+                            {% if sort == colkey %}
+                                {% set sort_icon = order == 'ASC' ? 'ti ti-sort-ascending' : (order == 'DESC' ? 'ti ti-sort-descending' : '') %}
+                                {% set new_order = (order == 'ASC' ? 'DESC' : 'ASC') %}
+                            {% endif %}
+
+                            {% set sort_href = "javascript:reloadTab('start=" ~ start ~ "&limit=" ~ limit ~ "&" ~ countainer_name ~ "sort=" ~ colkey ~ "&" ~ countainer_name ~ "order=" ~ new_order ~ "&" ~ countainer_name ~ "visible=" ~ true ~ "');" %}
+
+                            <th>
+                                {% if not nosort and not (column is array and column['nosort'] is defined) %}
+                                    <a href="{{ sort_href }}">
+                                    <i class="{{ sort_icon }}"></i>
+                                {% endif %}
+                                <span>{{ raw_header ? column_label|raw : column_label }}</span>
+                                {% if not nosort and not (column is array and column['nosort'] is defined) %}
+                                    </a>
+                                {% endif %}
+                            </th>
+                        {% endfor %}
+
+                       {% if nofilter is not defined or csv_url is defined %}
+                           <th>
+                               <span class="float-end log-toolbar mb-0">
+                                   {% if nofilter is not defined %}
+                                       <button class="btn btn-sm show_filters {{ filters|length > 0 ? 'btn-secondary active' : 'btn-outline-secondary' }}">
+                                           <i class="fas fa-filter"></i>
+                                           <span class="d-none d-xl-block">{{ __('Filter') }}</span>
+                                       </button>
+                                   {% endif %}
+                                   {% if csv_url|length %}
+                                       <a href="{{ csv_url }}" class="btn btn-sm text-capitalize btn-outline-secondary">
+                                           <i class="fas fa-file-download"></i>
+                                           <span class="d-none d-xl-block">{{ __('Export') }}</span>
+                                       </a>
+                                   {% endif %}
+                               </span>
+                           </th>
+                         {% endif %}
+                    </tr>
+                {% endif %}
+                {% if filters|length > 0  %}
+                    <tr class="filter_row">
+                        {% if showmassiveactions %}
+                            <td></td>
+                        {% endif %}
+                        <td style="display: none">
+                            <input type="hidden" name="filters[active]" value="1" />
+                            <input type="hidden" name="items_id" value="{{ items_id }}" />
+                        </td>
+                        {% for colkey, colum in columns %}
+                            {% set formatter = colum['filter_formatter']|default(formatters[colkey])|default('') %}
+                            <td>
+                                {% if colum is not array or colum['no_filter']|default(false) == false %}
+                                    {% if formatter == "array" and columns_values[colkey] is defined %}
+                                           <select name="filters[{{ colkey }}][]"
+                                                class="form-select filter-select-multiple" multiple>
+                                            {% for field, value in columns_values[colkey] %}
+                                                <option value="{{ field }}" {{ filters[colkey] is defined and field in filters[colkey] ? 'selected' : '' }}>
+                                                    {{ value }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    {% elseif formatter == "datetime" %}
+                                        {{ call("Html::showDateTimeField", [
+                                            "filters[" ~ colkey ~ "]",
+                                            {
+                                                'value': filters[colkey],
+                                                'display': false
+                                            }
+                                        ])|raw }}
+                                    {% elseif formatter == "date" %}
+                                        {{ call("Html::showDateField", [
+                                            "filters[" ~ colkey ~ "]",
+                                            {
+                                                'value': filters[colkey],
+                                                'display': false
+                                            }
+                                        ])|raw }}
+                                    {% elseif formatter starts with "progress" %}
+                                        <input type="range" class="form-range"
+                                            name="filters[{{ colkey }}]"
+                                            value="{{ filters[colkey] ?? 0 }}"
+                                            min="0" max="100" step="1">
+                                    {% elseif formatter == 'avatar' %}
+                                        {# Cannot be filtered #}
+                                    {% elseif formatter == 'yesno' %}
+                                        <select name="filters[{{ colkey }}]" class="form-select">
+                                            <option value="">{{ __('All') }}</option>
+                                            <option value="1" {{ filters[colkey] == '1' ? 'selected' : '' }}>
+                                                {{ __('Yes') }}
+                                            </option>
+                                            <option value="0" {{ filters[colkey] == '0' ? 'selected' : '' }}>
+                                                {{ __('No') }}
+                                            </option>
+                                        </select>
+                                    {% else %}
+                                        <input type="text" class="form-control"
+                                            name="filters[{{ colkey }}]"
+                                            value="{{ filters[colkey] ?? '' }}">
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                {% endif %}
+            </thead>
+            <tbody>
+                {% if entries|length > 0 %}
+                    {% for entry in entries %}
+                        {% set row_class = entry['row_class']|default('') %}
+                        {% set itemtype = entry['itemtype']|default('') %}
+                        {% set id = entry['id']|default('') %}
+
+                        <tr class="{{ row_class }}" data-itemtype="{{ itemtype }}" data-id="{{ id }}">
+                            {% set row_massiveactions = entry['showmassiveactions']|default(showmassiveactions) %}
+                            {% if row_massiveactions %}
+                                <td style="width: 10px">
+                                    {% if entry['skip_ma'] is not defined or entry['skip_ma'] == false %}
+                                        <input class="form-check-input massive_action_checkbox" type="checkbox" data-glpicore-ma-tags="common"
+                                               value="1" aria-label="{{ __("Select item") }}"
+                                               name="item[{{ entry['itemtype'] }}][{{ entry['id'] }}]" />
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                            {% for colkey, colum in columns %}
+                                <td>
+                                    {% if colkey in entry|keys %}
+
+                                        {% set formatter = formatters[colkey]|default('') %}
+
+                                        {% if formatter == "maintext" %}
+                                            <span class="d-inline-block bg-blue-lt p-1 text-truncate"
+                                                title="{{ entry[colkey] }}"
+                                                data-bs-toggle="tooltip"
+                                                style="max-width: 250px;">
+                                                {{ entry[colkey] }}
+                                            </span>
+                                        {% elseif formatter == "longtext" %}
+                                            <span class="d-inline-block text-truncate"
+                                                title="{{ entry[colkey] }}"
+                                                data-bs-toggle="tooltip"
+                                                style="max-width: 250px;">
+                                                {{ entry[colkey] }}
+                                            </span>
+                                        {% elseif formatter == "duration" %}
+                                            {{ entry[colkey]|formatted_duration }}
+                                        {% elseif formatter == "bytesize" %}
+                                            {{ call("Toolbox::getSize", [entry[colkey]])|raw }}
+                                        {% elseif formatter == 'number' %}
+                                            {{ entry[colkey]|formatted_number }}
+                                        {% elseif formatter == 'integer' %}
+                                            {{ entry[colkey] }}
+                                        {% elseif formatter == "raw_html" %}
+                                            {{ entry[colkey]|raw }}
+                                        {% elseif formatter == "editable_price" %}
+                                            {% if canedit %}
+                                                {% if is_summary_table is defined and is_summary_table %}
+                                                <div id="pricetaxfree{{ summary_data.rand }}" class="btn-link pointer" onclick="showPricetaxfree{{ summary_data.rand }}()">
+                                                        {{ entry[colkey] }}
+                                                    </div>
+                                                    <div id="viewpricetaxfree{{ summary_data.rand }}" style="display: none;"></div>
+                                                {% else %}
+                                                    <div id="detail_pricetaxfree{{ entry['id'] }}" class="btn-link pointer" onclick="showDetailPricetaxfree{{ entry['id'] }}()">
+                                                        {{ entry[colkey] }}
+                                                    </div>
+                                                    <div id="detail_viewpricetaxfree{{ entry['id'] }}" style="display: none;"></div>
+                                                {% endif %}
+                                            {% else %}
+                                                {{ entry[colkey] }}
+                                            {% endif %}
+                                        {% elseif formatter == "editable_discount" %}
+                                            {% if canedit %}
+                                                {% if is_summary_table is defined and is_summary_table %}
+                                                <div id="discount{{ summary_data.rand }}" class="btn-link pointer" onclick="showDiscount{{ summary_data.rand }}()">
+                                                        {{ entry[colkey] }}
+                                                    </div>
+                                                    <div id="viewdiscount{{ summary_data.rand }}" style="display: none;"></div>
+                                                {% else %}
+                                                    <div id="detail_discount{{ entry['id'] }}" class="btn-link pointer" onclick="showDetailDiscount{{ entry['id'] }}()">
+                                                        {{ entry[colkey] }}
+                                                    </div>
+                                                    <div id="detail_viewdiscount{{ entry['id'] }}" style="display: none;"></div>
+                                                {% endif %}
+                                            {% else %}
+                                                {{ entry[colkey] }}
+                                            {% endif %}
+                                        {% elseif formatter == "editable_quantity" %}
+                                            {% if canedit %}
+                                                {% if is_summary_table is defined and is_summary_table %}
+                                                <div id="quantity{{ summary_data.rand }}" class="btn-link pointer" onclick="showQuantity{{ summary_data.rand }}()">
+                                                        {{ entry[colkey] }}
+                                                    </div>
+                                                    <div id="viewquantity{{ summary_data.rand }}" style="display: none;"></div>
+                                                {% else %}
+                                                    <div id="quantity{{ entry['id'] }}" class="btn-link pointer" onclick="showQuantity{{ entry['id'] }}()">
+                                                        {{ entry[colkey] }}
+                                                    </div>
+                                                    <div id="viewquantity{{ entry['id'] }}" style="display: none;"></div>
+                                                {% endif %}
+                                            {% else %}
+                                                {{ entry[colkey] }}
+                                            {% endif %}
+                                        {% elseif formatter == 'avatar' %}
+                                            {#  Note: Does not support anonymization currently #}
+                                            {% set entry_data = entry[colkey] %}
+                                            {% set avatar_size = entry_data['avatar_size'] ?? 'avatar-md' %}
+                                            {% set img = entry_data['picture'] %}
+                                            {% set initials = entry_data['initials'] %}
+                                            {% set bg_color = img is not empty ? 'inherit' : entry_data['initials_bg'] %}
+                                            <span class="avatar {{ avatar_size }} rounded"
+                                                style="{% if img is not null %} background-image: url({{ img }}); {% endif %} background-color: {{ bg_color }}">
+                                                {% if img is empty %}
+                                                    {{ initials }}
+                                                {% endif %}
+                                            </span>
+                                        {% elseif formatter == "badge" %}
+                                            {% set entry_data = entry[colkey] %}
+                                            {% set content = entry_data['content'] %}
+                                            {% set color = entry_data['color'] ?? '#BBBBBB' %}
+                                            {% if not (color matches '/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/') %}
+                                                {% set color = '#BBBBBB' %}
+                                            {% endif %}
+                                            {% if content is not empty %}
+                                                <div class="badge_block" style="border-color: {{ color }}">
+                                                    <span class="me-1" style="background: {{ color }}"></span>
+                                                    {{ content }}
+                                                </div>
+                                            {% endif %}
+                                        {% else %}
+                                            {{ entry[colkey] }}
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                            {% if not nofilter %}
+                                <td></td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="{{ total_cols }}">
+                            <div class="alert alert-info">
+                                {{ __('No results found') }}
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+            {% if footers is defined and footers|length > 0 %}
+                <tfoot class="{{ footer_class|default('') }}">
+                    {% for footer in footers %}
+                        <tr>
+                            {% if showmassiveactions %}
+                                <td></td>
+                            {% endif %}
+                            {% for footer_col, footerval in footer %}
+                                <td>{{ footerval|nl2br }}</td>
+                            {% endfor %}
+                            {% if nofilter is not defined %}
+                                <td></td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                </tfoot>
+            {% endif %}
+        </table>
+
+        {% if not nopager and total_number > 0 %}
+            <div class="d-flex justify-content-between align-items-center my-2">
+                <div>
+                    {{ __('Showing %s to %s of %s entries', 'order')|format(
+                        start + 1,
+                        (start + displayed_count > total_number ? total_number : start + displayed_count),
+                        total_number
+                    ) }}
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="d-inline-flex align-items-center me-4">
+                        {{ __('Entries to show:', 'order') }}
+                        {% include 'components/dropdown/limit.html.twig' with {
+                            'is_tab': true,
+                            'right': true,
+                            'additional_params': 'id=' ~ ID ~ '&start=' ~ start ~ '&' ~ countainer_name ~ 'sort=' ~ sort ~ '&' ~ countainer_name ~ 'order=' ~ order ~ '&' ~ countainer_name ~ 'visible=1'
+                        } %}
+                    </div>
+
+                    {% set nb_pages = (total_number / limit)|round(0, 'ceil') %}
+                    {% if nb_pages > 1 %}
+                        <ul class="pagination mb-0">
+                            <li class="page-item {{ start == 0 ? 'disabled' : '' }}">
+                                <a class="page-link" href="javascript:reloadTab('start=0&limit={{ limit }}&{{ countainer_name }}sort={{ sort }}&{{ countainer_name }}order={{ order }}&{{ countainer_name }}visible=1');">
+                                    <i class="ti ti-chevrons-left"></i>
+                                </a>
+                            </li>
+                            <li class="page-item {{ start == 0 ? 'disabled' : '' }}">
+                                <a class="page-link" href="javascript:reloadTab('start={{ start - limit < 0 ? 0 : start - limit }}&limit={{ limit }}&{{ countainer_name }}sort={{ sort }}&{{ countainer_name }}order={{ order }}&{{ countainer_name }}visible=1');">
+                                    <i class="ti ti-chevron-left"></i>
+                                </a>
+                            </li>
+
+                            {% set current_page = (start / limit)|round(0, 'floor') + 1 %}
+                            {% set start_page = max(1, current_page - 2) %}
+                            {% set end_page = min(nb_pages, current_page + 2) %}
+
+                            {% for i in start_page..end_page %}
+                                <li class="page-item {{ current_page == i ? 'active' : '' }}">
+                                    <a class="page-link" href="javascript:reloadTab('start={{ (i - 1) * limit }}&limit={{ limit }}&{{ countainer_name }}sort={{ sort }}&{{ countainer_name }}order={{ order }}&{{ countainer_name }}visible=1');">
+                                        {{ i }}
+                                    </a>
+                                </li>
+                            {% endfor %}
+
+                            <li class="page-item {{ start + limit >= total_number ? 'disabled' : '' }}">
+                                <a class="page-link" href="javascript:reloadTab('start={{ start + limit >= total_number ? start : start + limit }}&limit={{ limit }}&{{ countainer_name }}sort={{ sort }}&{{ countainer_name }}order={{ order }}&{{ countainer_name }}visible=1');">
+                                    <i class="ti ti-chevron-right"></i>
+                                </a>
+                            </li>
+                            <li class="page-item {{ start + limit >= total_number ? 'disabled' : '' }}">
+                                <a class="page-link" href="javascript:reloadTab('start={{ ((nb_pages - 1) * limit)|round(0, 'floor') }}&limit={{ limit }}&{{ countainer_name }}sort={{ sort }}&{{ countainer_name }}order={{ order }}&{{ countainer_name }}visible=1');">
+                                    <i class="ti ti-chevrons-right"></i>
+                                </a>
+                            </li>
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <script type="text/javascript">
+    $(function() {
+        $('.filter-select-multiple').select2();
+    });
+    </script>
+
+    {# Inline editing functionality #}
+    {% if canedit %}
+        {# Summary table editing #}
+        {% if is_summary_table is defined and is_summary_table %}
+            <div id="viewaccept{{ summary_data.rand }}" style="display:none;">
+                <div class="center mt-2">
+                    <input type="submit" name="update_item" value="{{ _x('button', 'Update') }}" class="btn btn-primary">
+                    <input type="button" onclick="hideForm{{ summary_data.rand }}();" value="{{ _x('button', 'Cancel') }}" class="btn btn-secondary">
+                </div>
+            </div>
+
+            <script type="text/javascript">
+                function hideForm{{ summary_data.rand }}() {
+                    $('#quantity{{ summary_data.rand }}').show();
+                    $('#viewquantity{{ summary_data.rand }} input').remove();
+                    $('#pricetaxfree{{ summary_data.rand }}').show();
+                    $('#viewpricetaxfree{{ summary_data.rand }} input').remove();
+                    $('#discount{{ summary_data.rand }}').show();
+                    $('#viewdiscount{{ summary_data.rand }} input').remove();
+                    $('#viewaccept{{ summary_data.rand }}').hide();
+                }
+
+                function showQuantity{{ summary_data.rand }}() {
+                    $('#quantity{{ summary_data.rand }}').hide();
+                    $('#viewaccept{{ summary_data.rand }}').show();
+                    $.ajax({
+                        url: '{{ summary_data.ajax_url }}',
+                        method: 'POST',
+                        data: {
+                            maxlength: 15,
+                            size: 8,
+                            name: 'quantity',
+                            class: 'form-control quantity',
+                            force_integer: true,
+                            min: '{{ summary_data.quantity }}',
+                            data: '{{ summary_data.quantity }}'
+                        },
+                        success: function(data) {
+                            $('#viewquantity{{ summary_data.rand }}').html(data);
+                            $('#viewquantity{{ summary_data.rand }}').show();
+                        }
+                    });
+                }
+
+                function showPricetaxfree{{ summary_data.rand }}() {
+                    $('#pricetaxfree{{ summary_data.rand }}').hide();
+                    $('#viewaccept{{ summary_data.rand }}').show();
+                    $.ajax({
+                        url: '{{ summary_data.ajax_url }}',
+                        method: 'POST',
+                        data: {
+                            maxlength: 15,
+                            size: 8,
+                            name: 'price_taxfree',
+                            class: 'form-control decimal',
+                            step: '0.01',
+                            min: '0',
+                            data: '{{ summary_data.price_taxfree }}'
+                        },
+                        success: function(data) {
+                            $('#viewpricetaxfree{{ summary_data.rand }}').html(data);
+                            $('#viewpricetaxfree{{ summary_data.rand }}').show();
+                        }
+                    });
+                }
+
+                function showDiscount{{ summary_data.rand }}() {
+                    $('#discount{{ summary_data.rand }}').hide();
+                    $('#viewaccept{{ summary_data.rand }}').show();
+                    $.ajax({
+                        url: '{{ summary_data.ajax_url }}',
+                        method: 'POST',
+                        data: {
+                            maxlength: 15,
+                            size: 8,
+                            name: 'discount',
+                            class: 'form-control smalldecimal',
+                            step: '0.01',
+                            min: '0',
+                            max: '100',
+                            data: '{{ summary_data.discount }}'
+                        },
+                        success: function(data) {
+                            $('#viewdiscount{{ summary_data.rand }}').html(data);
+                            $('#viewdiscount{{ summary_data.rand }}').show();
+                        }
+                    });
+                }
+            </script>
+        {% endif %}
+
+        {# Detail table editing #}
+        {% if is_detail_table is defined and is_detail_table and edit_data|length > 0 %}
+            <div id="detail_viewaccept{{ rand }}" style="display:none;">
+                <div class="center mt-2">
+                    <input type="submit" name="update_detail_item" value="{{ update_button_text }}" class="btn btn-primary">
+                    <input type="button" onclick="detail_hideForm{{ rand }}();" value="{{ cancel_button_text }}" class="btn btn-secondary">
+                </div>
+            </div>
+
+            <script type="text/javascript">
+                function detail_hideForm{{ rand }}() {
+                    {% for item in edit_data %}
+                        $('#detail_pricetaxfree{{ item.id }}').show();
+                        $('#detail_viewpricetaxfree{{ item.id }} input').remove();
+                        $('#detail_discount{{ item.id }}').show();
+                        $('#detail_viewdiscount{{ item.id }} input').remove();
+                        $('#quantity{{ item.id }}').show();
+                        $('#viewquantity{{ item.id }} input').remove();
+                    {% endfor %}
+                    $('#detail_viewaccept{{ rand }}').hide();
+                }
+
+                {% for item in edit_data %}
+                    function showDetailPricetaxfree{{ item.id }}() {
+                        $('#detail_pricetaxfree{{ item.id }}').hide();
+                        $('#detail_viewaccept{{ rand }}').show();
+                        $.ajax({
+                            url: '{{ ajax_url }}',
+                            method: 'POST',
+                            data: {
+                                maxlength: 15,
+                                size: 8,
+                                name: 'detail_price_taxfree[{{ item.id }}]',
+                                class: 'form-control decimal',
+                                step: '0.01',
+                                min: '0',
+                                data: '{{ item.price_taxfree }}'
+                            },
+                            success: function(data) {
+                                $('#detail_viewpricetaxfree{{ item.id }}').html(data);
+                                $('#detail_viewpricetaxfree{{ item.id }}').show();
+                            }
+                        });
+                    }
+
+                    function showDetailDiscount{{ item.id }}() {
+                        $('#detail_discount{{ item.id }}').hide();
+                        $('#detail_viewaccept{{ rand }}').show();
+                        $.ajax({
+                            url: '{{ ajax_url }}',
+                            method: 'POST',
+                            data: {
+                                maxlength: 15,
+                                size: 8,
+                                name: 'detail_discount[{{ item.id }}]',
+                                class: 'form-control smalldecimal',
+                                step: '0.01',
+                                min: '0',
+                                max: '100',
+                                data: '{{ item.discount }}'
+                            },
+                            success: function(data) {
+                                $('#detail_viewdiscount{{ item.id }}').html(data);
+                                $('#detail_viewdiscount{{ item.id }}').show();
+                            }
+                        });
+                    }
+
+                    $(document).ready(function() {
+                        $('body').append('<input type="hidden" name="detail_old_price_taxfree[{{ item.id }}]" value="{{ item.price_taxfree }}" />');
+                        $('body').append('<input type="hidden" name="detail_old_discount[{{ item.id }}]" value="{{ item.discount }}" />');
+                    });
+                {% endfor %}
+            </script>
+        {% endif %}
+    {% endif %}
+
+    <br>
+{% endif %}
+
+{% if form_action is defined %}
+    </form>
+{% endif %}
+
+{% if hide_and_show is defined and hide_and_show %}
+    <script>
+        $(function() {
+            // Toggle button functionality
+            $('#toggle-table-{{ datatable_id }}').on('click', function() {
+                const div_table = $('[name="{{ datatable_id }}"]');
+                const icon = $(this).find('i');
+                const textSpan = icon.next('span');
+                const countainer_name = $('#{{ countainer_name }}');
+
+                let isVisible = !div_table.is(':hidden');
+
+                // Toggle visibility
+                if (!isVisible) {
+                    div_table.show();
+                    icon.removeClass('ti-sort-descending').addClass('ti-sort-ascending');
+                    textSpan.text('{{ __("Collapse all", "order") }}');
+                    countainer_name.val('true');
+                    isVisible = true;
+                } else {
+                    div_table.hide();
+                    icon.removeClass('ti-sort-ascending').addClass('ti-sort-descending');
+                    textSpan.text('{{ __("Expand all", "order") }}');
+                    countainer_name.val('false');
+                    isVisible = false;
+                }
+
+                // Update all reloadTab links to reflect the new visibility state
+                $('a[href^="javascript:reloadTab("]').each(function() {
+                    let href = $(this).attr('href');
+                    let params = href.substring(href.indexOf("'") + 1, href.lastIndexOf("'"));
+
+                    // Parse parameters
+                    let paramsObj = {};
+                    params.split('&').forEach(function(param) {
+                        let [key, value] = param.split('=');
+                        paramsObj[key] = value;
+                    });
+
+                    // Update visible parameter
+                    paramsObj['{{ countainer_name }}visible'] = isVisible ? '1' : '0';
+
+                    // Reconstruct parameters string
+                    let newParams = Object.entries(paramsObj).map(([key, value]) => `${key}=${value}`).join('&');
+
+                    // Update href
+                    let newHref = `javascript:reloadTab('${newParams}');`;
+                    $(this).attr('href', newHref);
+                });
+            });
+        });
+    </script>
+{% endif %}

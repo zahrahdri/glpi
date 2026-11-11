@@ -1,0 +1,1795 @@
+{
+ "version": 1,
+ "forms": [
+  {
+   "id": 4,
+   "uuid": "2c150293-7bf7-435d-b094-813dcd778dfd",
+   "name": "Project-Based Capacity Planning Request",
+   "header": "<p>Request new infrastructure for a project, more capacity for an existing one, a modernization, or give resources back. The form asks only what applies to your request and takes about 5 minutes.</p><p>Every request is linked to its GLPI project, approved by your manager, and tracked in the project reports.</p>",
+   "description": "<p>Servers, VMs, storage and GPU capacity for projects: new, expansion, modernization or release.</p>",
+   "entity_name": "Root Entity",
+   "is_recursive": true,
+   "is_active": true,
+   "render_layout": "step_by_step",
+   "submit_button_visibility_strategy": "always_visible",
+   "illustration": "asset-server",
+   "submit_button_conditions": [],
+   "sections": [
+    {
+     "id": 1,
+     "uuid": "cap-sec-1",
+     "name": "About the request",
+     "description": "<p>Tell us who is asking and what kind of request this is.</p>",
+     "rank": 0,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
+     "id": 2,
+     "uuid": "cap-sec-2",
+     "name": "Project & timeline",
+     "description": "<p>Which project is this for, how urgent is it, and where should it run?</p>",
+     "rank": 1,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "type1"
+      },
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "or",
+       "value": "type2"
+      },
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "or",
+       "value": "type3"
+      }
+     ]
+    },
+    {
+     "id": 3,
+     "uuid": "cap-sec-3",
+     "name": "What do you need?",
+     "description": "<p>Choose the main resource category. The next step asks only for the details of that category.</p>",
+     "rank": 2,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "type1"
+      },
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "or",
+       "value": "type2"
+      }
+     ]
+    },
+    {
+     "id": 4,
+     "uuid": "cap-sec-4",
+     "name": "Compute specification",
+     "description": "<p>Sizes are <b>per unit</b>. The total is the quantity times these values.</p>",
+     "rank": 3,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-210",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "cat1"
+      }
+     ]
+    },
+    {
+     "id": 5,
+     "uuid": "cap-sec-5",
+     "name": "Storage specification",
+     "description": "<p>Tell us what the storage is for, and how much you need.</p>",
+     "rank": 4,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-210",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "cat2"
+      }
+     ]
+    },
+    {
+     "id": 6,
+     "uuid": "cap-sec-6",
+     "name": "GPU specification",
+     "description": "<p>Describe the GPU workload so the team can choose the right cards.</p>",
+     "rank": 5,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-210",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "cat3"
+      }
+     ]
+    },
+    {
+     "id": 7,
+     "uuid": "cap-sec-7",
+     "name": "Device to modernize",
+     "description": "<p>Which device is being replaced or upgraded, and how will you migrate?</p>",
+     "rank": 6,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "type3"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "uuid": "cap-sec-8",
+     "name": "Resources to release",
+     "description": "<p>Tell us what can be given back and when. Released capacity goes back into the pool for other projects.</p>",
+     "rank": 7,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "type4"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "uuid": "cap-sec-9",
+     "name": "Justification & cost",
+     "description": "<p>This is what the approving manager reads first. Be specific: numbers convince faster than adjectives.</p>",
+     "rank": 8,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "type1"
+      },
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "or",
+       "value": "type2"
+      },
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "or",
+       "value": "type3"
+      }
+     ]
+    },
+    {
+     "id": 10,
+     "uuid": "cap-sec-10",
+     "name": "Approval",
+     "description": "<p>Choose who approves this request.</p>",
+     "rank": 9,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    }
+   ],
+   "comments": [
+    {
+     "id": 301,
+     "uuid": "cap-c-301",
+     "name": "One request per resource type",
+     "description": "<p>Please submit a separate request for each resource type (compute, storage or GPU). Each one can then be approved and delivered on its own.</p>",
+     "vertical_rank": 2,
+     "horizontal_rank": null,
+     "section_id": 1,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
+     "id": 302,
+     "uuid": "cap-c-302",
+     "name": "What happens next",
+     "description": "<ol><li>Your manager approves or refuses the request in GLPI.</li><li>The capacity team checks free capacity and, if needed, prepares a BOQ against the project budget.</li><li>Resources are delivered and the ticket is solved. You follow every step in the ticket.</li></ol>",
+     "vertical_rank": 1,
+     "horizontal_rank": null,
+     "section_id": 10,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    }
+   ],
+   "questions": [
+    {
+     "id": 201,
+     "uuid": "cap-q-201",
+     "name": "Requester department",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeRadio",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "dept1": "ITS",
+       "dept2": "Non-ITS"
+      }
+     },
+     "section_id": 1,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 202,
+     "uuid": "cap-q-202",
+     "name": "Requesting team",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeRequester",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "<p>Your team becomes the ticket's requester group, so the request is counted for it in the reports.</p>",
+     "default_value": null,
+     "extra_data": {
+      "is_multiple_actors": false,
+      "enabled_types": {
+       "User": 0,
+       "Group": 1
+      }
+     },
+     "section_id": 1,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 203,
+     "uuid": "cap-q-203",
+     "name": "Request type",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeRadio",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": null,
+     "description": "<p><b>New project</b>: resources for a project that has none yet. <b>Expansion</b>: more capacity for an existing project. <b>Modernization</b>: replace or upgrade existing devices. <b>Release</b>: give back resources that are no longer needed.</p>",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "type1": "New project",
+       "type2": "Expansion",
+       "type3": "Modernization",
+       "type4": "Release old resources"
+      }
+     },
+     "section_id": 1,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 204,
+     "uuid": "cap-q-204",
+     "name": "Project",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeItem",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": null,
+     "description": "<p>Only projects you are a member of are listed. If yours is missing, ask the project manager to add you to the project team.</p>",
+     "default_value": null,
+     "extra_data": {
+      "itemtype": "Project",
+      "root_items_id": 0,
+      "subtree_depth": 0,
+      "selectable_tree_root": false
+     },
+     "section_id": 2,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "type2"
+      },
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "or",
+       "value": "type3"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 205,
+     "uuid": "cap-q-205",
+     "name": "New project name",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeShortText",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": null,
+     "description": "<p>The project does not exist in GLPI yet. The capacity team will create it and link this request.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "type1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 206,
+     "uuid": "cap-q-206",
+     "name": "Priority",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeUrgency",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "<p>How urgently the resources are needed. This sets the ticket's urgency and priority.</p>",
+     "default_value": "3",
+     "extra_data": null,
+     "section_id": 2,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 207,
+     "uuid": "cap-q-207",
+     "name": "Project phase",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "phase1": "POC",
+       "phase2": "UAT / IAT",
+       "phase3": "Production",
+       "phase4": "DR"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 208,
+     "uuid": "cap-q-208",
+     "name": "Required by (go-live date)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDateTime",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "is_default_value_current_time": 0,
+      "is_date_enabled": 1,
+      "is_time_enabled": 0
+     },
+     "section_id": 2,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 209,
+     "uuid": "cap-q-209",
+     "name": "Site",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "site1": "T1",
+       "site2": "T2",
+       "site3": "T3",
+       "site4": "Karaj",
+       "site5": "Ahvaz",
+       "site6": "Shiraz",
+       "site7": "Mashhad",
+       "site8": "Esfahan",
+       "site9": "Tabriz"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 210,
+     "uuid": "cap-q-210",
+     "name": "Resource category",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeRadio",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": null,
+     "description": "<p><b>Compute</b>: servers, virtual machines, containers. <b>Storage</b>: primary, backup or archive capacity. <b>GPU</b>: AI/ML, rendering or HPC.</p>",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "cat1": "Compute",
+       "cat2": "Storage",
+       "cat3": "GPU"
+      }
+     },
+     "section_id": 3,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 211,
+     "uuid": "cap-q-211",
+     "name": "Resource type",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "rt1": "Physical server",
+       "rt2": "Virtual machine",
+       "rt3": "Container / Kubernetes",
+       "rt4": "Cloud instance"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 4,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 212,
+     "uuid": "cap-q-212",
+     "name": "Quantity",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "<p>Number of servers, VMs or nodes.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 4,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 213,
+     "uuid": "cap-q-213",
+     "name": "Server role",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeShortText",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 2,
+     "description": "<p>For example: database, application, web, middleware.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 4,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 214,
+     "uuid": "cap-q-214",
+     "name": "vCPU / cores per unit",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 4,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 215,
+     "uuid": "cap-q-215",
+     "name": "Memory per unit (GB)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 4,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 216,
+     "uuid": "cap-q-216",
+     "name": "Local disk per unit (GB)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": false,
+     "vertical_rank": 1,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 4,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 217,
+     "uuid": "cap-q-217",
+     "name": "Network interfaces",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 3,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "nic1": "1 NIC",
+       "nic2": "2 NIC",
+       "nic3": "3 NIC",
+       "nic4": "4 NIC",
+       "nic5": "5 NIC",
+       "nic6": "6 NIC"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 4,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 218,
+     "uuid": "cap-q-218",
+     "name": "Local disk RAID",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "raid1": "RAID 0",
+       "raid2": "RAID 1",
+       "raid3": "RAID 5",
+       "raid4": "RAID 6",
+       "raid5": "RAID 10"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 4,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-211",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "rt1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 219,
+     "uuid": "cap-q-219",
+     "name": "Deployment type",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "dep1": "Standalone",
+       "dep2": "Cluster"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 4,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 220,
+     "uuid": "cap-q-220",
+     "name": "Node role",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "node1": "Primary",
+       "node2": "Replica",
+       "node3": "Standby",
+       "node4": "DR"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 4,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-219",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "dep2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 221,
+     "uuid": "cap-q-221",
+     "name": "Other requirements",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
+     "is_mandatory": false,
+     "vertical_rank": 3,
+     "horizontal_rank": null,
+     "description": "<p>Operating system, network zones, backup needs, anything else the team should know.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 4,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 222,
+     "uuid": "cap-q-222",
+     "name": "Storage purpose",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": null,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "sp1": "Primary storage",
+       "sp2": "Backup",
+       "sp3": "Archive"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 5,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 223,
+     "uuid": "cap-q-223",
+     "name": "Capacity",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 5,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp1"
+      },
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "or",
+       "value": "sp3"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 224,
+     "uuid": "cap-q-224",
+     "name": "Unit",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "u2",
+     "extra_data": {
+      "options": {
+       "u1": "GB",
+       "u2": "TB"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 5,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp1"
+      },
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "or",
+       "value": "sp3"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 225,
+     "uuid": "cap-q-225",
+     "name": "Storage type",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "st1": "Local disk",
+       "st2": "iSCSI",
+       "st3": "NAS",
+       "st4": "Ceph"
+      },
+      "is_multiple_dropdown": true
+     },
+     "section_id": 5,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 226,
+     "uuid": "cap-q-226",
+     "name": "Performance tier",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "tier1": "HDD",
+       "tier2": "SSD",
+       "tier3": "NVMe",
+       "tier4": "Hybrid",
+       "tier5": "All-flash"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 5,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 227,
+     "uuid": "cap-q-227",
+     "name": "IOPS requirement",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "iops1": "Low",
+       "iops2": "Medium",
+       "iops3": "High"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 5,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 228,
+     "uuid": "cap-q-228",
+     "name": "Backup target",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "bt1": "iSCSI",
+       "bt2": "NAS",
+       "bt3": "Ceph"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 5,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 229,
+     "uuid": "cap-q-229",
+     "name": "Backup frequency",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "bf1": "Hourly",
+       "bf2": "Daily",
+       "bf3": "Weekly",
+       "bf4": "Monthly",
+       "bf5": "Continuous"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 5,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 230,
+     "uuid": "cap-q-230",
+     "name": "Backup retention",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "br1": "7 days",
+       "br2": "30 days",
+       "br3": "90 days",
+       "br4": "1 year"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 5,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 231,
+     "uuid": "cap-q-231",
+     "name": "Data to protect (GB)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 3,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 5,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 232,
+     "uuid": "cap-q-232",
+     "name": "Archive media",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 4,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "am1": "NAS",
+       "am2": "Ceph",
+       "am3": "Tape"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 5,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp3"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 233,
+     "uuid": "cap-q-233",
+     "name": "Archive retention",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 4,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "ar1": "1 year",
+       "ar2": "3 years",
+       "ar3": "5 years",
+       "ar4": "7 years",
+       "ar5": "10 years",
+       "ar6": "Permanent"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 5,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp3"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 234,
+     "uuid": "cap-q-234",
+     "name": "How often is it read?",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": false,
+     "vertical_rank": 4,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "aa1": "Rarely (audit only)",
+       "aa2": "Monthly",
+       "aa3": "Weekly",
+       "aa4": "Daily"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 5,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-222",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp3"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 235,
+     "uuid": "cap-q-235",
+     "name": "Workload type",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "gw1": "AI/ML training",
+       "gw2": "AI/ML inference",
+       "gw3": "Rendering / graphics",
+       "gw4": "High-performance computing",
+       "gw5": "Video processing / transcoding",
+       "gw6": "Other"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 6,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 236,
+     "uuid": "cap-q-236",
+     "name": "Environment",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "ge1": "Production",
+       "ge2": "Staging",
+       "ge3": "Development"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 6,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 237,
+     "uuid": "cap-q-237",
+     "name": "Number of GPUs",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 6,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 238,
+     "uuid": "cap-q-238",
+     "name": "VRAM per GPU",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "vr1": "16 GB",
+       "vr2": "24 GB",
+       "vr3": "40 GB",
+       "vr4": "80 GB",
+       "vr5": "Other"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 6,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 239,
+     "uuid": "cap-q-239",
+     "name": "Deployment",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "gd1": "Dedicated physical server (bare metal)",
+       "gd2": "VM with GPU passthrough",
+       "gd3": "Shared / vGPU"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 6,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 240,
+     "uuid": "cap-q-240",
+     "name": "Device type",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "md1": "Server",
+       "md2": "Storage",
+       "md3": "Network device"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 7,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 241,
+     "uuid": "cap-q-241",
+     "name": "Device hostname",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeShortText",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 7,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 242,
+     "uuid": "cap-q-242",
+     "name": "Rack location",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeShortText",
+     "is_mandatory": false,
+     "vertical_rank": 0,
+     "horizontal_rank": 2,
+     "description": "<p>For example: T1 / Hall A / Rack A05 / U30.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 7,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 243,
+     "uuid": "cap-q-243",
+     "name": "What should change?",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
+     "is_mandatory": false,
+     "vertical_rank": 1,
+     "horizontal_rank": null,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 7,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 244,
+     "uuid": "cap-q-244",
+     "name": "Migration plan",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeFile",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": null,
+     "description": "<p>Attach the migration plan (steps, downtime window, rollback).</p>",
+     "default_value": null,
+     "extra_data": null,
+     "section_id": 7,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 245,
+     "uuid": "cap-q-245",
+     "name": "Project",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeItem",
+     "is_mandatory": false,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": null,
+     "extra_data": {
+      "itemtype": "Project",
+      "root_items_id": 0,
+      "subtree_depth": 0,
+      "selectable_tree_root": false
+     },
+     "section_id": 8,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 246,
+     "uuid": "cap-q-246",
+     "name": "Site",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "rsite1": "T1",
+       "rsite2": "T2",
+       "rsite3": "T3",
+       "rsite4": "Karaj",
+       "rsite5": "Ahvaz",
+       "rsite6": "Shiraz",
+       "rsite7": "Mashhad",
+       "rsite8": "Esfahan",
+       "rsite9": "Tabriz"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 8,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 247,
+     "uuid": "cap-q-247",
+     "name": "Release date",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDateTime",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "is_default_value_current_time": 0,
+      "is_date_enabled": 1,
+      "is_time_enabled": 0
+     },
+     "section_id": 8,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 248,
+     "uuid": "cap-q-248",
+     "name": "Resources to release",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": null,
+     "description": "<p>Hostnames, VM names, LUNs or capacity, one per line.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 8,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 249,
+     "uuid": "cap-q-249",
+     "name": "Reason",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "rr1": "Project ended",
+       "rr2": "Migrated to a new platform",
+       "rr3": "Consolidation",
+       "rr4": "Hardware end of life",
+       "rr5": "Other"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 8,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 250,
+     "uuid": "cap-q-250",
+     "name": "Comments",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
+     "is_mandatory": false,
+     "vertical_rank": 4,
+     "horizontal_rank": null,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 8,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 251,
+     "uuid": "cap-q-251",
+     "name": "Business justification",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": null,
+     "description": "<p>Why the project needs this now, and what it enables.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 9,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 252,
+     "uuid": "cap-q-252",
+     "name": "Sizing / calculation evidence",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": null,
+     "description": "<p>How you sized it: users, transactions per second, data growth, current utilization.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 9,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 253,
+     "uuid": "cap-q-253",
+     "name": "Impact if delayed or denied",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": false,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "imp1": "Low: workaround available",
+       "imp2": "Medium: project slips",
+       "imp3": "High: service degraded",
+       "imp4": "Critical: revenue or regulatory risk"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 9,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 254,
+     "uuid": "cap-q-254",
+     "name": "Estimated cost (Rial)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": false,
+     "vertical_rank": 2,
+     "horizontal_rank": 1,
+     "description": "<p>Leave empty if you do not know. The capacity team prices it from the BOQ.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 9,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 255,
+     "uuid": "cap-q-255",
+     "name": "Related ticket or reference",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeShortText",
+     "is_mandatory": false,
+     "vertical_rank": 2,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 9,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 256,
+     "uuid": "cap-q-256",
+     "name": "Architecture / technical design",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeFile",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": null,
+     "description": "<p>Diagram or design document.</p>",
+     "default_value": null,
+     "extra_data": null,
+     "section_id": 9,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "type1"
+      },
+      {
+       "item_uuid": "cap-q-203",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "or",
+       "value": "type2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 257,
+     "uuid": "cap-q-257",
+     "name": "Approving manager",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeObserver",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": null,
+     "description": "<p>The manager receives an approval request in GLPI. Work starts only after approval.</p>",
+     "default_value": null,
+     "extra_data": {
+      "is_multiple_actors": false,
+      "enabled_types": {
+       "User": 1,
+       "Group": 0
+      }
+     },
+     "section_id": 10,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    }
+   ],
+   "policies": [
+    {
+     "strategy": "Glpi\\Form\\AccessControl\\ControlType\\AllowList",
+     "config": {
+      "user_ids": [
+       "all",
+       "glpi",
+       "post-only"
+      ],
+      "group_ids": [],
+      "profile_ids": []
+     },
+     "is_active": true
+    },
+    {
+     "strategy": "Glpi\\Form\\AccessControl\\ControlType\\DirectAccess",
+     "config": {
+      "token": "h3OwOxUUtpEvlXfGSEEz2XNWHWVBbl1AX3QM9Ios",
+      "allow_unauthenticated": false
+     },
+     "is_active": false
+    }
+   ],
+   "destinations": [
+    {
+     "id": 9,
+     "itemtype": "Glpi\\Form\\Destination\\FormDestinationTicket",
+     "name": "Ticket",
+     "config": {
+      "glpi-form-destination-commonitilfield-titlefield": {
+       "value": "<span class=\"border-yellow border-start border-3 bg-dark-lt\" data-form-tag=\"true\" data-form-tag-value=\"4\" data-form-tag-provider=\"Glpi\\Form\\Tag\\FormTagProvider\">#Form name: Project-Based Capacity Planning Request</span>"
+      },
+      "glpi-form-destination-commonitilfield-contentfield_auto": "1",
+      "glpi-form-destination-commonitilfield-itilfollowupfield": {
+       "strategy": "no_followup"
+      },
+      "glpi-form-destination-commonitilfield-itiltaskfield": {
+       "strategy": "no_task"
+      },
+      "glpi-form-destination-commonitilfield-validationfield": {
+       "strategy_configs": [
+        {
+         "strategy": "specific_answers",
+         "specific_validationtemplates_ids": [],
+         "specific_question_ids": [
+          257
+         ],
+         "specific_actors": [],
+         "specific_validation_step_id": null
+        }
+       ]
+      },
+      "glpi-form-destination-commonitilfield-templatefield": {
+       "strategy": "default_template"
+      },
+      "glpi-form-destination-commonitilfield-entityfield": {
+       "strategy": "form_filler"
+      },
+      "glpi-form-destination-commonitilfield-requesttypefield": {
+       "strategy": "last_valid_answer"
+      },
+      "glpi-form-destination-commonitilfield-itilcategoryfield": {
+       "strategy": "last_valid_answer"
+      },
+      "glpi-form-destination-commonitilfield-statusfield": {
+       "value": "default_status"
+      },
+      "glpi-form-destination-commonitilfield-requestsourcefield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-urgencyfield": {
+       "strategy": "last_valid_answer"
+      },
+      "glpi-form-destination-commonitilfield-locationfield": {
+       "strategy": "last_valid_answer"
+      },
+      "glpi-form-destination-commonitilfield-requesterfield": {
+       "strategies": [
+        "form_filler",
+        "specific_answer"
+       ],
+       "specific_itilactors_ids": null,
+       "specific_question_ids": [
+        202
+       ]
+      },
+      "glpi-form-destination-commonitilfield-observerfield": {
+       "strategies": [
+        "form_filler"
+       ],
+       "specific_itilactors_ids": null,
+       "specific_question_ids": null
+      },
+      "glpi-form-destination-commonitilfield-assigneefield": {
+       "strategies": [
+        "form_filler_supervisor",
+        "specific_values"
+       ],
+       "specific_itilactors_ids": {
+        "User": [
+         "glpi"
+        ]
+       },
+       "specific_question_ids": null
+      },
+      "glpi-form-destination-commonitilfield-slattofield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-slattrfield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-olattofield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-olattrfield": {
+       "strategy": "from_template"
+      },
+      "glpi-form-destination-commonitilfield-associateditemsfield": {
+       "strategies": [
+        "last_valid_answer"
+       ],
+       "specific_question_ids": null
+      },
+      "glpi-form-destination-commonitilfield-linkeditilobjectsfield": {
+       "strategy_configs": [
+        {
+         "strategy": null,
+         "linktype": "1",
+         "specific_destination_ids": [],
+         "specific_question_ids": [],
+         "specific_itilobject": []
+        }
+       ]
+      }
+     },
+     "creation_strategy": "always_created",
+     "conditions": []
+    }
+   ],
+   "translations": [],
+   "data_requirements": [
+    {
+     "itemtype": "Entity",
+     "name": "Root Entity"
+    },
+    {
+     "itemtype": "User",
+     "name": "glpi"
+    },
+    {
+     "itemtype": "User",
+     "name": "post-only"
+    },
+    {
+     "itemtype": "User",
+     "name": "glpi"
+    }
+   ],
+   "custom_types_requirements": [],
+   "plugin_requirements": []
+  }
+ ]
+}

@@ -2,8 +2,11 @@
 !/config/.gitkeep
 /marketplace/*
 !/marketplace/.gitkeep
+!/marketplace/order/
+!/marketplace/projectreports/
 /plugins/*
 !/plugins/.gitkeep
+!/plugins/datainjection/
 /files/*/*
 !/files/*/.gitkeep
 /.buildpath
