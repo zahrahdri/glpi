@@ -377,16 +377,134 @@ class PluginProjectreportsLop
     }
 
     /**
-     * Price parts-list lines with the supplier's LOP. Each line gets 'price' (used), 'file_price' and
-     * 'source': 'LOP', 'kit file' (part not in the LOP, a price given with the line) or 'missing'.
+     * Where the Price check takes a supplier's prices from:
+     * 'active' = the active LOP (default), 'v<id>' = one previous LOP, 'newest' / 'lowest' = all the supplier's LOPs
+     * (active and previous) together, a part taking the price of the most recently imported LOP that has it, or its
+     * lowest price (above 0) in any of them.
      */
-    public static function priceLines(array $lines, int $suppliers_id): array
+    public const SOURCE_RULES = ['newest' => 'All LOPs, newest price', 'lowest' => 'All LOPs, lowest price'];
+
+    /** The choices of a supplier for the Price check: [source => label], the active LOP first. */
+    public static function sourceChoices(int $suppliers_id): array
     {
-        $lop = self::prices($suppliers_id, array_column($lines, 'part'));
+        $out = [];
+        $info = self::info()[$suppliers_id] ?? null;
+        if (self::hasActive($suppliers_id)) {
+            $out['active'] = 'Active LOP: ' . ((string) ($info['name'] ?? '') ?: '(LOP without a name)');
+        }
+        foreach (self::versions($suppliers_id) as $v) {
+            $out['v' . (int) $v['id']] = 'Previous LOP: ' . $v['name'] . ($v['imported'] ? ' (' . substr((string) $v['imported'], 0, 10) . ')' : '');
+        }
+        if (count($out) > 1) {
+            $out += self::SOURCE_RULES;
+        }
+        return $out;
+    }
+
+    /** A valid source for this supplier: the one asked for, else the active LOP, else its newest previous LOP. */
+    public static function normSource(int $suppliers_id, string $source): string
+    {
+        $choices = self::sourceChoices($suppliers_id);
+        if (isset($choices[$source])) {
+            return $source;
+        }
+        return isset($choices['active']) ? 'active' : ((string) array_key_first($choices) ?: 'active');
+    }
+
+    /** Short name of a source, for tables and notes. */
+    public static function sourceLabel(int $suppliers_id, string $source): string
+    {
+        if (isset(self::SOURCE_RULES[$source])) {
+            return self::SOURCE_RULES[$source];
+        }
+        if (str_starts_with($source, 'v') && ($v = self::version($suppliers_id, (int) substr($source, 1)))) {
+            return (string) $v['name'] . ' (previous)';
+        }
+        return (string) (self::info()[$suppliers_id]['name'] ?? '');
+    }
+
+    /** VAT (%) of a source: that LOP's VAT; for the rules, the active LOP's (else the newest previous one's). */
+    public static function sourceVat(int $suppliers_id, string $source): float
+    {
+        if (str_starts_with($source, 'v') && ($v = self::version($suppliers_id, (int) substr($source, 1)))) {
+            return (float) $v['vat'];
+        }
+        if ($source !== 'active' && !self::hasActive($suppliers_id) && ($versions = self::versions($suppliers_id))) {
+            return (float) $versions[0]['vat'];
+        }
+        return self::vat($suppliers_id);
+    }
+
+    /**
+     * The LOP data of these parts from a source: [part => ['price', 'spare', 'device', 'lop' (name of the LOP the price is from)]].
+     * Parts in none of the LOPs are left out.
+     */
+    public static function partPrices(int $suppliers_id, array $parts, string $source = 'active'): array
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $parts = array_values(array_unique(array_filter(array_map('strval', $parts), 'strlen')));
+        if ($suppliers_id <= 0 || !$parts) {
+            return [];
+        }
+        $fields = ['part', 'price', 'spare', 'device'];
+        // every LOP to look in, newest first: [name, date, rows]
+        $lops = [];
+        $active = function () use ($DB, $suppliers_id, $parts, $fields) {
+            $i = self::info()[$suppliers_id] ?? [];
+            return [(string) ($i['name'] ?? ''), (string) ($i['imported'] ?? ''),
+                $DB->request(['SELECT' => $fields, 'FROM' => self::TABLE, 'WHERE' => ['suppliers_id' => $suppliers_id, 'part' => $parts]])];
+        };
+        $version = fn(array $v) => [(string) $v['name'], (string) ($v['imported'] ?: $v['archived']),
+            $DB->request(['SELECT' => $fields, 'FROM' => self::VERSION_LINES, 'WHERE' => ['lopversions_id' => (int) $v['id'], 'part' => $parts]])];
+        if (str_starts_with($source, 'v')) {
+            $v = self::version($suppliers_id, (int) substr($source, 1));
+            $lops = $v ? [$version($v)] : [];
+        } elseif (isset(self::SOURCE_RULES[$source])) {
+            $lops[] = $active();
+            foreach (self::versions($suppliers_id) as $v) {
+                $lops[] = $version($v);
+            }
+            // newest import first; the active LOP wins a tie
+            $order = array_keys($lops);
+            usort($order, fn($a, $b) => strcmp($lops[$b][1], $lops[$a][1]) ?: $a <=> $b);
+            $lops = array_map(fn($k) => $lops[$k], $order);
+        } else {
+            $lops[] = $active();
+        }
+        $out = [];
+        foreach ($lops as [$name, $date, $rows]) {
+            foreach ($rows as $r) {
+                $part = (string) $r['part'];
+                $row = ['price' => (float) $r['price'], 'spare' => (string) $r['spare'], 'device' => (string) $r['device'], 'lop' => $name];
+                if (!isset($out[$part])) {
+                    $out[$part] = $row;
+                } elseif ($source === 'lowest' && $row['price'] > 0 && ($out[$part]['price'] <= 0 || $row['price'] < $out[$part]['price'])) {
+                    // keep the spare / device of the newest LOP when it has them
+                    $out[$part] = ['spare' => $out[$part]['spare'] ?: $row['spare'], 'device' => $out[$part]['device'] ?: $row['device']] + $row;
+                }
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Price parts-list lines with the supplier's LOP ($source: see SOURCE_RULES; default its active LOP). Each line gets
+     * 'price' (used), 'file_price', 'lop' (the LOP the price is from) and 'source': 'LOP', 'kit file' (part not in the
+     * LOP, a price given with the line) or 'missing'.
+     */
+    public static function priceLines(array $lines, int $suppliers_id, string $source = 'active'): array
+    {
+        $lop = self::partPrices($suppliers_id, array_column($lines, 'part'), $source);
         foreach ($lines as &$l) {
             $l['file_price'] = (float) ($l['price'] ?? 0);
+            $l['lop'] = '';
             if (array_key_exists($l['part'], $lop)) {
-                $l['price'] = $lop[$l['part']];
+                $l['price'] = $lop[$l['part']]['price'];
+                $l['lop'] = $lop[$l['part']]['lop'];
+                if (($l['spare'] ?? '') === '') {
+                    $l['spare'] = $lop[$l['part']]['spare'];
+                }
                 $l['source'] = 'LOP';
             } else {
                 $l['price'] = $l['file_price'];
@@ -404,6 +522,14 @@ class PluginProjectreportsLop
         $out = [];
         foreach ($DB->request(['SELECT' => 'suppliers_id', 'DISTINCT' => true, 'FROM' => self::TABLE, 'WHERE' => ['suppliers_id' => ['>', 0]]]) as $r) {
             $out[] = (int) $r['suppliers_id'];
+        }
+        // suppliers with only previous LOPs can still be priced when one of them is chosen in the Price check
+        if ($DB->tableExists(self::VERSIONS)) {
+            foreach ($DB->request(['SELECT' => 'suppliers_id', 'DISTINCT' => true, 'FROM' => self::VERSIONS, 'WHERE' => ['suppliers_id' => ['>', 0]]]) as $r) {
+                if (!in_array((int) $r['suppliers_id'], $out, true)) {
+                    $out[] = (int) $r['suppliers_id'];
+                }
+            }
         }
         return $out;
     }

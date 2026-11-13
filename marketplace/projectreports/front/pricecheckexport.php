@@ -17,8 +17,14 @@ if (!$ticket->getFromDB($tickets_id) || !$ticket->can($tickets_id, READ)) {
 $key = (string) ($_POST['model'] ?? '');
 $devices = max(1, (int) ($_POST['devices'] ?? 1));
 $sid = (int) ($_POST['suppliers_id'] ?? 0);
+$sources = [];
+foreach ((array) ($_POST['lops'] ?? []) as $s => $src) {
+    if ((int) $s > 0 && preg_match('/^(active|newest|lowest|v\d+)$/', (string) $src)) {
+        $sources[(int) $s] = (string) $src;
+    }
+}
 
-$est = PluginProjectreportsAutoboq::estimate($key, $devices);
+$est = PluginProjectreportsAutoboq::estimate($key, $devices, $sources);
 $sup = null;
 foreach ($est['suppliers'] as $s) {
     if ((int) $s['suppliers_id'] === $sid) {
@@ -36,16 +42,16 @@ header('Content-Type: text/csv; charset=UTF-8');
 header('Content-Disposition: attachment; filename="' . $name . '.csv"');
 $out = fopen('php://output', 'w');
 fwrite($out, "\xEF\xBB\xBF");
-fputcsv($out, ['Supplier', $sup['supplier']]);
+fputcsv($out, ['Supplier', $sup['supplier'], 'LOP', $sup['lop']]);
 fputcsv($out, ['Model', $est['model']['name'] ?? $key, 'Devices', $devices]);
 fputcsv($out, []);
-fputcsv($out, ['Part number', 'Spare part number', 'Description', 'Source', 'Qty per device', 'Unit price (before tax)', 'Line total for all devices (before tax)']);
+fputcsv($out, ['Part number', 'Spare part number', 'Description', 'Source', 'Price from LOP', 'Qty per device', 'Unit price (before tax)', 'Line total for all devices (before tax)']);
 foreach ($sup['lines'] as $l) {
-    fputcsv($out, [$l['part'], $l['spare'], $l['desc'] ?? '', $l['source'], $l['qty'], $l['price'], $l['qty'] * $l['price'] * $devices]);
+    fputcsv($out, [$l['part'], $l['spare'], $l['desc'] ?? '', $l['source'], $l['lop'] ?? '', $l['qty'], $l['price'], $l['qty'] * $l['price'] * $devices]);
 }
 fputcsv($out, []);
-fputcsv($out, ['', '', '', '', '', 'Total before tax', $sup['all_total']]);
-fputcsv($out, ['', '', '', '', '', 'VAT (%)', $sup['vat']]);
-fputcsv($out, ['', '', '', '', '', 'Total with VAT', $sup['all_total'] * (1 + $sup['vat'] / 100)]);
+fputcsv($out, ['', '', '', '', '', '', 'Total before tax', $sup['all_total']]);
+fputcsv($out, ['', '', '', '', '', '', 'VAT (%)', $sup['vat']]);
+fputcsv($out, ['', '', '', '', '', '', 'Total with VAT', $sup['all_total'] * (1 + $sup['vat'] / 100)]);
 fclose($out);
 exit;

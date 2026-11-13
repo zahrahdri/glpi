@@ -129,7 +129,11 @@ class PluginProjectreportsAutoboq
      * best first (all parts in the LOP, then cheapest). Each supplier row: suppliers_id, supplier, lop, total (one
      * device), covered, parts, complete, lines (priced), all_total.
      */
-    public static function estimate(string $key, int $devices): array
+    /**
+     * Price a model with every supplier's LOP. $sources: [suppliers_id => source] chosen in the Price check
+     * (see PluginProjectreportsLop::SOURCE_RULES); a supplier not in it is priced with its active LOP.
+     */
+    public static function estimate(string $key, int $devices, array $sources = []): array
     {
         /** @var DBmysql $DB */
         global $DB;
@@ -148,35 +152,24 @@ class PluginProjectreportsAutoboq
             }
         }
         $sids = array_values(array_unique(array_merge(PluginProjectreportsLop::suppliers(), $own)));
-        $info = PluginProjectreportsLop::info();
         $rows = [];
         foreach ($sids as $sid) {
             $lines = self::partLines($mc, $id, $sid) ?: $standard;
             if (!$lines) {
                 continue;
             }
-            $priced = PluginProjectreportsLop::priceLines($lines, $sid);
-            // spare part numbers given in this supplier's LOP, for parts whose parts-list line has none
-            $spares = [];
-            foreach ($DB->request(['SELECT' => ['part', 'spare'], 'FROM' => PluginProjectreportsLop::TABLE,
-                'WHERE' => ['suppliers_id' => $sid, 'part' => array_column($lines, 'part'), 'spare' => ['<>', '']]]) as $r) {
-                $spares[(string) $r['part']] = (string) $r['spare'];
-            }
-            foreach ($priced as &$l) {
-                if ($l['spare'] === '') {
-                    $l['spare'] = $spares[$l['part']] ?? '';
-                }
-            }
-            unset($l);
+            $source = PluginProjectreportsLop::normSource($sid, (string) ($sources[$sid] ?? 'active'));
+            // prices, and spare part numbers for parts whose parts-list line has none, from the chosen LOP(s)
+            $priced = PluginProjectreportsLop::priceLines($lines, $sid, $source);
             $covered = count(array_filter($priced, fn($l) => $l['source'] === 'LOP'));
             if ($covered === 0) {
                 continue;
             }
             $one = array_sum(array_map(fn($l) => $l['qty'] * $l['price'], $priced));
             $rows[] = ['suppliers_id' => $sid, 'supplier' => Dropdown::getDropdownName('glpi_suppliers', $sid),
-                'lop' => $info[$sid]['name'] ?? '', 'total' => $one, 'covered' => $covered, 'parts' => count($lines),
+                'lop' => PluginProjectreportsLop::sourceLabel($sid, $source), 'source' => $source, 'total' => $one, 'covered' => $covered, 'parts' => count($lines),
                 'complete' => $covered === count($lines), 'lines' => $priced, 'all_total' => $one * $devices,
-                'vat' => PluginProjectreportsLop::vat($sid)];
+                'vat' => PluginProjectreportsLop::sourceVat($sid, $source)];
         }
         usort($rows, fn($a, $b) => (int) $b['complete'] <=> (int) $a['complete'] ?: $b['covered'] <=> $a['covered']
             ?: $a['total'] * (1 + $a['vat'] / 100) <=> $b['total'] * (1 + $b['vat'] / 100));
@@ -260,7 +253,7 @@ class PluginProjectreportsAutoboq
      * @return int order id
      * @throws RuntimeException when the request cannot be priced
      */
-    public static function create(int $tickets_id, array $a, string $key, int $devices, int $sid): int
+    public static function create(int $tickets_id, array $a, string $key, int $devices, int $sid, array $sources = []): int
     {
         $req = self::request($a);
         if (($why = self::problem($req)) !== '') {
@@ -269,7 +262,7 @@ class PluginProjectreportsAutoboq
         if ($devices < 1) {
             throw new RuntimeException('Enter the number of devices (1 or more).');
         }
-        $est = self::estimate($key, $devices);
+        $est = self::estimate($key, $devices, $sources);
         if ($est['model'] === null) {
             throw new RuntimeException('Choose a device model of the LOM catalog that has a parts list.');
         }
@@ -290,12 +283,8 @@ class PluginProjectreportsAutoboq
 
         /** @var DBmysql $DB */
         global $DB;
-        // what the supplier's LOP says about each part: whole device? spare part number?
-        $lop = [];
-        foreach ($DB->request(['SELECT' => ['part', 'device', 'spare'], 'FROM' => PluginProjectreportsLop::TABLE,
-            'WHERE' => ['suppliers_id' => $sid, 'part' => array_column($row['lines'], 'part') ?: ['']]]) as $r) {
-            $lop[(string) $r['part']] = $r;
-        }
+        // what the chosen LOP(s) say about each part: whole device? spare part number?
+        $lop = PluginProjectreportsLop::partPrices($sid, array_column($row['lines'], 'part'), (string) $row['source']);
         $asset = PluginProjectreportsLom::categories()[$model['type']]['asset_class'] ?? '';
         $lines = [];
         foreach ($row['lines'] as $l) {
@@ -336,8 +325,11 @@ class PluginProjectreportsAutoboq
         /** @var array $CFG_GLPI */
         global $CFG_GLPI;
         $url = $CFG_GLPI['root_doc'] . '/plugins/order/front/order.form.php?id=' . $oid;
-        $lopinfo = PluginProjectreportsLop::info()[$sid] ?? null;
-        $priced = sprintf('Supplier <b>%s</b>, prices from LOP <i>%s</i>, VAT ' . htmlescape(self::fmtNum((float) $row['vat'])) . '%%.', htmlescape(Dropdown::getDropdownName('glpi_suppliers', $sid)), htmlescape($lopinfo['name'] ?? ''));
+        $priced = sprintf('Supplier <b>%s</b>, prices from LOP <i>%s</i>, VAT ' . htmlescape(self::fmtNum((float) $row['vat'])) . '%%.', htmlescape(Dropdown::getDropdownName('glpi_suppliers', $sid)), htmlescape($row['lop']));
+        if (isset(PluginProjectreportsLop::SOURCE_RULES[$row['source']])) {
+            $from = array_count_values(array_filter(array_column($row['lines'], 'lop'), 'strlen'));
+            $priced .= ' Prices taken from: ' . htmlescape(implode(', ', array_map(fn($n, $c) => "$n ($c parts)", array_keys($from), $from))) . '.';
+        }
         if ($not_in_lop) {
             $priced .= ' <b>Not in the LOP</b> (price 0): ' . htmlescape(implode(', ', $not_in_lop)) . '.';
         }

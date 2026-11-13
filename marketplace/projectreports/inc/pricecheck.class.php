@@ -85,6 +85,7 @@ class PluginProjectreportsPricecheck extends CommonGLPI
         $key = isset($models[$sel['key'] ?? '']) ? $sel['key'] : PluginProjectreportsAutoboq::suggest($req, $models);
         $devices = max(1, (int) ($sel['devices'] ?? ($req['category'] === 'Compute' && $req['qty'] >= 1 ? (int) round($req['qty']) : 1)));
         $budget = array_key_exists('budget', $sel) ? (int) $sel['budget'] : PluginProjectreportsDemand::budgetOf($tickets_id);
+        $sources = (array) ($sel['lops'] ?? []);
 
         // ---- choose the device model and the number of devices
         echo '<div class="card mb-3"><div class="card-body py-2">';
@@ -104,8 +105,24 @@ class PluginProjectreportsPricecheck extends CommonGLPI
         Dropdown::show('Budget', ['name' => 'budget', 'value' => $budget, 'display_emptychoice' => true, 'emptylabel' => '— none —']);
         echo '</div>';
         echo '<div class="col-md-2"><button type="submit" class="btn btn-outline-primary"><i class="ti ti-calculator"></i> Show prices</button></div>';
+        // suppliers with more than one LOP: which one (or which rule) prices them
+        foreach (PluginProjectreportsLop::suppliers() as $lsid) {
+            $choices = PluginProjectreportsLop::sourceChoices($lsid);
+            if (count($choices) < 2) {
+                continue;
+            }
+            $cur = PluginProjectreportsLop::normSource($lsid, (string) ($sources[$lsid] ?? 'active'));
+            $fid = 'pr-pc-lop-' . $lsid;
+            echo '<div class="col-md-5"><label class="form-label" for="' . $fid . '">Prices from: ' . $h(Dropdown::getDropdownName('glpi_suppliers', $lsid)) . '</label>'
+                . '<select class="form-select" id="' . $fid . '" name="lops[' . $lsid . ']">';
+            foreach ($choices as $v => $label) {
+                echo '<option value="' . $h($v) . '"' . ($v === $cur ? ' selected' : '') . '>' . $h($label) . '</option>';
+            }
+            echo '</select></div>';
+        }
         Html::closeForm();
-        echo '<div class="small text-secondary mt-1">Only models with a parts list are offered. Parts lists are edited in <a href="' . $h($base . 'lom.php') . '">Tools › LOM catalog</a>.</div>';
+        echo '<div class="small text-secondary mt-1">Only models with a parts list are offered. Parts lists are edited in <a href="' . $h($base . 'lom.php') . '">Tools › LOM catalog</a>. '
+            . 'A supplier with several LOPs is priced with its active LOP unless you choose another LOP, or all its LOPs (newest or lowest price of each part), under Prices from.</div>';
         echo '</div></div>';
         if ($key === '') {
             echo '</div>';
@@ -124,14 +141,14 @@ class PluginProjectreportsPricecheck extends CommonGLPI
             echo '</tbody></table></div><div class="card-footer small text-secondary">Demand &amp; cost uses these orders as the request\'s cost. Cancel an order in the Orders plugin if you replace it with another supplier.</div></div>';
         }
 
-        $est = PluginProjectreportsAutoboq::estimate($key, $devices);
+        $est = PluginProjectreportsAutoboq::estimate($key, $devices, $sources);
         $model = $est['model'];
         $S = $est['suppliers'];
         $complete = array_values(array_filter($S, fn($s) => $s['complete']));
         $best = $complete[0] ?? null;
         $info = PluginProjectreportsLop::info();
 
-        echo '<div class="card mb-3"><div class="card-header d-block"><h4 class="card-title m-0">Price with each supplier\'s current LOP</h4>'
+        echo '<div class="card mb-3"><div class="card-header d-block"><h4 class="card-title m-0">Price with each supplier\'s LOP</h4>'
             . '<div class="small text-secondary mt-1"><b>' . $devices . ' × </b><a href="' . $h($model['sheet_url']) . '">' . $h($model['name']) . '</a> ('
             . count($est['lines']) . ' parts per device). Unit prices before tax; VAT from each supplier\'s LOP.</div></div>';
         if (!$S) {
@@ -146,6 +163,9 @@ class PluginProjectreportsPricecheck extends CommonGLPI
         $can = PluginProjectreportsBoqimport::canImport();
         echo '<form method="post" action="' . $h($base . 'pricecheck.form.php') . '"><input type="hidden" name="tickets_id" value="' . $tickets_id . '">'
             . '<input type="hidden" name="action" value="create"><input type="hidden" name="model" value="' . $h($key) . '"><input type="hidden" name="devices" value="' . $devices . '">';
+        foreach ($S as $s) {
+            echo '<input type="hidden" name="lops[' . (int) $s['suppliers_id'] . ']" value="' . $h($s['source']) . '">';
+        }
         echo '<div class="table-responsive"><table class="table table-vcenter card-table m-0"><thead><tr><th style="width:36px"></th><th>Supplier</th><th>LOP</th><th>Parts in LOP</th>'
             . '<th class="text-end">One device</th><th class="text-end">' . $devices . ' device(s)<div class="small fw-normal">before tax</div></th><th class="text-end">VAT</th><th class="text-end">' . $devices . ' device(s)<div class="small fw-normal">with VAT</div></th><th class="text-end">vs. cheapest</th></tr></thead><tbody>';
         $pick = $best['suppliers_id'] ?? ($S[0]['suppliers_id'] ?? 0);
@@ -159,7 +179,7 @@ class PluginProjectreportsPricecheck extends CommonGLPI
             echo '<tr' . ($s['suppliers_id'] === ($best['suppliers_id'] ?? -1) ? ' class="table-success"' : '') . '>'
                 . '<td><input class="form-check-input" type="radio" name="suppliers_id" value="' . (int) $s['suppliers_id'] . '"' . ($s['suppliers_id'] === $pick ? ' checked' : '') . ($can ? '' : ' disabled') . ' aria-label="Choose ' . $h($s['supplier']) . '"></td>'
                 . '<td class="fw-bold">' . $h($s['supplier']) . ($s['suppliers_id'] === ($best['suppliers_id'] ?? -1) ? ' <span class="badge bg-green text-white ms-1">cheapest</span>' : '') . '</td>'
-                . '<td>' . ($lop ? $h($lop['name']) . '<div class="small text-secondary">' . $h(substr((string) ($lop['imported'] ?? ''), 0, 10)) . '</div>' : '') . '</td>'
+                . '<td>' . $h($s['lop']) . ($s['source'] === 'active' && $lop ? '<div class="small text-secondary">' . $h(substr((string) ($lop['imported'] ?? ''), 0, 10)) . '</div>' : '') . '</td>'
                 . '<td>' . $badge . ' <a class="small ms-1" data-bs-toggle="collapse" href="#' . $rid . '" role="button">parts</a></td>'
                 . '<td class="text-end">' . $h(self::money($s['total'])) . '</td>'
                 . '<td class="text-end">' . $h(self::money($s['all_total'])) . '</td>'
@@ -169,7 +189,8 @@ class PluginProjectreportsPricecheck extends CommonGLPI
             // parts of this supplier
             echo '<tr class="collapse" id="' . $rid . '"><td></td><td colspan="8" class="bg-light"><table class="table table-sm m-0"><thead><tr><th>Part Number</th><th>Spare Part number</th><th>Description</th><th class="text-end">Qty per device</th><th class="text-end">Unit price</th><th>Price from</th><th class="text-end">' . $devices . ' device(s)</th></tr></thead><tbody>';
             foreach ($s['lines'] as $l) {
-                $src = $l['source'] === 'LOP' ? '<span class="badge bg-green-lt">LOP</span>' : '<span class="badge bg-red-lt">not in LOP</span>';
+                $src = $l['source'] === 'LOP' ? '<span class="badge bg-green-lt">LOP</span>' . (isset(PluginProjectreportsLop::SOURCE_RULES[$s['source']]) && ($l['lop'] ?? '') !== '' ? ' <span class="small">' . $h($l['lop']) . '</span>' : '')
+                    : '<span class="badge bg-red-lt">not in LOP</span>';
                 echo '<tr><td class="text-nowrap">' . $h($l['part']) . '</td><td class="text-nowrap">' . $h($l['spare']) . '</td><td class="small">' . $h($l['desc'] ?? '') . '</td><td class="text-end">' . $h(self::money((float) $l['qty'])) . '</td>'
                     . '<td class="text-end">' . $h(self::money((float) $l['price'])) . '</td><td>' . $src . '</td><td class="text-end">' . $h(self::money($l['qty'] * $l['price'] * $devices)) . '</td></tr>';
             }

@@ -18,11 +18,18 @@ if (!$ticket->getFromDB($tickets_id) || !$ticket->can($tickets_id, READ)) {
 $back = Ticket::getFormURLWithID($tickets_id) . '&forcetab=PluginProjectreportsPricecheck$1';
 $key = (string) ($_POST['model'] ?? '');
 $devices = max(1, (int) ($_POST['devices'] ?? 1));
+// which LOP prices each supplier: lops[suppliers_id] = active | v<id> | newest | lowest
+$sources = [];
+foreach ((array) ($_POST['lops'] ?? []) as $s => $src) {
+    if ((int) $s > 0 && preg_match('/^(active|newest|lowest|v\d+)$/', (string) $src)) {
+        $sources[(int) $s] = (string) $src;
+    }
+}
 
 // remember the model and number of devices chosen for this ticket, then show the prices
 if (($_POST['action'] ?? '') === 'select') {
     $budget = max(0, (int) ($_POST['budget'] ?? 0));
-    $_SESSION['projectreports_pc'][$tickets_id] = ['key' => $key, 'devices' => $devices, 'budget' => $budget];
+    $_SESSION['projectreports_pc'][$tickets_id] = ['key' => $key, 'devices' => $devices, 'budget' => $budget, 'lops' => $sources];
     // the budget chosen here is the budget of the request: its BOQ is then counted in GLPI's budget
     PluginProjectreportsDemand::save($tickets_id, $budget);
     Html::redirect($back);
@@ -38,7 +45,7 @@ try {
     if ($answers === null) {
         throw new RuntimeException('This ticket was not created by a capacity request form.');
     }
-    $oid = PluginProjectreportsAutoboq::create($tickets_id, $answers, $key, $devices, (int) $_POST['suppliers_id']);
+    $oid = PluginProjectreportsAutoboq::create($tickets_id, $answers, $key, $devices, (int) $_POST['suppliers_id'], $sources);
     $order = new PluginOrderOrder();
     $order->getFromDB($oid);
     $sid = (int) $_POST['suppliers_id'];
