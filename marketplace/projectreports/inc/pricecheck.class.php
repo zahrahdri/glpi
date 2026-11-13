@@ -140,11 +140,13 @@ class PluginProjectreportsPricecheck extends CommonGLPI
         $sel = $_SESSION['projectreports_pc'][$tickets_id] ?? [];
         $calc = $_SESSION['projectreports_calc'][$tickets_id] ?? [];
 
-        // every supplier's LOPs, as "supplier|source" choices
+        // every supplier's LOPs, one by one (active and previous), as "supplier|source" choices
         $options = [];
         foreach (PluginProjectreportsLop::suppliers() as $sid) {
             foreach (PluginProjectreportsLop::sourceChoices($sid) as $src => $label) {
-                $options[$sid][$src] = $label;
+                if ($src === 'active' || preg_match('/^v\d+$/', $src)) {
+                    $options[$sid][$src] = $label;
+                }
             }
         }
         echo '<div class="pr-pc p-2"><div class="card mb-3" id="pr-calc"><div class="card-header"><div><h3 class="card-title m-0">LOP calculator</h3>'
@@ -157,12 +159,15 @@ class PluginProjectreportsPricecheck extends CommonGLPI
         if (!isset($options[$sid])) {
             $sid = (int) array_key_first($options);
         }
-        $src = PluginProjectreportsLop::normSource($sid, (string) ($calc['src'] ?? 'active'));
+        $src = (string) ($calc['src'] ?? 'active');
+        if (!isset($options[$sid][$src])) {
+            $src = (string) array_key_first($options[$sid]);
+        }
         $devices = max(1, (int) ($calc['devices'] ?? ($sel['devices'] ?? 1)));
 
         echo '<div class="card-body py-3"><form method="post" action="' . $h($base . 'pricecheck.form.php') . '" class="row g-2 align-items-end">'
             . '<input type="hidden" name="tickets_id" value="' . $tickets_id . '"><input type="hidden" name="action" value="calc">';
-        echo '<div class="col-md-7"><label class="form-label" for="pr-calc-lop">LOP</label><select class="form-select" id="pr-calc-lop" name="calc">';
+        echo '<div class="col-md-7"><label class="form-label" for="pr-calc-lop">LOP</label><select class="form-select" id="pr-calc-lop" name="calc" onchange="this.form.submit()">';
         foreach ($options as $osid => $choices) {
             echo '<optgroup label="' . $h(Dropdown::getDropdownName('glpi_suppliers', $osid)) . '">';
             foreach ($choices as $v => $label) {
@@ -171,7 +176,7 @@ class PluginProjectreportsPricecheck extends CommonGLPI
             echo '</optgroup>';
         }
         echo '</select></div>';
-        echo '<div class="col-md-2"><label class="form-label" for="pr-calc-dev">Devices</label><input class="form-control" type="number" min="1" step="1" id="pr-calc-dev" name="devices" value="' . $devices . '"></div>';
+        echo '<div class="col-md-2"><label class="form-label" for="pr-calc-dev">Devices</label><input class="form-control" type="number" min="1" step="1" id="pr-calc-dev" name="devices" value="' . $devices . '" onchange="this.form.submit()"></div>';
         echo '<div class="col-md-3"><button type="submit" class="btn btn-outline-primary w-100"><i class="ti ti-list-numbers me-1"></i>Load</button></div>';
         Html::closeForm();
         echo '</div>';
