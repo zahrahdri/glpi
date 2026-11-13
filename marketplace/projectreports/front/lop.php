@@ -17,7 +17,8 @@ if (!PluginProjectreportsBoqimport::canImport()) {
 $h = fn($v) => htmlescape((string) $v);
 $money = fn($v) => number_format(round((float) $v, 2), floor(round((float) $v, 2)) == round((float) $v, 2) ? 0 : 2);
 $self = $CFG_GLPI['root_doc'] . '/plugins/projectreports/front/lop.php';
-$template = $CFG_GLPI['root_doc'] . '/plugins/projectreports/templates/LOM_TEMPLATE.xlsx?v=' . PLUGIN_PROJECTREPORTS_VERSION;
+$template = $CFG_GLPI['root_doc'] . '/plugins/projectreports/templates/LOM_TEMPLATE.xlsx?v=' . PLUGIN_PROJECTREPORTS_VERSION
+    . '-' . (int) @filemtime(__DIR__ . '/../public/templates/LOM_TEMPLATE.xlsx');
 $action = $_POST['action'] ?? '';
 
 // ---- save the previewed LOP
@@ -253,10 +254,10 @@ if ($preview) {
     echo '<div class="col-md-4"><label class="form-label">LOP name / version <span class="text-danger">*</span></label><input name="name" class="form-control" required placeholder="e.g. HPE LOP 2026-Q4"></div>';
     echo '<div class="col-md-2"><label class="form-label" for="lop-vat-new">VAT %</label><input id="lop-vat-new" name="vat" class="form-control" inputmode="decimal" value="10"><div class="form-text">Added on top of the prices.</div></div>';
     echo '<div class="col-md-6"><label class="form-label">LOM file (.xlsx or .csv) <span class="text-danger">*</span></label><input type="file" name="lop" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="form-control" required>'
-        . '<div class="form-text">Columns: <b>Part Number</b> (required), Description, Qty per device, Number of devices, Qty (empty = Qty per device × Number of devices, else 1), <b>Spare Part number</b>. '
-        . 'Unit Price is optional: without it, the prices already saved for these parts are kept. '
+        . '<div class="form-text">Columns: <b>Part Number</b> (required), Part Description, <b>Spare Part Number</b>, Unit price tax free, QTY per device, Quantity (empty = QTY per device, else 1): '
+        . 'the same columns as the CSV from an order\'s Export tab, so that file can be imported here as it is. '
+        . 'Unit price tax free is optional: without that column, the prices already saved for these parts are kept. '
         . '<a href="' . $h($template) . '" download>Download the LOM template</a>. Prices before tax.</div></div>';
-    echo '<div class="col-md-12"><div class="alert alert-info py-2 mb-2">The LOP prices the LOM parts lists and the BOQs created from the Price check. Existing orders and the Orders catalog prices are not changed.</div></div>';
     echo '</div><button type="submit" class="btn btn-primary mt-3"><i class="ti ti-eye"></i> Preview</button></div>';
     Html::closeForm();
 

@@ -22,6 +22,12 @@ class PluginProjectreportsBoqimport
         'type'   => 'Item type',
     ];
 
+    /** Other headers read as the same column, e.g. the columns of the order Export tab (PluginProjectreportsOrderexport::COLUMNS). */
+    public const ALIASES = [
+        'desc'  => ['Part Description'],
+        'price' => ['Unit price tax free', 'Unit price (before tax)'],
+    ];
+
     private const MAX_UNITS = 20000;
 
     /** Values of the LOP "Device" column: a whole device of this type; empty means a part. */
@@ -139,8 +145,9 @@ class PluginProjectreportsBoqimport
         $norm = fn($s) => strtolower(preg_replace('/[^a-z]/i', '', (string) $s));
         $pos = [];
         foreach (self::COLUMNS as $key => $label) {
+            $names = array_map($norm, array_merge([$label], self::ALIASES[$key] ?? []));
             foreach ($header ?: [] as $i => $h) {
-                if ($norm($h) === $norm($label)) {
+                if (in_array($norm($h), $names, true)) {
                     $pos[$key] = $i;
                 }
             }
