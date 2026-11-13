@@ -129,7 +129,8 @@ class PluginProjectreportsPricecheck extends CommonGLPI
         echo '</optgroup></select></div>';
         echo '<div class="col-md-2"><label class="form-label" for="pr-pc-dev">Devices</label><input class="form-control" type="number" min="1" step="1" id="pr-pc-dev" name="devices" value="' . $devices . '"></div>';
         echo '<div class="col-md-3"><label class="form-label">Budget</label>';
-        Dropdown::show('Budget', ['name' => 'budget', 'value' => $budget, 'display_emptychoice' => true, 'emptylabel' => '— none —']);
+        Dropdown::show('Budget', ['name' => 'budget', 'value' => $budget, 'display_emptychoice' => true, 'emptylabel' => '— none —',
+            'comments' => false, 'addicon' => false, 'width' => '100%']);
         echo '</div>';
         echo '<div class="col-md-2"><button type="submit" class="btn btn-primary w-100"><i class="ti ti-calculator me-1"></i>Show prices</button></div>';
         echo '</div>';
