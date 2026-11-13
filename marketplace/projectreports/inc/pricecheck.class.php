@@ -187,7 +187,6 @@ class PluginProjectreportsPricecheck extends CommonGLPI
             return;
         }
         $vat = PluginProjectreportsLop::sourceVat($sid, $src);
-        $rule = isset(PluginProjectreportsLop::SOURCE_RULES[$src]);
         $empty = count(array_filter($lines, fn($l) => $l['qty_per_device'] === null));
 
         // money left in the request's budget (before tax), as in the price comparison above
@@ -207,7 +206,6 @@ class PluginProjectreportsPricecheck extends CommonGLPI
         }
 
         echo '<div class="px-3 pb-2 d-flex flex-wrap gap-2 align-items-center border-bottom">'
-            . '<label class="form-check form-switch m-0 me-2"><input class="form-check-input" type="checkbox" id="pr-calc-hide"> <span class="form-check-label">Hide 0</span></label>'
             . '<button type="button" class="btn btn-sm btn-ghost-secondary" id="pr-calc-reset"><i class="ti ti-restore me-1"></i>Reset</button>'
             . '<button type="button" class="btn btn-sm btn-ghost-secondary" id="pr-calc-csv"><i class="ti ti-download me-1"></i>Export CSV</button>'
             . ($empty ? '<span class="pr-muted ms-auto" title="Fill QTY per device in Price lists (LOP) › Edit">' . $empty . ' part(s) without QTY per device start at 0</span>' : '')
@@ -219,7 +217,7 @@ class PluginProjectreportsPricecheck extends CommonGLPI
             $id = 'pr-calc-q' . $i;
             echo '<tr data-price="' . $h($l['price']) . '" data-lop="' . $q . '" data-part="' . $h($l['part']) . '" data-desc="' . $h($l['description']) . '" data-spare="' . $h($l['spare']) . '">'
                 . '<td class="text-nowrap"><span class="fw-bold">' . $h($l['part']) . '</span>' . ($l['device'] !== '' ? ' <span class="badge bg-blue-lt">' . $h($l['device']) . '</span>' : '')
-                . ($l['spare'] !== '' && $l['spare'] !== $l['part'] ? '<div class="pr-muted">' . $h($l['spare']) . '</div>' : '') . ($rule ? '<div class="pr-muted">' . $h($l['lop']) . '</div>' : '') . '</td>'
+                . ($l['spare'] !== '' && $l['spare'] !== $l['part'] ? '<div class="pr-muted">' . $h($l['spare']) . '</div>' : '') . '</td>'
                 . '<td class="small">' . $h($l['description']) . '</td>'
                 . '<td class="text-end">' . $h(self::money($l['price'])) . '</td>'
                 . '<td><div class="input-group input-group-sm flex-nowrap justify-content-center">'
@@ -257,11 +255,11 @@ class PluginProjectreportsPricecheck extends CommonGLPI
             . "const nf=new Intl.NumberFormat('en-US',{maximumFractionDigits:2});"
             . "const rows=[...box.querySelectorAll('tbody tr')];"
             . "const qty=r=>Math.max(0,parseInt(r.querySelector('.pr-calc-qty').value,10)||0);"
-            . "function calc(){let one=0,changed=0;const hide=box.querySelector('#pr-calc-hide').checked;"
+            . "function calc(){let one=0,changed=0;"
             . "rows.forEach(r=>{const q=qty(r),p=parseFloat(r.dataset.price)||0;one+=q*p;"
             . "r.querySelector('.pr-calc-all').textContent=nf.format(q*C.devices);r.querySelector('.pr-calc-line').textContent=nf.format(q*p*C.devices);"
             . "const diff=q!==parseInt(r.dataset.lop,10);if(diff)changed++;r.querySelector('.pr-calc-was').hidden=!diff;r.classList.toggle('table-warning',diff);"
-            . "r.classList.toggle('text-secondary',q===0);r.hidden=hide&&q===0;});"
+            . "r.classList.toggle('text-secondary',q===0);});"
             . "const tot=one*C.devices,v=tot*C.vat/100;"
             . "box.querySelector('#pr-calc-one').textContent=nf.format(one);box.querySelector('#pr-calc-total').textContent=nf.format(tot);"
             . "box.querySelector('#pr-calc-vat').textContent=nf.format(v);box.querySelector('#pr-calc-ttc').textContent=nf.format(tot+v);"
@@ -269,8 +267,7 @@ class PluginProjectreportsPricecheck extends CommonGLPI
             . "box.querySelector('#pr-calc-changed').textContent=changed?changed+' quantit'+(changed>1?'ies':'y')+' changed from the LOP':'LOP quantities';}"
             . "box.addEventListener('click',e=>{const m=e.target.closest('.pr-calc-minus,.pr-calc-plus');if(!m)return;const i=m.parentNode.querySelector('.pr-calc-qty');"
             . "i.value=Math.max(0,(parseInt(i.value,10)||0)+(m.classList.contains('pr-calc-plus')?1:-1));calc();});"
-            . "box.addEventListener('input',e=>{if(e.target.matches('.pr-calc-qty,#pr-calc-hide'))calc();});"
-            . "box.querySelector('#pr-calc-hide').addEventListener('change',calc);"
+            . "box.addEventListener('input',e=>{if(e.target.matches('.pr-calc-qty'))calc();});"
             . "box.querySelector('#pr-calc-reset').addEventListener('click',()=>{rows.forEach(r=>{r.querySelector('.pr-calc-qty').value=r.dataset.lop;});calc();});"
             . "box.querySelector('#pr-calc-csv').addEventListener('click',()=>{const esc=v=>{v=String(v);return /[\",\\n]/.test(v)?'\"'+v.replace(/\"/g,'\"\"')+'\"':v;};"
             . "const out=[C.head,[],['Part Number','Part Description','Spare Part Number','Unit price tax free','QTY per device','QTY per device in the LOP','Quantity','Line total']];let one=0;"
