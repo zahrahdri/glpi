@@ -20,6 +20,23 @@ $self = $CFG_GLPI['root_doc'] . '/plugins/projectreports/front/lop.php';
 $template = $CFG_GLPI['root_doc'] . '/plugins/projectreports/templates/LOM_TEMPLATE.xlsx?v=' . PLUGIN_PROJECTREPORTS_VERSION
     . '-' . (int) @filemtime(__DIR__ . '/../public/templates/LOM_TEMPLATE.xlsx');
 $action = $_POST['action'] ?? '';
+PluginProjectreportsLop::ensureSchema();
+
+// ---- CSV export of a supplier's LOP (same columns as the LOM template, so it can be imported again)
+if (($_GET['export'] ?? '') === 'csv' && (int) ($_GET['view'] ?? 0) > 0) {
+    $sid = (int) $_GET['view'];
+    $lop_name = (string) (PluginProjectreportsLop::info()[$sid]['name'] ?? '') ?: Dropdown::getDropdownName('glpi_suppliers', $sid);
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="LOP_' . preg_replace('/[^A-Za-z0-9._-]+/', '_', $lop_name) . '.csv"');
+    $out = fopen('php://output', 'w');
+    fwrite($out, "\xEF\xBB\xBF");
+    fputcsv($out, PluginProjectreportsLop::EXPORT_COLUMNS);
+    foreach (PluginProjectreportsLop::exportRows($sid) as $row) {
+        fputcsv($out, $row);
+    }
+    fclose($out);
+    exit;
+}
 
 // ---- save the previewed LOP
 if ($action === 'apply' && isset($_SESSION['projectreports_lop'])) {
@@ -49,14 +66,33 @@ if (in_array($action, ['line_save', 'lines_save', 'line_delete', 'lop_rename', '
         PluginProjectreportsLop::deleteLine($edit_sid, (int) ($_POST['id'] ?? 0));
         Session::addMessageAfterRedirect(htmlescape('Line deleted.'));
     } elseif ($action === 'lines_save') {
-        // every line of the table in one save: lines[id][field]
-        $saved = 0;
+        // every line of the table in one save: lines[id][field]; lines[new] = the new line (when a part number is typed);
+        // lines[id][delete] = delete that line
+        $saved = $added = $deleted = 0;
         $problems = [];
-        foreach ((array) ($_POST['lines'] ?? []) as $lid => $fields) {
-            $why = PluginProjectreportsLop::saveLine($edit_sid, (int) $lid, (array) $fields);
+        $lines = (array) ($_POST['lines'] ?? []);
+        foreach ($lines as $lid => $fields) {
+            if ($lid !== 'new' && !empty($fields['delete'])) {
+                PluginProjectreportsLop::deleteLine($edit_sid, (int) $lid);
+                $deleted++;
+                unset($lines[$lid]);
+            }
+        }
+        foreach ($lines as $lid => $fields) {
+            $fields = (array) $fields;
+            if ($lid === 'new') {
+                if (trim((string) ($fields['part'] ?? '')) === '') {
+                    continue;
+                }
+                $why = PluginProjectreportsLop::saveLine($edit_sid, 0, $fields);
+                $why !== '' ? $problems[] = $why : $added++;
+                continue;
+            }
+            $why = PluginProjectreportsLop::saveLine($edit_sid, (int) $lid, $fields);
             $why !== '' ? $problems[] = $why : $saved++;
         }
-        Session::addMessageAfterRedirect(htmlescape($problems ? implode(' ', $problems) . " ($saved line(s) saved.)" : "$saved line(s) saved."), false, $problems ? ERROR : INFO);
+        $done = "$saved line(s) saved" . ($added ? ", $added added" : '') . ($deleted ? ", $deleted deleted" : '') . '.';
+        Session::addMessageAfterRedirect(htmlescape($problems ? implode(' ', $problems) . " ($done)" : $done), false, $problems ? ERROR : INFO);
     } elseif ($action === 'lop_rename') {
         $vat = PluginProjectreportsLop::vatInput($_POST['vat'] ?? '');
         PluginProjectreportsLop::rename($edit_sid, (string) ($_POST['name'] ?? ''), $vat);
@@ -131,7 +167,7 @@ if ($preview) {
     if ($preview['dupes']) {
         echo '<div class="alert alert-warning py-1 my-1">' . $preview['dupes'] . ' part(s) appear more than once in the file: the last price is used.</div>';
     }
-    echo '<div class="pr-tbl" style="max-height:520px;overflow:auto"><table><thead><tr><th>Part Number</th><th>Device</th><th>Spare Part number</th><th>Description</th><th class="r">Qty</th><th class="r">Current LOP price</th><th class="r">New LOP price</th><th class="r">Change</th><th></th></tr></thead><tbody>';
+    echo '<div class="pr-tbl" style="max-height:520px;overflow:auto"><table><thead><tr><th>Part Number</th><th>Device</th><th>Spare Part number</th><th>Description</th><th class="r">QTY per device</th><th class="r">Qty</th><th class="r">Current LOP price</th><th class="r">New LOP price</th><th class="r">Change</th><th></th></tr></thead><tbody>';
     $order = ['changed' => 0, 'new part' => 1, 'same' => 2];
     usort($L, fn($a, $b) => $order[$a['change']] <=> $order[$b['change']] ?: strcmp($a['part'], $b['part']));
     foreach ($L as $l) {
@@ -148,8 +184,12 @@ if ($preview) {
         } elseif ($l['old_spare'] !== null && $l['old_spare'] !== '' && $l['old_spare'] !== $l['spare']) {
             $spare .= ' <span class="small text-secondary">was ' . $h($l['old_spare']) . '</span>';
         }
+        $per = $l['per'] === null ? '<span class="text-secondary">—</span>' : $h($l['per']);
+        if ($l['old_per'] !== null && $l['per'] !== $l['old_per']) {
+            $per .= ' <span class="small text-secondary">was ' . $h($l['old_per']) . '</span>';
+        }
         echo '<tr><td><b>' . $h($l['part']) . '</b></td><td>' . $dev . '</td><td>' . $spare . '</td><td style="max-width:380px" title="' . $h($l['desc']) . '">' . $h($l['desc']) . '</td>'
-            . '<td class="r">' . $qty . '</td><td class="r">' . ($l['old_price'] === null ? '—' : $h($money($l['old_price']))) . '</td><td class="r"><b>' . $h($money($l['price'])) . '</b></td>'
+            . '<td class="r">' . $per . '</td><td class="r">' . $qty . '</td><td class="r">' . ($l['old_price'] === null ? '—' : $h($money($l['old_price']))) . '</td><td class="r"><b>' . $h($money($l['price'])) . '</b></td>'
             . '<td class="r">' . ($diff === null || $l['change'] === 'same' ? '' : '<span class="' . ($diff > 0 ? 'text-danger' : 'text-success') . '">' . ($diff > 0 ? '+' : '') . round($diff * 100, 1) . '%</span>') . '</td>'
             . '<td><span class="badge ' . $badge . '">' . $h($l['change']) . '</span></td></tr>';
     }
@@ -172,6 +212,7 @@ if ($preview) {
         echo $editing ? '<a class="btn btn-primary btn-sm" href="' . $h($view_url) . '"><i class="ti ti-check"></i> Done editing</a>'
             : '<a class="btn btn-outline-primary btn-sm" href="' . $h($view_url . '&edit=1') . '"><i class="ti ti-pencil"></i> Edit</a>';
     }
+    echo '<a class="btn btn-outline-secondary btn-sm" href="' . $h($view_url . '&export=csv') . '"><i class="ti ti-download"></i> Export CSV</a>';
     echo '<a class="btn btn-outline-secondary btn-sm" href="' . $h($self) . '">Back</a></div></div>';
     $rows = iterator_to_array($DB->request(['FROM' => PluginProjectreportsLop::TABLE, 'WHERE' => ['suppliers_id' => $sid], 'ORDER' => ['device DESC', 'part']]), false);
     $hidden = '<input type="hidden" name="suppliers_id" value="' . $sid . '">';
@@ -195,37 +236,34 @@ if ($preview) {
             return $o . '</select>';
         };
         $cell = fn(string $form, string $name, $v, string $extra = '') => '<input class="form-control form-control-sm" name="' . $name . '" form="' . $form . '" value="' . $h($v) . '" ' . $extra . '>';
-        echo '<form id="lop-edit" method="post" action="' . $h($self) . '" class="d-none">' . $hidden . '<input type="hidden" name="action" value="lines_save">';
+        echo '<form id="lop-edit" method="post" action="' . $h($self) . '" class="d-none" onsubmit="const n=this.ownerDocument.querySelectorAll(\'input.lop-del:checked\').length;return !n||confirm(\'Delete \'+n+\' line(s)?\')">' . $hidden . '<input type="hidden" name="action" value="lines_save">';
         Html::closeForm();
-        echo '<div class="d-flex flex-wrap gap-2 align-items-center mb-2"><button type="submit" form="lop-edit" class="btn btn-primary"><i class="ti ti-device-floppy"></i> Save all lines</button>'
-            . '<span class="pr-sub">Change any lines below, then press Save all lines once. Changes apply to new Price checks and BOQs; existing orders keep their prices.</span></div>';
-        echo '<div class="pr-tbl" style="max-height:640px;overflow:auto"><table><thead><tr><th style="min-width:130px">Part Number</th><th style="min-width:110px">Device</th><th style="min-width:120px">Spare Part number</th><th style="min-width:260px">Description</th><th class="r" style="min-width:80px">Qty</th><th class="r" style="min-width:110px">Unit Price</th><th></th></tr></thead><tbody>';
-        // new line
-        echo '<tr class="table-light"><td>' . $cell('lr0', 'part', '', 'required placeholder="new part number" aria-label="Part Number"') . '</td><td>' . $devsel('lr0', '') . '</td>'
-            . '<td>' . $cell('lr0', 'spare', '', 'aria-label="Spare Part number"') . '</td><td>' . $cell('lr0', 'description', '', 'aria-label="Description"') . '</td>'
-            . '<td>' . $cell('lr0', 'qty', '1', 'inputmode="numeric" aria-label="Qty"') . '</td>'
-            . '<td>' . $cell('lr0', 'price', '', 'required inputmode="decimal" aria-label="Unit Price"') . '</td>'
-            . '<td class="text-nowrap"><button class="btn btn-sm btn-primary" type="submit" form="lr0"><i class="ti ti-plus"></i> Add</button></td></tr>';
+        $f = 'lop-edit';
+        $save_bar = '<div class="d-flex flex-wrap gap-2 align-items-center my-2"><button type="submit" form="' . $f . '" class="btn btn-primary"><i class="ti ti-device-floppy"></i> Save all lines</button>'
+            . '<span class="pr-sub">Change any lines, type a new line in the first row, tick Delete on lines to remove, then press Save all lines once. QTY per device may stay empty. '
+            . 'Changes apply to new Price checks and BOQs; existing orders keep their prices.</span></div>';
+        echo $save_bar;
+        echo '<div class="pr-tbl" style="max-height:640px;overflow:auto"><table><thead><tr><th style="min-width:130px">Part Number</th><th style="min-width:110px">Device</th><th style="min-width:120px">Spare Part number</th><th style="min-width:260px">Description</th>'
+            . '<th class="r" style="min-width:90px">QTY per device</th><th class="r" style="min-width:80px">Qty</th><th class="r" style="min-width:110px">Unit Price</th><th class="text-center">Delete</th></tr></thead><tbody>';
+        // new line: saved with the others when a part number is typed
+        $n = 'lines[new]';
+        echo '<tr class="table-light"><td>' . $cell($f, $n . '[part]', '', 'placeholder="new part number" aria-label="New part number"') . '</td><td>' . $devsel($f, '', $n . '[device]') . '</td>'
+            . '<td>' . $cell($f, $n . '[spare]', '', 'aria-label="New spare part number"') . '</td><td>' . $cell($f, $n . '[description]', '', 'aria-label="New description"') . '</td>'
+            . '<td>' . $cell($f, $n . '[qty_per_device]', '', 'inputmode="numeric" aria-label="New QTY per device"') . '</td>'
+            . '<td>' . $cell($f, $n . '[qty]', '1', 'inputmode="numeric" aria-label="New Qty"') . '</td>'
+            . '<td>' . $cell($f, $n . '[price]', '', 'inputmode="decimal" aria-label="New unit price"') . '</td>'
+            . '<td class="text-center small text-secondary">new</td></tr>';
         foreach ($rows as $r) {
-            $f = 'lop-edit';
             $n = 'lines[' . (int) $r['id'] . ']';
             echo '<tr><td>' . $cell($f, $n . '[part]', $r['part'], 'required aria-label="Part Number"') . '</td><td>' . $devsel($f, (string) $r['device'], $n . '[device]') . '</td>'
                 . '<td>' . $cell($f, $n . '[spare]', $r['spare'], 'aria-label="Spare Part number"') . '</td><td>' . $cell($f, $n . '[description]', $r['description'], 'aria-label="Description"') . '</td>'
+                . '<td>' . $cell($f, $n . '[qty_per_device]', $r['qty_per_device'] === null ? '' : (int) $r['qty_per_device'], 'inputmode="numeric" aria-label="QTY per device"') . '</td>'
                 . '<td>' . $cell($f, $n . '[qty]', (int) $r['qty'], 'inputmode="numeric" aria-label="Qty"') . '</td>'
                 . '<td>' . $cell($f, $n . '[price]', rtrim(rtrim(number_format((float) $r['price'], 6, '.', ''), '0'), '.'), 'required inputmode="decimal" aria-label="Unit Price"') . '</td>'
-                . '<td class="text-nowrap">'
-                . '<button class="btn btn-sm btn-outline-danger" type="submit" form="ld' . (int) $r['id'] . '" title="Delete this line" aria-label="Delete ' . $h($r['part']) . '"><i class="ti ti-trash"></i></button></td></tr>';
+                . '<td class="text-center"><input type="checkbox" class="form-check-input lop-del" name="' . $n . '[delete]" value="1" form="' . $f . '" aria-label="Delete ' . $h($r['part']) . '"></td></tr>';
         }
-        echo '</tbody></table></div></div>';
-        // one form per line (the inputs above point to them)
-        foreach (array_merge([0], array_map(fn($r) => (int) $r['id'], $rows)) as $id) {
-            echo '<form id="lr' . $id . '" method="post" action="' . $h($self) . '" class="d-none">' . $hidden . '<input type="hidden" name="action" value="line_save"><input type="hidden" name="id" value="' . $id . '">';
-            Html::closeForm();
-            if ($id) {
-                echo '<form id="ld' . $id . '" method="post" action="' . $h($self) . '" class="d-none" onsubmit="return confirm(\'Delete this line?\')">' . $hidden . '<input type="hidden" name="action" value="line_delete"><input type="hidden" name="id" value="' . $id . '">';
-                Html::closeForm();
-            }
-        }
+        echo '</tbody></table></div>';
+        echo $save_bar . '</div>';
     } else {
         $dc = array_count_values(array_map(fn($r) => $r['device'] ?: 'part', $rows));
         echo '<div class="d-flex flex-wrap gap-2 mb-2" id="lop-dev" role="group" aria-label="Device filter">';
@@ -236,9 +274,9 @@ if ($preview) {
             }
             echo '<button type="button" class="btn btn-sm ' . ($k === '' ? 'btn-primary' : 'btn-outline-secondary') . '" data-dev="' . $h($k) . '">' . $h($label) . ' <span class="opacity-75">' . $n . '</span></button>';
         }
-        echo '</div><div class="pr-tbl" style="max-height:640px;overflow:auto"><table><thead><tr><th>Part Number</th><th>Device</th><th>Spare Part number</th><th>Description</th><th class="r">Qty</th><th class="r">Unit Price</th><th>Updated</th></tr></thead><tbody>';
+        echo '</div><div class="pr-tbl" style="max-height:640px;overflow:auto"><table><thead><tr><th>Part Number</th><th>Device</th><th>Spare Part number</th><th>Description</th><th class="r">QTY per device</th><th class="r">Qty</th><th class="r">Unit Price</th><th>Updated</th></tr></thead><tbody>';
         foreach ($rows as $r) {
-            echo '<tr data-dev="' . $h($r['device'] ?: 'part') . '" data-q="' . (int) $r['qty'] . '"><td><b>' . $h($r['part']) . '</b></td><td>' . ($r['device'] !== '' ? '<span class="badge bg-blue-lt">' . $h($r['device']) . '</span>' : '<span class="text-secondary">part</span>') . '</td><td>' . ($r['spare'] !== '' ? $h($r['spare']) : '<span class="text-secondary">—</span>') . '</td><td>' . $h($r['description']) . '</td><td class="r">' . (int) $r['qty'] . '</td><td class="r">' . $h($money($r['price'])) . '</td><td>' . $h(substr((string) $r['date_mod'], 0, 16)) . '</td></tr>';
+            echo '<tr data-dev="' . $h($r['device'] ?: 'part') . '" data-q="' . (int) $r['qty'] . '"><td><b>' . $h($r['part']) . '</b></td><td>' . ($r['device'] !== '' ? '<span class="badge bg-blue-lt">' . $h($r['device']) . '</span>' : '<span class="text-secondary">part</span>') . '</td><td>' . ($r['spare'] !== '' ? $h($r['spare']) : '<span class="text-secondary">—</span>') . '</td><td>' . $h($r['description']) . '</td><td class="r">' . ($r['qty_per_device'] === null ? '<span class="text-secondary">—</span>' : (int) $r['qty_per_device']) . '</td><td class="r">' . (int) $r['qty'] . '</td><td class="r">' . $h($money($r['price'])) . '</td><td>' . $h(substr((string) $r['date_mod'], 0, 16)) . '</td></tr>';
         }
         echo '</tbody></table></div></div>';
         echo "<script>document.getElementById('lop-dev').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;"

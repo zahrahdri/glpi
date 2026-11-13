@@ -47,6 +47,31 @@ class PluginProjectreportsLop
         if (!$DB->fieldExists(self::TABLE, 'qty')) {
             $DB->doQuery('ALTER TABLE `' . self::TABLE . "` ADD `qty` int NOT NULL DEFAULT '1' AFTER `price`");
         }
+        self::ensureSchema();
+    }
+
+    /**
+     * QTY per device of each line (empty = not known). Added without a new plugin version, so the LOP page also calls
+     * this: the column is created the first time the page is opened.
+     */
+    public static function ensureSchema(): void
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        if ($DB->tableExists(self::TABLE) && !$DB->fieldExists(self::TABLE, 'qty_per_device', false)) {
+            $DB->doQuery('ALTER TABLE `' . self::TABLE . "` ADD `qty_per_device` int DEFAULT NULL AFTER `qty`");
+        }
+    }
+
+    /** "" -> null (empty), "4" -> 4, anything else -> false (not a whole number of 0 or more). */
+    public static function perDeviceInput($v)
+    {
+        $v = trim((string) $v);
+        if ($v === '') {
+            return null;
+        }
+        $n = PluginProjectreportsBoqimport::number($v);
+        return $n === null || $n < 0 || floor($n) != $n ? false : (int) $n;
     }
 
     public static function uninstall(): void
@@ -93,7 +118,7 @@ class PluginProjectreportsLop
 
     /**
      * Add ($id 0) or change one line of a supplier's LOP, typed by an administrator.
-     * $in: part, device, spare, description, price. Returns '' when saved, else the problem.
+     * $in: part, device, spare, description, price, qty, qty_per_device (empty = not known). Returns '' when saved, else the problem.
      */
     public static function saveLine(int $suppliers_id, int $id, array $in): string
     {
@@ -115,6 +140,10 @@ class PluginProjectreportsLop
         if ($device === null) {
             return "Part $part: Device must be empty (a part) or one of " . implode(', ', PluginProjectreportsBoqimport::DEVICE_TYPES) . '.';
         }
+        $per = self::perDeviceInput($in['qty_per_device'] ?? '');
+        if ($per === false) {
+            return "Part $part: QTY per device must be empty or a whole number (0 or more).";
+        }
         $twin = $DB->request(['SELECT' => 'id', 'FROM' => self::TABLE, 'WHERE' => ['suppliers_id' => $suppliers_id, 'part' => $part,
             'NOT' => ['id' => $id]], 'LIMIT' => 1])->current();
         if ($twin) {
@@ -122,6 +151,9 @@ class PluginProjectreportsLop
         }
         $row = ['part' => $part, 'price' => $price, 'qty' => (int) $qty, 'device' => $device, 'spare' => mb_substr(trim((string) ($in['spare'] ?? '')), 0, 255),
             'description' => trim((string) ($in['description'] ?? '')), 'date_mod' => $_SESSION['glpi_currenttime']];
+        if (array_key_exists('qty_per_device', $in)) {
+            $row['qty_per_device'] = $per;
+        }
         if ($id > 0) {
             $DB->update(self::TABLE, $row, ['id' => $id, 'suppliers_id' => $suppliers_id]);
         } else {
@@ -256,13 +288,14 @@ class PluginProjectreportsLop
         /** @var DBmysql $DB */
         global $DB;
         $old = self::prices($suppliers_id, array_column($lines, 'part'));
-        $old_dev = $old_spare = $old_qty = [];
+        $old_dev = $old_spare = $old_qty = $old_per = [];
         if ($lines) {
-            foreach ($DB->request(['SELECT' => ['part', 'device', 'spare', 'qty'], 'FROM' => self::TABLE,
+            foreach ($DB->request(['SELECT' => ['part', 'device', 'spare', 'qty', 'qty_per_device'], 'FROM' => self::TABLE,
                 'WHERE' => ['suppliers_id' => $suppliers_id, 'part' => array_column($lines, 'part')]]) as $r) {
                 $old_dev[(string) $r['part']] = (string) $r['device'];
                 $old_qty[(string) $r['part']] = (int) $r['qty'];
                 $old_spare[(string) $r['part']] = (string) $r['spare'];
+                $old_per[(string) $r['part']] = $r['qty_per_device'] === null ? null : (int) $r['qty_per_device'];
             }
         }
         foreach ($lines as &$l) {
@@ -274,6 +307,9 @@ class PluginProjectreportsLop
             $l['old_spare'] = $old_spare[$l['part']] ?? null;
             $l['qty'] = (int) ($l['qty'] ?? 1);
             $l['old_qty'] = $old_qty[$l['part']] ?? null;
+            // an empty QTY per device in the file (or no such column) keeps the saved one
+            $l['old_per'] = $old_per[$l['part']] ?? null;
+            $l['per'] = $l['per'] ?? $l['old_per'];
             if ($l['price'] === null) {
                 // no Unit Price in the file: the saved price is kept
                 $l['change'] = $l['old_price'] === null ? 'new part' : 'same';
@@ -299,15 +335,18 @@ class PluginProjectreportsLop
             $price = $l['price'] ?? ($cur ? (float) $cur['price'] : 0.0);
             $spare = trim((string) ($l['spare'] ?? ''));
             $qty = (int) ($l['qty'] ?? 1);
+            // an empty QTY per device keeps the saved one
+            $per = $l['per'] ?? ($cur && $cur['qty_per_device'] !== null ? (int) $cur['qty_per_device'] : null);
             if (!$cur) {
                 $DB->insert(self::TABLE, ['suppliers_id' => $suppliers_id, 'part' => $l['part'], 'description' => $l['desc'], 'price' => $price,
-                    'device' => $device, 'spare' => $spare, 'qty' => $qty, 'date_mod' => $now]);
+                    'device' => $device, 'spare' => $spare, 'qty' => $qty, 'qty_per_device' => $per, 'date_mod' => $now]);
                 $st['new']++;
             } elseif ((float) $cur['price'] != $price || ($l['desc'] !== '' && $l['desc'] !== $cur['description']) || $device !== (string) $cur['device']
-                || ($spare !== '' && $spare !== (string) $cur['spare']) || $qty !== (int) $cur['qty']) {
+                || ($spare !== '' && $spare !== (string) $cur['spare']) || $qty !== (int) $cur['qty']
+                || $per !== ($cur['qty_per_device'] === null ? null : (int) $cur['qty_per_device'])) {
                 // an empty Description or Spare Part number in the file keeps the saved one
                 $DB->update(self::TABLE, ['price' => $price, 'description' => $l['desc'] !== '' ? $l['desc'] : $cur['description'],
-                    'device' => $device, 'spare' => $spare !== '' ? $spare : $cur['spare'], 'qty' => $qty, 'date_mod' => $now], ['id' => $cur['id']]);
+                    'device' => $device, 'spare' => $spare !== '' ? $spare : $cur['spare'], 'qty' => $qty, 'qty_per_device' => $per, 'date_mod' => $now], ['id' => $cur['id']]);
                 (float) $cur['price'] != $price ? $st['changed']++ : $st['same']++;
             } else {
                 $st['same']++;
@@ -316,5 +355,21 @@ class PluginProjectreportsLop
         $parts = (int) $DB->request(['COUNT' => 'c', 'FROM' => self::TABLE, 'WHERE' => ['suppliers_id' => $suppliers_id]])->current()['c'];
         self::saveInfo($suppliers_id, ['name' => $name, 'parts' => $parts, 'imported' => $now, 'vat' => $vat]);
         return $st;
+    }
+
+    /** Header of the LOP CSV export: the LOM template columns (so the file can be imported again), then Device. */
+    public const EXPORT_COLUMNS = ['Part Number', 'Part Description', 'Spare Part Number', 'Unit price tax free', 'QTY per device', 'Quantity', 'Device'];
+
+    /** Lines of a supplier's LOP as CSV rows, in the order of EXPORT_COLUMNS. */
+    public static function exportRows(int $suppliers_id): array
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $out = [];
+        foreach ($DB->request(['FROM' => self::TABLE, 'WHERE' => ['suppliers_id' => $suppliers_id], 'ORDER' => ['device DESC', 'part']]) as $r) {
+            $out[] = [(string) $r['part'], (string) $r['description'], (string) $r['spare'], (float) $r['price'],
+                $r['qty_per_device'] === null ? '' : (int) $r['qty_per_device'], (int) $r['qty'], (string) $r['device']];
+        }
+        return $out;
     }
 }

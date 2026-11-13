@@ -248,7 +248,16 @@ class PluginProjectreportsBoqimport
                     $device = '';
                 }
             }
-            $lines[] = ['row' => $row, 'part' => $part, 'spare' => $get('spare'), 'model' => $get('model'), 'desc' => $get('desc'), 'device' => $device,
+            // LOP: QTY per device (null = no such column or an empty cell: the saved value is kept)
+            $per = null;
+            if ($mode === 'lop' && $get('per') !== '' && !str_starts_with($get('per'), '=')) {
+                $per = PluginProjectreportsLop::perDeviceInput($get('per'));
+                if ($per === false) {
+                    $errors[] = "Row $row ($part): QTY per device \"{$get('per')}\" is not a whole number.";
+                    continue;
+                }
+            }
+            $lines[] = ['row' => $row, 'part' => $part, 'spare' => $get('spare'), 'model' => $get('model'), 'desc' => $get('desc'), 'device' => $device, 'per' => $per,
                 'qty' => (int) $qty, 'price' => $price, 'itemtype' => $itemtype, 'reference' => $ref ? (int) $ref['id'] : 0];
         }
         fclose($fh);
