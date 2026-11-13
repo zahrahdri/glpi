@@ -26,6 +26,14 @@ foreach ((array) ($_POST['lops'] ?? []) as $s => $src) {
     }
 }
 
+// LOP calculator: remember the supplier, LOP and number of devices chosen
+if (($_POST['action'] ?? '') === 'calc') {
+    [$csid, $csrc] = array_pad(explode('|', (string) ($_POST['calc'] ?? ''), 2), 2, '');
+    $_SESSION['projectreports_calc'][$tickets_id] = ['sid' => (int) $csid,
+        'src' => preg_match('/^(active|newest|lowest|v\d+)$/', $csrc) ? $csrc : 'active', 'devices' => $devices];
+    Html::redirect($back . '#pr-calc');
+}
+
 // remember the model and number of devices chosen for this ticket, then show the prices
 if (($_POST['action'] ?? '') === 'select') {
     $budget = max(0, (int) ($_POST['budget'] ?? 0));

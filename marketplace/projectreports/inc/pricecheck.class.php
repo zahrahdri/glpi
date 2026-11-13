@@ -44,6 +44,14 @@ class PluginProjectreportsPricecheck extends CommonGLPI
 
     public static function show(int $tickets_id): void
     {
+        self::showEstimate($tickets_id);
+        if (PluginProjectreportsAutoboq::answersForTicket($tickets_id) !== null) {
+            self::showCalculator($tickets_id);
+        }
+    }
+
+    private static function showEstimate(int $tickets_id): void
+    {
         /** @var array $CFG_GLPI */
         global $CFG_GLPI;
         $h = fn($v) => htmlescape((string) $v);
@@ -229,5 +237,150 @@ class PluginProjectreportsPricecheck extends CommonGLPI
         echo '</div>';
         Html::closeForm();
         echo '</div></div>';
+    }
+
+    /**
+     * LOP calculator: the lines of one supplier's LOP (or of all its LOPs together) with their QTY per device from the
+     * LOP; quantities can be raised or lowered (e.g. more RAM, fewer disks) and the totals follow, in the browser.
+     * Nothing is saved: the quantities are a what-if, which can be exported as CSV.
+     */
+    private static function showCalculator(int $tickets_id): void
+    {
+        /** @var array $CFG_GLPI */
+        global $CFG_GLPI;
+        $h = fn($v) => htmlescape((string) $v);
+        $base = $CFG_GLPI['root_doc'] . '/plugins/projectreports/front/';
+        $sel = $_SESSION['projectreports_pc'][$tickets_id] ?? [];
+        $calc = $_SESSION['projectreports_calc'][$tickets_id] ?? [];
+
+        // every supplier's LOPs, as "supplier|source" choices
+        $options = [];
+        foreach (PluginProjectreportsLop::suppliers() as $sid) {
+            foreach (PluginProjectreportsLop::sourceChoices($sid) as $src => $label) {
+                $options[$sid][$src] = $label;
+            }
+        }
+        echo '<div class="p-2" style="max-width:1200px"><div class="card mb-3" id="pr-calc"><div class="card-header d-block"><h4 class="card-title m-0">LOP calculator</h4>'
+            . '<div class="small text-secondary mt-1">Price a supplier\'s LOP with the QTY per device saved in it, then add or remove parts (for example more RAM or fewer disks) and check the total. Nothing is saved.</div></div>';
+        if (!$options) {
+            echo '<div class="alert alert-warning m-3">No LOP imported yet. <a href="' . $h($base . 'lop.php') . '">Import a LOP</a>.</div></div></div>';
+            return;
+        }
+        $sid = (int) ($calc['sid'] ?? 0);
+        if (!isset($options[$sid])) {
+            $sid = (int) array_key_first($options);
+        }
+        $src = PluginProjectreportsLop::normSource($sid, (string) ($calc['src'] ?? 'active'));
+        $devices = max(1, (int) ($calc['devices'] ?? ($sel['devices'] ?? 1)));
+
+        echo '<div class="card-body pb-0"><form method="post" action="' . $h($base . 'pricecheck.form.php') . '" class="row g-2 align-items-end">'
+            . '<input type="hidden" name="tickets_id" value="' . $tickets_id . '"><input type="hidden" name="action" value="calc">';
+        echo '<div class="col-md-7"><label class="form-label" for="pr-calc-lop">Supplier and LOP</label><select class="form-select" id="pr-calc-lop" name="calc">';
+        foreach ($options as $osid => $choices) {
+            echo '<optgroup label="' . $h(Dropdown::getDropdownName('glpi_suppliers', $osid)) . '">';
+            foreach ($choices as $v => $label) {
+                echo '<option value="' . $osid . '|' . $h($v) . '"' . ($osid === $sid && $v === $src ? ' selected' : '') . '>' . $h($label) . '</option>';
+            }
+            echo '</optgroup>';
+        }
+        echo '</select></div>';
+        echo '<div class="col-md-2"><label class="form-label" for="pr-calc-dev">Number of devices</label><input class="form-control" type="number" min="1" step="1" id="pr-calc-dev" name="devices" value="' . $devices . '"></div>';
+        echo '<div class="col-md-3"><button type="submit" class="btn btn-outline-primary"><i class="ti ti-list-numbers"></i> Load LOP</button></div>';
+        Html::closeForm();
+        echo '</div>';
+
+        $lines = PluginProjectreportsLop::calcLines($sid, $src);
+        if (!$lines) {
+            echo '<div class="alert alert-warning m-3">This LOP has no lines.</div></div></div>';
+            return;
+        }
+        $vat = PluginProjectreportsLop::sourceVat($sid, $src);
+        $rule = isset(PluginProjectreportsLop::SOURCE_RULES[$src]);
+        $empty = count(array_filter($lines, fn($l) => $l['qty_per_device'] === null));
+
+        // money left in the request's budget (before tax), as in the price comparison above
+        $budget = array_key_exists('budget', $sel) ? (int) $sel['budget'] : PluginProjectreportsDemand::budgetOf($tickets_id);
+        $free = null;
+        $budget_name = '';
+        if ($budget > 0) {
+            $binfo = PluginProjectreportsPlan::budgetInfo($budget);
+            $own = 0.0;
+            foreach (PluginProjectreportsDemand::boq($tickets_id)['list'] as $o) {
+                if ($o['budgets_id'] === $budget) {
+                    $own += $o['total'];
+                }
+            }
+            $free = $binfo['available'] + $own;
+            $budget_name = $binfo['name'];
+        }
+
+        echo '<div class="card-body py-2 d-flex flex-wrap gap-3 align-items-center">'
+            . '<label class="form-check m-0"><input class="form-check-input" type="checkbox" id="pr-calc-hide"> <span class="form-check-label">Hide parts with quantity 0</span></label>'
+            . '<button type="button" class="btn btn-sm btn-outline-secondary" id="pr-calc-reset"><i class="ti ti-restore"></i> Reset to the LOP quantities</button>'
+            . '<button type="button" class="btn btn-sm btn-outline-secondary" id="pr-calc-csv"><i class="ti ti-download"></i> Export CSV</button>'
+            . ($empty ? '<span class="small text-secondary">' . $empty . ' part(s) have no QTY per device in the LOP: they start at 0.</span>' : '')
+            . '</div>';
+        echo '<div class="table-responsive" style="max-height:560px;overflow:auto"><table class="table table-sm table-vcenter card-table m-0"><thead class="sticky-top bg-white"><tr>'
+            . '<th>Part Number</th><th>Description</th><th>Spare Part Number</th>' . ($rule ? '<th>Price from</th>' : '')
+            . '<th class="text-end">Unit price</th><th class="text-center" style="min-width:170px">QTY per device</th><th class="text-end">Qty for <span class="pr-calc-n">' . $devices . '</span> device(s)</th><th class="text-end">Line total</th></tr></thead><tbody>';
+        foreach ($lines as $i => $l) {
+            $q = (int) ($l['qty_per_device'] ?? 0);
+            $id = 'pr-calc-q' . $i;
+            echo '<tr data-price="' . $h($l['price']) . '" data-lop="' . $q . '" data-part="' . $h($l['part']) . '">'
+                . '<td class="text-nowrap fw-bold">' . $h($l['part']) . ($l['device'] !== '' ? ' <span class="badge bg-blue-lt">' . $h($l['device']) . '</span>' : '') . '</td>'
+                . '<td class="small">' . $h($l['description']) . '</td><td class="text-nowrap">' . $h($l['spare']) . '</td>'
+                . ($rule ? '<td class="small text-secondary">' . $h($l['lop']) . '</td>' : '')
+                . '<td class="text-end">' . $h(self::money($l['price'])) . '</td>'
+                . '<td><div class="input-group input-group-sm flex-nowrap justify-content-center">'
+                . '<button type="button" class="btn btn-outline-secondary pr-calc-minus" aria-label="One less ' . $h($l['part']) . '">−</button>'
+                . '<input type="number" min="0" step="1" class="form-control text-center pr-calc-qty" style="max-width:70px" id="' . $id . '" value="' . $q . '" aria-label="QTY per device of ' . $h($l['part']) . '">'
+                . '<button type="button" class="btn btn-outline-secondary pr-calc-plus" aria-label="One more ' . $h($l['part']) . '">+</button></div>'
+                . '<div class="small text-center pr-calc-was text-warning" hidden>LOP: ' . ($l['qty_per_device'] === null ? 'empty' : $q) . '</div></td>'
+                . '<td class="text-end pr-calc-all"></td><td class="text-end fw-bold pr-calc-line"></td></tr>';
+        }
+        echo '</tbody></table></div>';
+        echo '<div class="card-footer"><div class="row g-2 text-end" style="max-width:640px;margin-left:auto">'
+            . '<div class="col-8">One device (before tax)</div><div class="col-4 fw-bold" id="pr-calc-one"></div>'
+            . '<div class="col-8"><span class="pr-calc-n">' . $devices . '</span> device(s), before tax</div><div class="col-4 fw-bold" id="pr-calc-total"></div>'
+            . '<div class="col-8">VAT ' . $h(self::money($vat)) . '%</div><div class="col-4" id="pr-calc-vat"></div>'
+            . '<div class="col-8 fs-3">Total with VAT</div><div class="col-4 fs-3 fw-bold" id="pr-calc-ttc"></div>'
+            . ($free !== null ? '<div class="col-8">Budget ' . $h($budget_name) . ': money left ' . $h(self::money($free)) . ' (before tax)</div><div class="col-4 fw-bold" id="pr-calc-budget"></div>' : '')
+            . '<div class="col-12 small text-secondary" id="pr-calc-changed"></div>'
+            . '</div></div>';
+        echo '</div></div>';
+
+        $js = [
+            'vat' => $vat, 'free' => $free, 'devices' => $devices,
+            'name' => 'LOP-calculator-' . $tickets_id . '-' . preg_replace('/[^A-Za-z0-9._-]+/', '_', Dropdown::getDropdownName('glpi_suppliers', $sid) . '-' . PluginProjectreportsLop::sourceLabel($sid, $src)),
+            'head' => ['Supplier', Dropdown::getDropdownName('glpi_suppliers', $sid), 'LOP', PluginProjectreportsLop::sourceLabel($sid, $src), 'Devices', $devices],
+        ];
+        echo '<script>(function(){const C=' . json_encode($js, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ';'
+            . "const box=document.getElementById('pr-calc');if(!box)return;"
+            . "const nf=new Intl.NumberFormat('en-US',{maximumFractionDigits:2});"
+            . "const rows=[...box.querySelectorAll('tbody tr')];"
+            . "const qty=r=>Math.max(0,parseInt(r.querySelector('.pr-calc-qty').value,10)||0);"
+            . "function calc(){let one=0,changed=0;const hide=box.querySelector('#pr-calc-hide').checked;"
+            . "rows.forEach(r=>{const q=qty(r),p=parseFloat(r.dataset.price)||0;one+=q*p;"
+            . "r.querySelector('.pr-calc-all').textContent=nf.format(q*C.devices);r.querySelector('.pr-calc-line').textContent=nf.format(q*p*C.devices);"
+            . "const diff=q!==parseInt(r.dataset.lop,10);if(diff)changed++;r.querySelector('.pr-calc-was').hidden=!diff;r.classList.toggle('table-warning',diff);"
+            . "r.classList.toggle('text-secondary',q===0);r.hidden=hide&&q===0;});"
+            . "const tot=one*C.devices,v=tot*C.vat/100;"
+            . "box.querySelector('#pr-calc-one').textContent=nf.format(one);box.querySelector('#pr-calc-total').textContent=nf.format(tot);"
+            . "box.querySelector('#pr-calc-vat').textContent=nf.format(v);box.querySelector('#pr-calc-ttc').textContent=nf.format(tot+v);"
+            . "const b=box.querySelector('#pr-calc-budget');if(b&&C.free!==null){const left=C.free-tot;b.textContent=left>=0?'enough, left '+nf.format(left):'short by '+nf.format(-left);b.className='col-4 fw-bold '+(left>=0?'text-success':'text-danger');}"
+            . "box.querySelector('#pr-calc-changed').textContent=changed?changed+' quantit'+(changed>1?'ies':'y')+' changed from the LOP (highlighted).':'';}"
+            . "box.addEventListener('click',e=>{const m=e.target.closest('.pr-calc-minus,.pr-calc-plus');if(!m)return;const i=m.parentNode.querySelector('.pr-calc-qty');"
+            . "i.value=Math.max(0,(parseInt(i.value,10)||0)+(m.classList.contains('pr-calc-plus')?1:-1));calc();});"
+            . "box.addEventListener('input',e=>{if(e.target.matches('.pr-calc-qty,#pr-calc-hide'))calc();});"
+            . "box.querySelector('#pr-calc-hide').addEventListener('change',calc);"
+            . "box.querySelector('#pr-calc-reset').addEventListener('click',()=>{rows.forEach(r=>{r.querySelector('.pr-calc-qty').value=r.dataset.lop;});calc();});"
+            . "box.querySelector('#pr-calc-csv').addEventListener('click',()=>{const esc=v=>{v=String(v);return /[\",\\n]/.test(v)?'\"'+v.replace(/\"/g,'\"\"')+'\"':v;};"
+            . "const out=[C.head,[],['Part Number','Part Description','Spare Part Number','Unit price tax free','QTY per device','QTY per device in the LOP','Quantity','Line total']];let one=0;"
+            . "rows.forEach(r=>{const q=qty(r),p=parseFloat(r.dataset.price)||0;one+=q*p;const c=r.children;"
+            . "out.push([r.dataset.part,c[1].textContent,c[2].textContent,p,q,r.dataset.lop,q*C.devices,q*p*C.devices]);});"
+            . "const tot=one*C.devices;out.push([],['','','','','','','Total before tax',tot],['','','','','','','VAT (%)',C.vat],['','','','','','','Total with VAT',tot*(1+C.vat/100)]);"
+            . "const blob=new Blob(['\\ufeff'+out.map(r=>r.map(esc).join(',')).join('\\r\\n')],{type:'text/csv;charset=utf-8'});"
+            . "const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=C.name+'.csv';document.body.appendChild(a);a.click();a.remove();});"
+            . "calc();})();</script>";
     }
 }

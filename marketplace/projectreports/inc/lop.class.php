@@ -436,55 +436,105 @@ class PluginProjectreportsLop
     }
 
     /**
+     * The LOPs a source looks in, newest first: [[name, date, rows], ...]. Rows have $fields; only $parts when given.
+     */
+    private static function sourceLops(int $suppliers_id, string $source, array $fields, ?array $parts = null): array
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $where = fn(array $w) => $parts === null ? $w : $w + ['part' => $parts];
+        $active = function () use ($DB, $suppliers_id, $fields, $where) {
+            $i = self::info()[$suppliers_id] ?? [];
+            return [(string) ($i['name'] ?? ''), (string) ($i['imported'] ?? ''),
+                iterator_to_array($DB->request(['SELECT' => $fields, 'FROM' => self::TABLE, 'WHERE' => $where(['suppliers_id' => $suppliers_id]), 'ORDER' => ['device DESC', 'part']]), false)];
+        };
+        $version = fn(array $v) => [(string) $v['name'], (string) ($v['imported'] ?: $v['archived']),
+            iterator_to_array($DB->request(['SELECT' => $fields, 'FROM' => self::VERSION_LINES, 'WHERE' => $where(['lopversions_id' => (int) $v['id']]), 'ORDER' => ['device DESC', 'part']]), false)];
+        if (str_starts_with($source, 'v')) {
+            $v = self::version($suppliers_id, (int) substr($source, 1));
+            return $v ? [$version($v)] : [];
+        }
+        if (!isset(self::SOURCE_RULES[$source])) {
+            return [$active()];
+        }
+        $lops = [$active()];
+        foreach (self::versions($suppliers_id) as $v) {
+            $lops[] = $version($v);
+        }
+        // newest import first; the active LOP wins a tie
+        $order = array_keys($lops);
+        usort($order, fn($a, $b) => strcmp($lops[$b][1], $lops[$a][1]) ?: $a <=> $b);
+        return array_map(fn($k) => $lops[$k], $order);
+    }
+
+    /**
+     * Merge the rows of a source into one line per part: the newest LOP gives the details, the price follows the rule
+     * ('lowest': lowest price above 0; otherwise the newest LOP's price). Each line gets 'lop', the LOP the price is from.
+     */
+    private static function mergeRows(array $lops, string $source): array
+    {
+        $out = [];
+        foreach ($lops as [$name, , $rows]) {
+            foreach ($rows as $r) {
+                $part = (string) $r['part'];
+                $r['price'] = (float) $r['price'];
+                $r['lop'] = $name;
+                if (!isset($out[$part])) {
+                    $out[$part] = $r;
+                    continue;
+                }
+                // details missing in a newer LOP are taken from an older one
+                foreach (['spare', 'device', 'description'] as $f) {
+                    if (array_key_exists($f, $r) && (string) $out[$part][$f] === '' && (string) $r[$f] !== '') {
+                        $out[$part][$f] = $r[$f];
+                    }
+                }
+                if (array_key_exists('qty_per_device', $r) && $out[$part]['qty_per_device'] === null && $r['qty_per_device'] !== null) {
+                    $out[$part]['qty_per_device'] = $r['qty_per_device'];
+                }
+                if ($source === 'lowest' && $r['price'] > 0 && ($out[$part]['price'] <= 0 || $r['price'] < $out[$part]['price'])) {
+                    $out[$part]['price'] = $r['price'];
+                    $out[$part]['lop'] = $name;
+                }
+            }
+        }
+        return $out;
+    }
+
+    /**
      * The LOP data of these parts from a source: [part => ['price', 'spare', 'device', 'lop' (name of the LOP the price is from)]].
      * Parts in none of the LOPs are left out.
      */
     public static function partPrices(int $suppliers_id, array $parts, string $source = 'active'): array
     {
-        /** @var DBmysql $DB */
-        global $DB;
         $parts = array_values(array_unique(array_filter(array_map('strval', $parts), 'strlen')));
         if ($suppliers_id <= 0 || !$parts) {
             return [];
         }
-        $fields = ['part', 'price', 'spare', 'device'];
-        // every LOP to look in, newest first: [name, date, rows]
-        $lops = [];
-        $active = function () use ($DB, $suppliers_id, $parts, $fields) {
-            $i = self::info()[$suppliers_id] ?? [];
-            return [(string) ($i['name'] ?? ''), (string) ($i['imported'] ?? ''),
-                $DB->request(['SELECT' => $fields, 'FROM' => self::TABLE, 'WHERE' => ['suppliers_id' => $suppliers_id, 'part' => $parts]])];
-        };
-        $version = fn(array $v) => [(string) $v['name'], (string) ($v['imported'] ?: $v['archived']),
-            $DB->request(['SELECT' => $fields, 'FROM' => self::VERSION_LINES, 'WHERE' => ['lopversions_id' => (int) $v['id'], 'part' => $parts]])];
-        if (str_starts_with($source, 'v')) {
-            $v = self::version($suppliers_id, (int) substr($source, 1));
-            $lops = $v ? [$version($v)] : [];
-        } elseif (isset(self::SOURCE_RULES[$source])) {
-            $lops[] = $active();
-            foreach (self::versions($suppliers_id) as $v) {
-                $lops[] = $version($v);
-            }
-            // newest import first; the active LOP wins a tie
-            $order = array_keys($lops);
-            usort($order, fn($a, $b) => strcmp($lops[$b][1], $lops[$a][1]) ?: $a <=> $b);
-            $lops = array_map(fn($k) => $lops[$k], $order);
-        } else {
-            $lops[] = $active();
-        }
         $out = [];
-        foreach ($lops as [$name, $date, $rows]) {
-            foreach ($rows as $r) {
-                $part = (string) $r['part'];
-                $row = ['price' => (float) $r['price'], 'spare' => (string) $r['spare'], 'device' => (string) $r['device'], 'lop' => $name];
-                if (!isset($out[$part])) {
-                    $out[$part] = $row;
-                } elseif ($source === 'lowest' && $row['price'] > 0 && ($out[$part]['price'] <= 0 || $row['price'] < $out[$part]['price'])) {
-                    // keep the spare / device of the newest LOP when it has them
-                    $out[$part] = ['spare' => $out[$part]['spare'] ?: $row['spare'], 'device' => $out[$part]['device'] ?: $row['device']] + $row;
-                }
-            }
+        foreach (self::mergeRows(self::sourceLops($suppliers_id, $source, ['part', 'price', 'spare', 'device'], $parts), $source) as $part => $r) {
+            $out[$part] = ['price' => $r['price'], 'spare' => (string) $r['spare'], 'device' => (string) $r['device'], 'lop' => $r['lop']];
         }
+        return $out;
+    }
+
+    /**
+     * Every line of a source, for the Price check calculator: part, description, spare, device, price, qty_per_device
+     * (null = empty in the LOP), lop. With a rule, one line per part of all the supplier's LOPs.
+     */
+    public static function calcLines(int $suppliers_id, string $source): array
+    {
+        if ($suppliers_id <= 0) {
+            return [];
+        }
+        $rows = self::mergeRows(self::sourceLops($suppliers_id, $source, ['part', 'description', 'price', 'spare', 'device', 'qty_per_device']), $source);
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = ['part' => (string) $r['part'], 'description' => (string) $r['description'], 'spare' => (string) $r['spare'], 'device' => (string) $r['device'],
+                'price' => (float) $r['price'], 'qty_per_device' => $r['qty_per_device'] === null ? null : (int) $r['qty_per_device'], 'lop' => (string) $r['lop']];
+        }
+        // whole devices first, then parts, by part number
+        usort($out, fn($a, $b) => strcmp($b['device'], $a['device']) ?: strcmp($a['part'], $b['part']));
         return $out;
     }
 
