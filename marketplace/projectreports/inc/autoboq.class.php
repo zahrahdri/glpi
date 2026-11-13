@@ -344,6 +344,92 @@ class PluginProjectreportsAutoboq
         return $oid;
     }
 
+    /** Order item type of a LOP line that is a whole device (LOP Device column), when the Orders plugin accepts it. */
+    private static function deviceItemtype(string $device): string
+    {
+        $map = ['Server' => 'Computer', 'Switch' => 'NetworkEquipment', 'PDU' => 'PDU', 'Rack' => 'Rack'];
+        $types = PluginProjectreportsBoqimport::itemTypes();
+        $t = $map[$device] ?? '';
+        return $t !== '' && isset($types[strtolower($t)]) ? $types[strtolower($t)] : 'PluginOrderOther';
+    }
+
+    /**
+     * Draft BOQ from the Price check's LOP calculator: the lines of one supplier's LOP ($source, see
+     * PluginProjectreportsLop::SOURCE_RULES) with the quantities per device typed there ([part => qty], 0 = left out),
+     * times $devices. Prices come from the LOP and are not written to the Orders catalog. Returns the order id.
+     */
+    public static function createFromLop(int $tickets_id, array $a, int $sid, string $source, int $devices, array $qty, int $budgets_id = 0): int
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $req = self::request($a);
+        if ($devices < 1) {
+            throw new RuntimeException('Enter the number of devices (1 or more).');
+        }
+        $source = PluginProjectreportsLop::normSource($sid, $source);
+        $all = PluginProjectreportsLop::calcLines($sid, $source);
+        if (!$all) {
+            throw new RuntimeException('This supplier has no LOP lines.');
+        }
+        $lines = [];
+        $changed = [];
+        foreach ($all as $l) {
+            $q = max(0, (int) ($qty[$l['part']] ?? ($l['qty_per_device'] ?? 0)));
+            if ($q !== (int) ($l['qty_per_device'] ?? 0)) {
+                $changed[] = sprintf('%s %d → %d', $l['part'], (int) ($l['qty_per_device'] ?? 0), $q);
+            }
+            if ($q === 0) {
+                continue;
+            }
+            $line = ['part' => $l['part'], 'spare' => $l['spare'], 'desc' => $l['description'], 'qty' => $q, 'price' => $l['price'],
+                'model' => '', 'itemtype' => $l['device'] !== '' ? self::deviceItemtype($l['device']) : 'PluginOrderOther', 'reference' => 0, 'source' => 'LOP'];
+            // the catalog reference of the part, when it already exists
+            $ref = $DB->request(['SELECT' => ['id', 'itemtype'], 'FROM' => 'glpi_plugin_order_references',
+                'WHERE' => ['name' => $l['part'], 'is_deleted' => 0], 'LIMIT' => 1])->current();
+            if ($ref) {
+                $line['reference'] = (int) $ref['id'];
+                $line['itemtype'] = $ref['itemtype'];
+            }
+            $lines[] = $line;
+        }
+        if (!$lines) {
+            throw new RuntimeException('Every quantity is 0: nothing to order.');
+        }
+        $ticket = new Ticket();
+        $ticket->getFromDB($tickets_id);
+        $budget = $budgets_id > 0 ? $budgets_id : self::projectBudget($req['projects_id']);
+        $vat = PluginProjectreportsLop::sourceVat($sid, $source);
+        $lop = PluginProjectreportsLop::sourceLabel($sid, $source);
+        $supplier = Dropdown::getDropdownName('glpi_suppliers', $sid);
+        $user = getUserName(Session::getLoginUserID());
+
+        [$oid, $st] = PluginProjectreportsBoqimport::create($lines, [
+            'set_prices' => false,
+            'name' => sprintf('BOQ #%d %s x %d', $tickets_id, $lop, $devices),
+            'num_order' => self::freeNumber(sprintf('LOP-%d', $tickets_id)),
+            'budgets_id' => $budget, 'suppliers_id' => $sid, 'taxes_id' => PluginProjectreportsLop::orderTaxId($vat),
+            'order_date' => date('Y-m-d'), 'quote' => '', 'mult' => $devices, 'file' => '',
+            'entities_id' => (int) $ticket->fields['entities_id'],
+            'comment' => sprintf('Estimate for ticket #%d from the LOP calculator: LOP %s of %s, %d device(s), %d part line(s) per device. Created by %s. Draft until approved.',
+                $tickets_id, $lop, $supplier, $devices, count($lines), $user) . ($changed ? ' Quantities changed from the LOP: ' . implode(', ', $changed) . '.' : ''),
+        ]);
+        (new Item_Ticket())->add(['tickets_id' => $tickets_id, 'itemtype' => 'PluginOrderOrder', 'items_id' => $oid]);
+
+        /** @var array $CFG_GLPI */
+        global $CFG_GLPI;
+        $order = new PluginOrderOrder();
+        $order->getFromDB($oid);
+        self::note($tickets_id, sprintf(
+            '<p><b>BOQ created from the LOP calculator: %s</b> (before tax), %s with VAT %s%%.</p><p>%d device(s), %d units in %d order lines. Supplier <b>%s</b>, LOP <i>%s</i>.%s<br>Created by %s. Charged to %s. Draft order: <a href="%s">%s</a>.</p>',
+            htmlescape(self::fmtNum($st['total'])), htmlescape(self::fmtNum($st['total'] * (1 + $vat / 100))), htmlescape(self::fmtNum($vat)),
+            $devices, $st['units'], count($lines), htmlescape($supplier), htmlescape($lop),
+            $changed ? '<br>Quantities per device changed from the LOP: ' . htmlescape(implode(', ', $changed)) . '.' : '',
+            htmlescape($user), htmlescape($budget ? 'budget ' . Dropdown::getDropdownName('glpi_budgets', $budget) : 'no budget yet'),
+            htmlescape($CFG_GLPI['root_doc'] . '/plugins/order/front/order.form.php?id=' . $oid), htmlescape($order->fields['num_order'] ?? '')
+        ));
+        return $oid;
+    }
+
     /** The estimate with every supplier, as an HTML table for the ticket note. */
     private static function compareHtml(array $compare, int $chosen, int $devices): string
     {

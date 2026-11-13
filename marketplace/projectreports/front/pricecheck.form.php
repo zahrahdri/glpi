@@ -26,6 +26,46 @@ foreach ((array) ($_POST['lops'] ?? []) as $s => $src) {
     }
 }
 
+// the budget of the request, chosen at the top of the tab
+if (($_POST['action'] ?? '') === 'budget') {
+    $budget = max(0, (int) ($_POST['budget'] ?? 0));
+    $_SESSION['projectreports_pc'][$tickets_id] = ['budget' => $budget] + ($_SESSION['projectreports_pc'][$tickets_id] ?? []);
+    PluginProjectreportsDemand::save($tickets_id, $budget);
+    Html::redirect($back);
+}
+
+// LOP calculator: draft BOQ with the quantities shown
+if (($_POST['action'] ?? '') === 'calc_boq') {
+    [$csid, $csrc] = array_pad(explode('|', (string) ($_POST['calc'] ?? ''), 2), 2, '');
+    $qty = [];
+    foreach ((array) json_decode((string) ($_POST['quantities'] ?? ''), true) as $part => $n) {
+        if (is_scalar($n) && (string) $part !== '') {
+            $qty[(string) $part] = max(0, (int) $n);
+        }
+    }
+    $answers = PluginProjectreportsAutoboq::answersForTicket($tickets_id);
+    try {
+        if ($answers === null) {
+            throw new RuntimeException('This ticket was not created by a capacity request form.');
+        }
+        if (!$qty) {
+            throw new RuntimeException('No quantities were sent. Reload the page and try again.');
+        }
+        $sel = $_SESSION['projectreports_pc'][$tickets_id] ?? [];
+        $budget = array_key_exists('budget', $sel) ? (int) $sel['budget'] : PluginProjectreportsDemand::budgetOf($tickets_id);
+        $oid = PluginProjectreportsAutoboq::createFromLop($tickets_id, $answers, (int) $csid,
+            preg_match('/^(active|newest|lowest|v\d+)$/', $csrc) ? $csrc : 'active', $devices, $qty, $budget);
+        PluginProjectreportsDemand::save($tickets_id, PluginProjectreportsDemand::budgetOf($tickets_id));
+        $order = new PluginOrderOrder();
+        $order->getFromDB($oid);
+        Session::addMessageAfterRedirect(htmlescape(sprintf('Draft BOQ %s created with supplier %s and linked to this ticket.',
+            $order->fields['num_order'] ?? '', Dropdown::getDropdownName('glpi_suppliers', (int) $csid))));
+    } catch (Throwable $e) {
+        Session::addMessageAfterRedirect(htmlescape('BOQ not created: ' . $e->getMessage()), false, ERROR);
+    }
+    Html::redirect($back);
+}
+
 // LOP calculator: remember the supplier, LOP and number of devices chosen
 if (($_POST['action'] ?? '') === 'calc') {
     [$csid, $csrc] = array_pad(explode('|', (string) ($_POST['calc'] ?? ''), 2), 2, '');

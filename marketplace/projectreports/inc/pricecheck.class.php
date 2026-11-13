@@ -2,9 +2,9 @@
 
 /**
  * Ticket › "Price check" tab, on tickets created by a capacity request form.
- * The user chooses a device model of the LOM catalog (with a parts list) and the number of devices; the parts list
- * is priced with every supplier's current LOP, part by part, and a user who may create orders creates the draft BOQ
- * with the supplier they choose. Nothing is written until that button is pressed.
+ * The request on one line with its budget (saved when changed), the BOQs already linked, and the LOP calculator: a
+ * supplier's LOP (or all its LOPs) with its QTY per device, quantities that can be changed, live totals against the
+ * budget, and a draft BOQ created with those quantities. Nothing is written until that button is pressed.
  */
 class PluginProjectreportsPricecheck extends CommonGLPI
 {
@@ -44,7 +44,7 @@ class PluginProjectreportsPricecheck extends CommonGLPI
 
     public static function show(int $tickets_id): void
     {
-        self::showEstimate($tickets_id);
+        self::showHeader($tickets_id);
         if (PluginProjectreportsAutoboq::answersForTicket($tickets_id) !== null) {
             self::showCalculator($tickets_id);
         }
@@ -70,7 +70,8 @@ class PluginProjectreportsPricecheck extends CommonGLPI
 </style>';
     }
 
-    private static function showEstimate(int $tickets_id): void
+    /** The request on one line, the budget of the request (saved when changed) and the BOQs already linked. */
+    private static function showHeader(int $tickets_id): void
     {
         /** @var array $CFG_GLPI */
         global $CFG_GLPI;
@@ -84,10 +85,13 @@ class PluginProjectreportsPricecheck extends CommonGLPI
         $req = PluginProjectreportsAutoboq::request($a);
         echo self::styles() . '<div class="pr-pc p-2">';
 
-        // ---- the request, on one line
         $project = $req['projects_id'] ? Dropdown::getDropdownName('glpi_projects', $req['projects_id'])
             : (is_scalar($a['New project name'] ?? null) && trim((string) $a['New project name']) !== '' ? 'New: ' . $a['New project name'] : '—');
-        echo '<div class="card mb-3"><div class="card-body py-2 pr-req">';
+        $sel = $_SESSION['projectreports_pc'][$tickets_id] ?? [];
+        $budget = array_key_exists('budget', $sel) ? (int) $sel['budget'] : PluginProjectreportsDemand::budgetOf($tickets_id);
+
+        echo '<div class="card mb-3"><div class="card-body py-2 d-flex flex-wrap gap-3 align-items-center justify-content-between">';
+        echo '<div class="pr-req">';
         foreach ([
             ['Request', $req['request_type'] ?: '—'],
             ['Resource', trim($req['category'] . ($req['resource_type'] ? ' · ' . $req['resource_type'] : '')) ?: '—'],
@@ -96,75 +100,20 @@ class PluginProjectreportsPricecheck extends CommonGLPI
         ] as [$k, $v]) {
             echo '<div><span class="k">' . $h($k) . '</span><span class="v">' . $h($v) . '</span></div>';
         }
-        echo '</div></div>';
-
-        if (($why = PluginProjectreportsAutoboq::problem($req)) !== '') {
-            echo '<div class="alert alert-info">' . $h($why) . '</div></div>';
-            return;
-        }
-        $models = PluginProjectreportsAutoboq::models();
-        if (!$models) {
-            echo '<div class="alert alert-warning">No device model has a parts list yet. Add one in <a href="' . $h($base . 'lom.php') . '">Tools › LOM catalog</a>.</div></div>';
-            return;
-        }
-        $sel = $_SESSION['projectreports_pc'][$tickets_id] ?? [];
-        $key = isset($models[$sel['key'] ?? '']) ? $sel['key'] : PluginProjectreportsAutoboq::suggest($req, $models);
-        $devices = max(1, (int) ($sel['devices'] ?? ($req['category'] === 'Compute' && $req['qty'] >= 1 ? (int) round($req['qty']) : 1)));
-        $budget = array_key_exists('budget', $sel) ? (int) $sel['budget'] : PluginProjectreportsDemand::budgetOf($tickets_id);
-        $sources = (array) ($sel['lops'] ?? []);
-
-        // ---- what to price: model, devices, budget (and, folded away, which LOP prices a supplier with several)
-        echo '<div class="card mb-3"><div class="card-body py-3">';
-        echo '<form method="post" action="' . $h($base . 'pricecheck.form.php') . '"><input type="hidden" name="tickets_id" value="' . $tickets_id . '"><input type="hidden" name="action" value="select">';
-        echo '<div class="row g-2 align-items-end">';
-        echo '<div class="col-md-5"><label class="form-label" for="pr-pc-model">Device model</label><select class="form-select" id="pr-pc-model" name="model"><option value="">— choose —</option>';
-        $group = null;
-        foreach ($models as $k => $m) {
-            if ($m['category_label'] !== $group) {
-                echo ($group === null ? '' : '</optgroup>') . '<optgroup label="' . $h($m['category_label']) . '">';
-                $group = $m['category_label'];
-            }
-            echo '<option value="' . $h($k) . '"' . ($k === $key ? ' selected' : '') . '>' . $h($m['name'] . ($m['part'] !== '' ? ' · ' . $m['part'] : '')) . '</option>';
-        }
-        echo '</optgroup></select></div>';
-        echo '<div class="col-md-2"><label class="form-label" for="pr-pc-dev">Devices</label><input class="form-control" type="number" min="1" step="1" id="pr-pc-dev" name="devices" value="' . $devices . '"></div>';
-        echo '<div class="col-md-3"><label class="form-label">Budget</label>';
+        echo '</div>';
+        // the budget of the request: saved as soon as it is changed
+        echo '<form method="post" action="' . $h($base . 'pricecheck.form.php') . '" id="pr-pc-budget" class="d-flex align-items-center gap-2 m-0" style="min-width:300px">'
+            . '<input type="hidden" name="tickets_id" value="' . $tickets_id . '"><input type="hidden" name="action" value="budget">'
+            . '<label class="form-label m-0 text-nowrap" for="pr-pc-budget-sel">Budget</label><div class="flex-grow-1">';
         Dropdown::show('Budget', ['name' => 'budget', 'value' => $budget, 'display_emptychoice' => true, 'emptylabel' => '— none —',
-            'comments' => false, 'addicon' => false, 'width' => '100%']);
+            'comments' => false, 'addicon' => false, 'width' => '100%', 'rand' => 'pcbudget']);
         echo '</div>';
-        echo '<div class="col-md-2"><button type="submit" class="btn btn-primary w-100"><i class="ti ti-calculator me-1"></i>Show prices</button></div>';
-        echo '</div>';
-        $multi = [];
-        foreach (PluginProjectreportsLop::suppliers() as $lsid) {
-            $choices = PluginProjectreportsLop::sourceChoices($lsid);
-            if (count($choices) > 1) {
-                $multi[$lsid] = $choices;
-            }
-        }
-        if ($multi) {
-            $changed = count(array_filter(array_keys($multi), fn($lsid) => PluginProjectreportsLop::normSource($lsid, (string) ($sources[$lsid] ?? 'active')) !== 'active'));
-            echo '<details class="mt-2"' . ($changed ? ' open' : '') . '><summary>Which LOP to use' . ($changed ? ' · ' . $changed . ' changed' : '') . '</summary>'
-                . '<div class="pr-muted my-1">Suppliers with several LOPs use their active LOP unless you choose another one, or all of them (newest or lowest price of each part).</div><div class="row g-2">';
-            foreach ($multi as $lsid => $choices) {
-                $cur = PluginProjectreportsLop::normSource($lsid, (string) ($sources[$lsid] ?? 'active'));
-                $fid = 'pr-pc-lop-' . $lsid;
-                echo '<div class="col-md-6"><label class="form-label small mb-1" for="' . $fid . '">' . $h(Dropdown::getDropdownName('glpi_suppliers', $lsid)) . '</label>'
-                    . '<select class="form-select form-select-sm" id="' . $fid . '" name="lops[' . $lsid . ']">';
-                foreach ($choices as $v => $label) {
-                    echo '<option value="' . $h($v) . '"' . ($v === $cur ? ' selected' : '') . '>' . $h($label) . '</option>';
-                }
-                echo '</select></div>';
-            }
-            echo '</div></details>';
-        }
         Html::closeForm();
         echo '</div></div>';
-        if ($key === '') {
-            echo '</div>';
-            return;
-        }
+        // GLPI's budget list is a select2 (jQuery) field: listen with jQuery when present, else natively
+        echo "<script>(function(){const s=document.querySelector('#pr-pc-budget select[name=budget]');if(!s)return;const go=()=>s.form.submit();"
+            . "if(window.jQuery){window.jQuery(s).on('change',go);}else{s.addEventListener('change',go);}})();</script>";
 
-        // ---- BOQs already linked, one line each
         $orders = PluginProjectreportsAutoboq::linkedOrders($tickets_id);
         if ($orders) {
             echo '<div class="alert alert-warning py-2"><b>This request already has ' . count($orders) . ' BOQ' . (count($orders) > 1 ? 's' : '') . '.</b> A new one would be counted too; cancel the old order in the Orders plugin if you replace it.<ul class="mb-0 mt-1">';
@@ -174,104 +123,7 @@ class PluginProjectreportsPricecheck extends CommonGLPI
             }
             echo '</ul></div>';
         }
-
-        $est = PluginProjectreportsAutoboq::estimate($key, $devices, $sources);
-        $model = $est['model'];
-        $S = $est['suppliers'];
-        $complete = array_values(array_filter($S, fn($s) => $s['complete']));
-        $best = $complete[0] ?? null;
-        $ttc = fn($x) => $x['all_total'] * (1 + $x['vat'] / 100);
-
-        // money left in the budget (before tax), adding back what this request's own BOQs already use
-        $free = null;
-        $bname = '';
-        if ($budget > 0) {
-            $binfo = PluginProjectreportsPlan::budgetInfo($budget);
-            $own = 0.0;
-            foreach (PluginProjectreportsDemand::boq($tickets_id)['list'] as $o) {
-                if ($o['budgets_id'] === $budget) {
-                    $own += $o['total'];
-                }
-            }
-            $free = $binfo['available'] + $own;
-            $bname = $binfo['name'];
-        }
-
-        echo '<div class="card mb-3"><div class="card-header"><div><h3 class="card-title m-0">' . $devices . ' × <a href="' . $h($model['sheet_url']) . '">' . $h($model['name']) . '</a></h3>'
-            . '<div class="pr-muted">' . count($est['lines']) . ' parts per device · priced with each supplier\'s LOP</div></div></div>';
-        if (!$S) {
-            echo '<div class="card-body"><div class="alert alert-warning m-0">No supplier\'s LOP has any part of this model. <a href="' . $h($base . 'lop.php') . '">Import or update the LOPs</a>.</div></div></div></div>';
-            return;
-        }
-
-        // ---- summary tiles
-        echo '<div class="card-body pb-2"><div class="pr-tiles">';
-        if ($best) {
-            echo '<div class="pr-tile"><div class="l">Cheapest complete offer</div><div class="n text-success">' . $h(self::money($ttc($best))) . '</div><div class="s">' . $h($best['supplier']) . ' · with VAT</div></div>';
-        } else {
-            echo '<div class="pr-tile"><div class="l">Cheapest complete offer</div><div class="n text-warning">none</div><div class="s">No LOP has all the parts; missing parts count as 0</div></div>';
-        }
-        echo '<div class="pr-tile"><div class="l">Suppliers compared</div><div class="n">' . count($S) . '</div><div class="s">' . count($complete) . ' with every part</div></div>';
-        if ($free !== null) {
-            echo '<div class="pr-tile"><div class="l">Budget left · before tax</div><div class="n">' . $h(self::money($free)) . '</div><div class="s">' . $h($bname) . '</div></div>';
-        }
-        echo '</div></div>';
-
-        // ---- one row per supplier
-        $can = PluginProjectreportsBoqimport::canImport();
-        $pick = $best['suppliers_id'] ?? ($S[0]['suppliers_id'] ?? 0);
-        echo '<form method="post" action="' . $h($base . 'pricecheck.form.php') . '"><input type="hidden" name="tickets_id" value="' . $tickets_id . '">'
-            . '<input type="hidden" name="action" value="create"><input type="hidden" name="model" value="' . $h($key) . '"><input type="hidden" name="devices" value="' . $devices . '">';
-        foreach ($S as $s) {
-            echo '<input type="hidden" name="lops[' . (int) $s['suppliers_id'] . ']" value="' . $h($s['source']) . '">';
-        }
-        echo '<div class="table-responsive"><table class="table table-vcenter card-table pr-cmp m-0"><thead><tr><th style="width:36px"></th><th>Supplier</th><th>Parts</th>'
-            . '<th class="text-end">Before tax</th><th class="text-end">With VAT</th><th class="text-end">vs cheapest</th>' . ($free !== null ? '<th class="text-end">Budget</th>' : '') . '<th></th></tr></thead><tbody>';
-        foreach ($S as $i => $s) {
-            $diff = $best && $ttc($best) > 0 && $s['complete'] ? ($ttc($s) - $ttc($best)) / $ttc($best) : null;
-            $is_best = $s['suppliers_id'] === ($best['suppliers_id'] ?? -1);
-            $rid = 'pr-pc-' . $tickets_id . '-' . $i;
-            $missing = $s['parts'] - $s['covered'];
-            echo '<tr' . ($s['suppliers_id'] === $pick ? ' class="pr-pick"' : '') . '>'
-                . '<td><input class="form-check-input" type="radio" name="suppliers_id" value="' . (int) $s['suppliers_id'] . '"' . ($s['suppliers_id'] === $pick ? ' checked' : '') . ($can ? '' : ' disabled') . ' aria-label="Choose ' . $h($s['supplier']) . '"></td>'
-                . '<td><div class="fw-bold">' . $h($s['supplier']) . ($is_best ? ' <span class="badge bg-green-lt ms-1">cheapest</span>' : '') . '</div><div class="pr-muted">' . $h($s['lop']) . '</div></td>'
-                . '<td>' . ($s['complete'] ? '<span class="badge bg-green-lt">all ' . $s['parts'] . '</span>' : '<span class="badge bg-orange-lt" title="' . $missing . ' part(s) not in this LOP, counted as 0">' . $s['covered'] . ' / ' . $s['parts'] . '</span>') . '</td>'
-                . '<td class="text-end">' . $h(self::money($s['all_total'])) . '</td>'
-                . '<td class="text-end"><div class="fw-bold">' . $h(self::money($ttc($s))) . '</div><div class="pr-muted">VAT ' . $h(self::money($s['vat'])) . '%</div></td>'
-                . '<td class="text-end">' . ($diff === null ? '<span class="pr-muted">' . ($s['complete'] ? '' : 'incomplete') . '</span>' : ($diff == 0 ? '—' : '<span class="text-danger">+' . round($diff * 100, 1) . '%</span>')) . '</td>';
-            if ($free !== null) {
-                $left = $free - $s['all_total'];
-                echo '<td class="text-end">' . ($left >= 0 ? '<span class="text-success" title="Left after this BOQ: ' . $h(self::money($left)) . '">fits</span>'
-                    : '<span class="text-danger" title="Short by ' . $h(self::money(-$left)) . '">short ' . $h(self::money(-$left)) . '</span>') . '</td>';
-            }
-            echo '<td class="text-end"><a class="btn btn-sm btn-ghost-secondary" data-bs-toggle="collapse" href="#' . $rid . '" role="button" aria-expanded="false" aria-controls="' . $rid . '">Parts <i class="ti ti-chevron-down"></i></a></td></tr>';
-            // the parts of this supplier, folded
-            $cols = $free !== null ? 8 : 7;
-            echo '<tr class="collapse" id="' . $rid . '"><td colspan="' . $cols . '" class="p-0"><div class="px-4 py-2 bg-light"><table class="table table-sm m-0 bg-transparent"><thead><tr><th>Part Number</th><th>Description</th>'
-                . '<th class="text-end">Qty / device</th><th class="text-end">Unit price</th><th class="text-end">' . $devices . ' device(s)</th></tr></thead><tbody>';
-            foreach ($s['lines'] as $l) {
-                $from = $l['source'] !== 'LOP' ? ' <span class="badge bg-red-lt">not in LOP</span>'
-                    : (isset(PluginProjectreportsLop::SOURCE_RULES[$s['source']]) && ($l['lop'] ?? '') !== '' ? ' <span class="pr-muted">· ' . $h($l['lop']) . '</span>' : '');
-                echo '<tr><td class="text-nowrap">' . $h($l['part']) . $from . ($l['spare'] !== '' && $l['spare'] !== $l['part'] ? '<div class="pr-muted">' . $h($l['spare']) . '</div>' : '') . '</td>'
-                    . '<td class="small">' . $h($l['desc'] ?? '') . '</td><td class="text-end">' . $h(self::money((float) $l['qty'])) . '</td>'
-                    . '<td class="text-end">' . $h(self::money((float) $l['price'])) . '</td><td class="text-end">' . $h(self::money($l['qty'] * $l['price'] * $devices)) . '</td></tr>';
-            }
-            echo '</tbody></table></div></td></tr>';
-        }
-        echo '</tbody></table></div>';
-        echo "<script>document.querySelectorAll('table.pr-cmp input[name=suppliers_id]').forEach(r=>r.addEventListener('change',()=>{"
-            . "r.closest('tbody').querySelectorAll('tr').forEach(t=>t.classList.remove('pr-pick'));r.closest('tr').classList.add('pr-pick');}));</script>";
-
-        // ---- actions
-        echo '<div class="card-footer d-flex flex-wrap gap-2 align-items-center">';
-        if ($can) {
-            echo '<button type="submit" class="btn btn-primary"><i class="ti ti-file-plus me-1"></i>Create draft BOQ</button>';
-        }
-        echo '<button type="submit" formaction="' . $h($base . 'pricecheckexport.php') . '" class="btn btn-outline-secondary"><i class="ti ti-download me-1"></i>Export CSV</button>'
-            . '<span class="pr-muted ms-1">' . ($can ? 'For the selected supplier. The BOQ is a draft order linked to this ticket.' : 'Creating a BOQ needs the right to create orders.') . '</span>';
         echo '</div>';
-        Html::closeForm();
-        echo '</div></div>';
     }
 
     /**
@@ -296,7 +148,7 @@ class PluginProjectreportsPricecheck extends CommonGLPI
             }
         }
         echo '<div class="pr-pc p-2"><div class="card mb-3" id="pr-calc"><div class="card-header"><div><h3 class="card-title m-0">LOP calculator</h3>'
-            . '<div class="pr-muted">Start from a LOP\'s QTY per device, change any quantity, check the total. Nothing is saved.</div></div></div>';
+            . '<div class="pr-muted">Start from a LOP\'s QTY per device, change any quantity, check the total. Nothing is saved until you create the BOQ.</div></div></div>';
         if (!$options) {
             echo '<div class="alert alert-warning m-3">No LOP imported yet. <a href="' . $h($base . 'lop.php') . '">Import a LOP</a>.</div></div></div>';
             return;
@@ -379,6 +231,15 @@ class PluginProjectreportsPricecheck extends CommonGLPI
             . '<div class="pr-tile" style="border-color:var(--tblr-primary,#206bc4)"><div class="l">Total with VAT</div><div class="n text-primary" id="pr-calc-ttc"></div><div class="s" id="pr-calc-changed">&nbsp;</div></div>'
             . ($free !== null ? '<div class="pr-tile"><div class="l">Budget · ' . $h($budget_name) . '</div><div class="n" id="pr-calc-budget"></div><div class="s">' . $h(self::money($free)) . ' left before tax</div></div>' : '')
             . '</div></div>';
+        // draft BOQ with the quantities shown (sent as JSON when the button is pressed)
+        if (PluginProjectreportsBoqimport::canImport()) {
+            echo '<div class="card-footer d-flex flex-wrap gap-2 align-items-center"><form method="post" action="' . $h($base . 'pricecheck.form.php') . '" id="pr-calc-boq" class="m-0">'
+                . '<input type="hidden" name="tickets_id" value="' . $tickets_id . '"><input type="hidden" name="action" value="calc_boq">'
+                . '<input type="hidden" name="calc" value="' . $sid . '|' . $h($src) . '"><input type="hidden" name="devices" value="' . $devices . '"><input type="hidden" name="quantities" value="">'
+                . '<button type="submit" class="btn btn-primary"><i class="ti ti-file-plus me-1"></i>Create draft BOQ</button>';
+            Html::closeForm();
+            echo '<span class="pr-muted">With the quantities above × ' . $devices . ' device(s), from ' . $h(Dropdown::getDropdownName('glpi_suppliers', $sid)) . '. A draft order linked to this ticket.</span></div>';
+        }
         echo '</div></div>';
 
         $js = [
@@ -413,6 +274,10 @@ class PluginProjectreportsPricecheck extends CommonGLPI
             . "const tot=one*C.devices;out.push([],['','','','','','','Total before tax',tot],['','','','','','','VAT (%)',C.vat],['','','','','','','Total with VAT',tot*(1+C.vat/100)]);"
             . "const blob=new Blob(['\\ufeff'+out.map(r=>r.map(esc).join(',')).join('\\r\\n')],{type:'text/csv;charset=utf-8'});"
             . "const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=C.name+'.csv';document.body.appendChild(a);a.click();a.remove();});"
+            . "const f=document.getElementById('pr-calc-boq');if(f)f.addEventListener('submit',e=>{const q={};let n=0;rows.forEach(r=>{q[r.dataset.part]=qty(r);if(qty(r)>0)n++;});"
+            . "if(!n){alert('Every quantity is 0: nothing to order.');e.preventDefault();return;}"
+            . "if(!confirm('Create a draft BOQ with '+n+' part line(s) for '+C.devices+' device(s), total with VAT '+box.querySelector('#pr-calc-ttc').textContent+'?')){e.preventDefault();return;}"
+            . "f.querySelector('input[name=quantities]').value=JSON.stringify(q);});"
             . "calc();})();</script>";
     }
 }
