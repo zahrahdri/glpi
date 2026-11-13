@@ -379,7 +379,7 @@ if ($preview) {
     /** @var DBmysql $DB */
     global $DB;
     $info = PluginProjectreportsLop::info();
-    echo '<div class="pr-card"><h3>LOPs in use</h3>';
+    echo '<div class="pr-card"><h3>LOPs</h3>';
     // every supplier that has LOP lines, even when its LOP name was lost
     $sids = array_map('intval', array_keys($info));
     foreach ($DB->request(['SELECT' => 'suppliers_id', 'DISTINCT' => true, 'FROM' => PluginProjectreportsLop::TABLE, 'WHERE' => ['suppliers_id' => ['>', 0]]]) as $r) {
@@ -389,38 +389,54 @@ if ($preview) {
                 'parts' => (int) $DB->request(['COUNT' => 'c', 'FROM' => PluginProjectreportsLop::TABLE, 'WHERE' => ['suppliers_id' => (int) $r['suppliers_id']]])->current()['c']];
         }
     }
-    // suppliers that only have previous versions (their active LOP was deleted)
-    $vcount = [];
+    // previous versions of every supplier (also suppliers whose active LOP was deleted)
+    $vers = [];
     if ($DB->tableExists(PluginProjectreportsLop::VERSIONS)) {
-        foreach ($DB->request(['SELECT' => ['suppliers_id', 'COUNT' => 'id AS c'], 'FROM' => PluginProjectreportsLop::VERSIONS, 'GROUPBY' => 'suppliers_id']) as $r) {
-            $vcount[(int) $r['suppliers_id']] = (int) $r['c'];
-            if ((int) $r['suppliers_id'] > 0 && !in_array((int) $r['suppliers_id'], $sids, true)) {
-                $sids[] = (int) $r['suppliers_id'];
-                $info[(int) $r['suppliers_id']] = ['name' => '(no active LOP)', 'imported' => '', 'parts' => 0];
+        foreach ($DB->request(['FROM' => PluginProjectreportsLop::VERSIONS, 'WHERE' => ['suppliers_id' => ['>', 0]], 'ORDER' => ['archived DESC', 'id DESC']]) as $v) {
+            $vers[(int) $v['suppliers_id']][] = $v;
+            if (!in_array((int) $v['suppliers_id'], $sids, true)) {
+                $sids[] = (int) $v['suppliers_id'];
             }
         }
     }
     if (!$sids) {
         echo '<p class="pr-sub">No LOP imported yet.</p>';
     } else {
-        echo '<div class="pr-tbl"><table><thead><tr><th>Supplier</th><th>LOP</th><th class="r">Part numbers</th><th>Imported</th><th class="r">Previous versions</th><th></th></tr></thead><tbody>';
+        $admin = PluginProjectreportsLop::canEdit();
+        echo '<p class="pr-sub mb-2">Each supplier has one <b>active</b> LOP: it prices the Price checks and BOQs. Its previous LOPs are listed under it; '
+            . 'use <b>Make active</b> to switch to one of them.</p>';
+        echo '<div class="pr-tbl"><table><thead><tr><th>Supplier</th><th>LOP</th><th>Status</th><th class="r">Part numbers</th><th>Imported</th><th></th></tr></thead><tbody>';
         foreach ($sids as $sid) {
+            $supplier = $sid ? Dropdown::getDropdownName('glpi_suppliers', $sid) : '(no supplier)';
             $i = $info[$sid] ?? null;
-            echo '<tr><td>' . $h($sid ? Dropdown::getDropdownName('glpi_suppliers', $sid) : '(no supplier)') . '</td><td>' . ($i ? '<a href="' . $h($self . '?view=' . $sid) . '" title="Show the parts and prices of this LOP"><b>' . $h($i['name']) . '</b></a>' : '<span class="text-danger">no LOP imported</span>') . '</td>'
-                . '<td class="r">' . $h($i['parts'] ?? '') . '</td>'
-                . '<td>' . $h(substr((string) ($i['imported'] ?? ''), 0, 16)) . '</td>'
-                . '<td class="r">' . (($vcount[$sid] ?? 0) ? '<a href="' . $h($self . '?view=' . $sid) . '#previous-versions">' . (int) $vcount[$sid] . '</a>' : '<span class="text-secondary">—</span>') . '</td><td>';
-            if ($sid) {
-                echo '<div class="d-flex gap-2">';
-                if ($i) {
-                    echo '<a class="btn btn-sm btn-outline-primary" href="' . $h($self . '?view=' . $sid) . '"><i class="ti ti-list-details"></i> View</a>';
-                    if (PluginProjectreportsLop::canEdit()) {
-                        echo '<a class="btn btn-sm btn-outline-secondary" href="' . $h($self . '?view=' . $sid . '&edit=1') . '"><i class="ti ti-pencil"></i> Edit</a>';
-                    }
+            if ($i) {
+                // the active LOP
+                echo '<tr><td>' . $h($supplier) . '</td><td><a href="' . $h($self . '?view=' . $sid) . '" title="Show the parts and prices of this LOP"><b>' . $h($i['name']) . '</b></a></td>'
+                    . '<td><span class="badge bg-green-lt">Active</span></td><td class="r">' . $h($i['parts'] ?? '') . '</td>'
+                    . '<td>' . $h(substr((string) ($i['imported'] ?? ''), 0, 16)) . '</td><td><div class="d-flex gap-2 flex-wrap">'
+                    . '<a class="btn btn-sm btn-outline-primary" href="' . $h($self . '?view=' . $sid) . '"><i class="ti ti-list-details"></i> View</a>'
+                    . '<a class="btn btn-sm btn-outline-secondary" href="' . $h($self . '?view=' . $sid . '&export=csv') . '"><i class="ti ti-download"></i> Export CSV</a>';
+                if ($admin && $sid) {
+                    echo '<a class="btn btn-sm btn-outline-secondary" href="' . $h($self . '?view=' . $sid . '&edit=1') . '"><i class="ti ti-pencil"></i> Edit</a>';
                 }
-                echo '</div>';
+                echo '</div></td></tr>';
             }
-            echo '</td></tr>';
+            // its previous LOPs
+            foreach ($vers[$sid] ?? [] as $v) {
+                $vurl = $self . '?view=' . $sid . '&version=' . (int) $v['id'];
+                echo '<tr class="text-secondary"><td>' . $h($supplier) . '</td><td><a href="' . $h($vurl) . '" title="Show the parts and prices of this previous LOP">' . $h($v['name']) . '</a></td>'
+                    . '<td><span class="badge bg-secondary-lt" title="Replaced ' . $h(substr((string) $v['archived'], 0, 16)) . '">Previous</span></td><td class="r">' . (int) $v['parts'] . '</td>'
+                    . '<td>' . $h(substr((string) $v['imported'], 0, 16)) . '</td><td><div class="d-flex gap-2 flex-wrap">'
+                    . '<a class="btn btn-sm btn-outline-primary" href="' . $h($vurl) . '"><i class="ti ti-list-details"></i> View</a>'
+                    . '<a class="btn btn-sm btn-outline-secondary" href="' . $h($vurl . '&export=csv') . '"><i class="ti ti-download"></i> Export CSV</a>';
+                if ($admin) {
+                    echo '<form method="post" action="' . $h($self) . '" class="m-0" onsubmit="return confirm(\'Make ' . $h(addslashes((string) $v['name'])) . ' the active LOP of ' . $h(addslashes($supplier)) . '? The current active LOP is kept as a previous one.\')">'
+                        . '<input type="hidden" name="suppliers_id" value="' . $sid . '"><input type="hidden" name="action" value="version_activate"><input type="hidden" name="version" value="' . (int) $v['id'] . '">'
+                        . '<button class="btn btn-sm btn-outline-primary" type="submit"><i class="ti ti-arrow-back-up"></i> Make active</button>';
+                    Html::closeForm();
+                }
+                echo '</div></td></tr>';
+            }
         }
         echo '</tbody></table></div>';
     }
