@@ -12,6 +12,11 @@
 class PluginProjectreportsLop
 {
     public const TABLE = 'glpi_plugin_projectreports_lopprices';
+    /** Previous LOPs of a supplier (TABLE holds only the active one, which prices Price checks and BOQs). */
+    public const VERSIONS = 'glpi_plugin_projectreports_lopversions';
+    public const VERSION_LINES = 'glpi_plugin_projectreports_lopversionlines';
+    /** Line columns copied between the active LOP and its previous versions. */
+    private const LINE_FIELDS = ['part', 'description', 'price', 'device', 'spare', 'qty', 'qty_per_device'];
 
     public static function install(): void
     {
@@ -60,6 +65,127 @@ class PluginProjectreportsLop
         global $DB;
         if ($DB->tableExists(self::TABLE) && !$DB->fieldExists(self::TABLE, 'qty_per_device', false)) {
             $DB->doQuery('ALTER TABLE `' . self::TABLE . "` ADD `qty_per_device` int DEFAULT NULL AFTER `qty`");
+        }
+        // previous versions of each supplier's LOP
+        $charset = DBConnection::getDefaultCharset();
+        $collation = DBConnection::getDefaultCollation();
+        $sign = DBConnection::getDefaultPrimaryKeySignOption();
+        if (!$DB->tableExists(self::VERSIONS, false)) {
+            $DB->doQuery("CREATE TABLE `" . self::VERSIONS . "` (
+                `id` int {$sign} NOT NULL AUTO_INCREMENT,
+                `suppliers_id` int {$sign} NOT NULL DEFAULT '0',
+                `name` varchar(255) NOT NULL DEFAULT '',
+                `vat` decimal(5,2) NOT NULL DEFAULT '0.00',
+                `parts` int NOT NULL DEFAULT '0',
+                `imported` timestamp NULL DEFAULT NULL,
+                `archived` timestamp NULL DEFAULT NULL,
+                PRIMARY KEY (`id`),
+                KEY `suppliers_id` (`suppliers_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation} ROW_FORMAT=DYNAMIC");
+        }
+        if (!$DB->tableExists(self::VERSION_LINES, false)) {
+            $DB->doQuery("CREATE TABLE `" . self::VERSION_LINES . "` (
+                `id` int {$sign} NOT NULL AUTO_INCREMENT,
+                `lopversions_id` int {$sign} NOT NULL DEFAULT '0',
+                `part` varchar(255) NOT NULL DEFAULT '',
+                `description` text,
+                `price` decimal(20,6) NOT NULL DEFAULT '0.000000',
+                `device` varchar(20) NOT NULL DEFAULT '',
+                `spare` varchar(255) NOT NULL DEFAULT '',
+                `qty` int NOT NULL DEFAULT '1',
+                `qty_per_device` int DEFAULT NULL,
+                PRIMARY KEY (`id`),
+                KEY `lopversions_id` (`lopversions_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation} ROW_FORMAT=DYNAMIC");
+        }
+    }
+
+    /** Whether the supplier has an active LOP (a name or at least one line). */
+    public static function hasActive(int $suppliers_id): bool
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        return isset(self::info()[$suppliers_id])
+            || (int) $DB->request(['COUNT' => 'c', 'FROM' => self::TABLE, 'WHERE' => ['suppliers_id' => $suppliers_id]])->current()['c'] > 0;
+    }
+
+    /** Copy the supplier's active LOP into its previous versions. Returns the new version id (0 when there was nothing to keep). */
+    public static function archive(int $suppliers_id): int
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $lines = iterator_to_array($DB->request(['FROM' => self::TABLE, 'WHERE' => ['suppliers_id' => $suppliers_id]]), false);
+        if (!$lines) {
+            return 0;
+        }
+        $i = self::info()[$suppliers_id] ?? [];
+        $DB->insert(self::VERSIONS, ['suppliers_id' => $suppliers_id, 'name' => (string) ($i['name'] ?? '') ?: '(LOP without a name)',
+            'vat' => (float) ($i['vat'] ?? 0), 'parts' => count($lines), 'imported' => ($i['imported'] ?? '') ?: null,
+            'archived' => $_SESSION['glpi_currenttime']]);
+        $vid = (int) $DB->insertId();
+        foreach ($lines as $l) {
+            $DB->insert(self::VERSION_LINES, ['lopversions_id' => $vid] + array_intersect_key($l, array_flip(self::LINE_FIELDS)));
+        }
+        return $vid;
+    }
+
+    /** Previous versions of a supplier's LOP, newest first. */
+    public static function versions(int $suppliers_id): array
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        if (!$DB->tableExists(self::VERSIONS)) {
+            return [];
+        }
+        return iterator_to_array($DB->request(['FROM' => self::VERSIONS, 'WHERE' => ['suppliers_id' => $suppliers_id], 'ORDER' => ['archived DESC', 'id DESC']]), false);
+    }
+
+    /** One previous version of this supplier (null when it is not theirs). */
+    public static function version(int $suppliers_id, int $vid): ?array
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        return $DB->request(['FROM' => self::VERSIONS, 'WHERE' => ['id' => $vid, 'suppliers_id' => $suppliers_id], 'LIMIT' => 1])->current() ?: null;
+    }
+
+    public static function versionLines(int $vid): array
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        return iterator_to_array($DB->request(['FROM' => self::VERSION_LINES, 'WHERE' => ['lopversions_id' => $vid], 'ORDER' => ['device DESC', 'part']]), false);
+    }
+
+    /**
+     * Make a previous version the supplier's active LOP again: the active LOP becomes a previous version,
+     * then the chosen version's lines, name and VAT replace it. Returns false when the version is not this supplier's.
+     */
+    public static function activateVersion(int $suppliers_id, int $vid): bool
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $v = self::version($suppliers_id, $vid);
+        if (!$v) {
+            return false;
+        }
+        $lines = self::versionLines($vid);
+        self::archive($suppliers_id);
+        $DB->delete(self::TABLE, ['suppliers_id' => $suppliers_id]);
+        $now = $_SESSION['glpi_currenttime'];
+        foreach ($lines as $l) {
+            $DB->insert(self::TABLE, ['suppliers_id' => $suppliers_id, 'date_mod' => $now] + array_intersect_key($l, array_flip(self::LINE_FIELDS)));
+        }
+        self::saveInfo($suppliers_id, ['name' => (string) $v['name'], 'parts' => count($lines), 'imported' => $v['imported'] ?: $now, 'vat' => (float) $v['vat']]);
+        self::deleteVersion($suppliers_id, $vid);
+        return true;
+    }
+
+    public static function deleteVersion(int $suppliers_id, int $vid): void
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        if (self::version($suppliers_id, $vid)) {
+            $DB->delete(self::VERSION_LINES, ['lopversions_id' => $vid]);
+            $DB->delete(self::VERSIONS, ['id' => $vid]);
         }
     }
 
@@ -171,7 +297,7 @@ class PluginProjectreportsLop
         self::recount($suppliers_id);
     }
 
-    /** Delete a supplier's whole LOP (its lines and its name). Existing orders are not changed. */
+    /** Delete a supplier's active LOP (its lines and its name). Its previous versions are kept. Existing orders are not changed. */
     public static function deleteLop(int $suppliers_id): void
     {
         /** @var DBmysql $DB */
@@ -321,12 +447,19 @@ class PluginProjectreportsLop
         return $lines;
     }
 
-    /** Save the LOP prices (own table only). Returns stats. */
-    public static function apply(array $lines, int $suppliers_id, string $name, float $vat = 0.0): array
+    /**
+     * Save the LOP prices (own table only). Returns stats.
+     * $as_new: the supplier's active LOP is first kept as a previous version, and the new LOP holds only the file's
+     * parts (empty cells still fall back to the previous values, as in the preview). Otherwise the active LOP is updated.
+     */
+    public static function apply(array $lines, int $suppliers_id, string $name, float $vat = 0.0, bool $as_new = false): array
     {
         /** @var DBmysql $DB */
         global $DB;
-        $st = ['new' => 0, 'changed' => 0, 'same' => 0];
+        $st = ['new' => 0, 'changed' => 0, 'same' => 0, 'kept' => 0, 'removed' => 0];
+        if ($as_new) {
+            $st['kept'] = self::archive($suppliers_id) > 0 ? 1 : 0;
+        }
         $now = $_SESSION['glpi_currenttime'];
         foreach ($lines as $l) {
             $cur = $DB->request(['FROM' => self::TABLE, 'WHERE' => ['suppliers_id' => $suppliers_id, 'part' => $l['part']], 'LIMIT' => 1])->current();
@@ -352,6 +485,15 @@ class PluginProjectreportsLop
                 $st['same']++;
             }
         }
+        if ($as_new && $lines) {
+            // the new LOP holds only the file's parts
+            $keep = array_values(array_unique(array_map(fn($l) => (string) $l['part'], $lines)));
+            $gone = (int) $DB->request(['COUNT' => 'c', 'FROM' => self::TABLE, 'WHERE' => ['suppliers_id' => $suppliers_id, 'NOT' => ['part' => $keep]]])->current()['c'];
+            if ($gone) {
+                $DB->delete(self::TABLE, ['suppliers_id' => $suppliers_id, 'NOT' => ['part' => $keep]]);
+            }
+            $st['removed'] = $gone;
+        }
         $parts = (int) $DB->request(['COUNT' => 'c', 'FROM' => self::TABLE, 'WHERE' => ['suppliers_id' => $suppliers_id]])->current()['c'];
         self::saveInfo($suppliers_id, ['name' => $name, 'parts' => $parts, 'imported' => $now, 'vat' => $vat]);
         return $st;
@@ -360,13 +502,15 @@ class PluginProjectreportsLop
     /** Header of the LOP CSV export: the LOM template columns (so the file can be imported again), then Device. */
     public const EXPORT_COLUMNS = ['Part Number', 'Part Description', 'Spare Part Number', 'Unit price tax free', 'QTY per device', 'Quantity', 'Device'];
 
-    /** Lines of a supplier's LOP as CSV rows, in the order of EXPORT_COLUMNS. */
-    public static function exportRows(int $suppliers_id): array
+    /** Lines of a supplier's active LOP (or of one previous version, $vid) as CSV rows, in the order of EXPORT_COLUMNS. */
+    public static function exportRows(int $suppliers_id, int $vid = 0): array
     {
         /** @var DBmysql $DB */
         global $DB;
         $out = [];
-        foreach ($DB->request(['FROM' => self::TABLE, 'WHERE' => ['suppliers_id' => $suppliers_id], 'ORDER' => ['device DESC', 'part']]) as $r) {
+        $rows = $vid > 0 ? (self::version($suppliers_id, $vid) ? self::versionLines($vid) : [])
+            : $DB->request(['FROM' => self::TABLE, 'WHERE' => ['suppliers_id' => $suppliers_id], 'ORDER' => ['device DESC', 'part']]);
+        foreach ($rows as $r) {
             $out[] = [(string) $r['part'], (string) $r['description'], (string) $r['spare'], (float) $r['price'],
                 $r['qty_per_device'] === null ? '' : (int) $r['qty_per_device'], (int) $r['qty'], (string) $r['device']];
         }

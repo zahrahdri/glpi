@@ -25,13 +25,16 @@ PluginProjectreportsLop::ensureSchema();
 // ---- CSV export of a supplier's LOP (same columns as the LOM template, so it can be imported again)
 if (($_GET['export'] ?? '') === 'csv' && (int) ($_GET['view'] ?? 0) > 0) {
     $sid = (int) $_GET['view'];
-    $lop_name = (string) (PluginProjectreportsLop::info()[$sid]['name'] ?? '') ?: Dropdown::getDropdownName('glpi_suppliers', $sid);
+    $vid = (int) ($_GET['version'] ?? 0);
+    $ver = $vid > 0 ? PluginProjectreportsLop::version($sid, $vid) : null;
+    $lop_name = $ver ? $ver['name'] . '_' . substr((string) $ver['archived'], 0, 10)
+        : ((string) (PluginProjectreportsLop::info()[$sid]['name'] ?? '') ?: Dropdown::getDropdownName('glpi_suppliers', $sid));
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="LOP_' . preg_replace('/[^A-Za-z0-9._-]+/', '_', $lop_name) . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
     fputcsv($out, PluginProjectreportsLop::EXPORT_COLUMNS);
-    foreach (PluginProjectreportsLop::exportRows($sid) as $row) {
+    foreach (PluginProjectreportsLop::exportRows($sid, $ver ? $vid : 0) as $row) {
         fputcsv($out, $row);
     }
     fclose($out);
@@ -42,8 +45,10 @@ if (($_GET['export'] ?? '') === 'csv' && (int) ($_GET['view'] ?? 0) > 0) {
 if ($action === 'apply' && isset($_SESSION['projectreports_lop'])) {
     $lop = $_SESSION['projectreports_lop'];
     try {
-        $st = PluginProjectreportsLop::apply($lop['lines'], $lop['suppliers_id'], $lop['name'], (float) ($lop['vat'] ?? 0));
-        $msg = sprintf('LOP "%s" saved: %d new parts, %d prices changed, %d unchanged.', $lop['name'], $st['new'], $st['changed'], $st['same']);
+        $as_new = ($_POST['save_as'] ?? 'new') === 'new';
+        $st = PluginProjectreportsLop::apply($lop['lines'], $lop['suppliers_id'], $lop['name'], (float) ($lop['vat'] ?? 0), $as_new);
+        $msg = sprintf('LOP "%s" saved: %d new parts, %d prices changed, %d unchanged.', $lop['name'], $st['new'], $st['changed'], $st['same'])
+            . ($st['kept'] ? ' The previous LOP is kept under Previous versions.' : '');
         unset($_SESSION['projectreports_lop']);
         Session::addMessageAfterRedirect(htmlescape($msg));
     } catch (RuntimeException $e) {
@@ -54,12 +59,20 @@ if ($action === 'apply' && isset($_SESSION['projectreports_lop'])) {
 
 // ---- administrators: edit the LOP lines by hand
 $edit_sid = (int) ($_POST['suppliers_id'] ?? 0);
-if (in_array($action, ['line_save', 'lines_save', 'line_delete', 'lop_rename', 'lop_delete'], true) && $edit_sid > 0) {
+if (in_array($action, ['line_save', 'lines_save', 'line_delete', 'lop_rename', 'lop_delete', 'version_activate', 'version_delete'], true) && $edit_sid > 0) {
     if (!PluginProjectreportsLop::canEdit()) {
         Html::displayRightError();
     }
     $back = $self . '?view=' . $edit_sid . '&edit=1';
-    if ($action === 'line_save') {
+    if ($action === 'version_activate') {
+        $ok = PluginProjectreportsLop::activateVersion($edit_sid, (int) ($_POST['version'] ?? 0));
+        Session::addMessageAfterRedirect(htmlescape($ok ? 'That version is now the active LOP. The LOP it replaced is kept under Previous versions.' : 'Version not found.'), false, $ok ? INFO : ERROR);
+        $back = $self . '?view=' . $edit_sid;
+    } elseif ($action === 'version_delete') {
+        PluginProjectreportsLop::deleteVersion($edit_sid, (int) ($_POST['version'] ?? 0));
+        Session::addMessageAfterRedirect(htmlescape('Previous version deleted.'));
+        $back = $self . '?view=' . $edit_sid;
+    } elseif ($action === 'line_save') {
         $why = PluginProjectreportsLop::saveLine($edit_sid, (int) ($_POST['id'] ?? 0), $_POST);
         Session::addMessageAfterRedirect(htmlescape($why !== '' ? $why : 'Line ' . trim((string) $_POST['part']) . ' saved.'), false, $why !== '' ? ERROR : INFO);
     } elseif ($action === 'line_delete') {
@@ -99,7 +112,7 @@ if (in_array($action, ['line_save', 'lines_save', 'line_delete', 'lop_rename', '
         Session::addMessageAfterRedirect(htmlescape($vat === null ? 'LOP name saved. VAT must be a number between 0 and 100: not changed.' : 'LOP name and VAT saved.'), false, $vat === null ? WARNING : INFO);
     } else {
         PluginProjectreportsLop::deleteLop($edit_sid);
-        Session::addMessageAfterRedirect(htmlescape('LOP deleted. Existing orders keep their prices.'));
+        Session::addMessageAfterRedirect(htmlescape('LOP deleted. Its previous versions are kept; existing orders keep their prices.'));
         $back = $self;
     }
     Html::redirect($back);
@@ -194,9 +207,18 @@ if ($preview) {
             . '<td><span class="badge ' . $badge . '">' . $h($l['change']) . '</span></td></tr>';
     }
     echo '</tbody></table></div>';
-    echo '<form method="post" action="' . $h($self) . '" class="d-flex gap-2 mt-3 align-items-center"><input type="hidden" name="action" value="apply">'
+    echo '<form method="post" action="' . $h($self) . '" class="mt-3"><input type="hidden" name="action" value="apply">';
+    if (PluginProjectreportsLop::hasActive($preview['suppliers_id'])) {
+        $cur = (string) (PluginProjectreportsLop::info()[$preview['suppliers_id']]['name'] ?? '') ?: 'the current LOP';
+        echo '<fieldset class="mb-3"><legend class="form-label">This supplier already has a LOP (' . $h($cur) . '). How should this file be saved?</legend>'
+            . '<label class="form-check"><input class="form-check-input" type="radio" name="save_as" value="new" checked> <span class="form-check-label"><b>Save as a new LOP</b> "' . $h($preview['name']) . '": '
+            . $h($cur) . ' is kept under Previous versions, and the new LOP holds only the parts of this file.</span></label>'
+            . '<label class="form-check"><input class="form-check-input" type="radio" name="save_as" value="update"> <span class="form-check-label"><b>Update ' . $h($cur) . '</b>: '
+            . 'change its prices; parts not in the file stay, nothing is kept as a previous version.</span></label></fieldset>';
+    }
+    echo '<div class="d-flex gap-2 align-items-center">'
         . '<a class="btn btn-outline-secondary" href="' . $h($self) . '">Cancel</a><button type="submit" class="btn btn-primary"><i class="ti ti-check"></i> Save LOP prices</button>'
-        . '<span class="pr-sub">Existing BOQs and orders keep their prices.</span>';
+        . '<span class="pr-sub">Existing BOQs and orders keep their prices.</span></div>';
     Html::closeForm();
     echo '</div>';
 } elseif ((int) ($_GET['view'] ?? 0) > 0) {
@@ -207,6 +229,46 @@ if ($preview) {
     $admin = PluginProjectreportsLop::canEdit();
     $editing = $admin && !empty($_GET['edit']);
     $view_url = $self . '?view=' . $sid;
+    $hidden = '<input type="hidden" name="suppliers_id" value="' . $sid . '">';
+    $version_buttons = function (array $v, bool $with_view) use ($h, $self, $view_url, $hidden, $admin) {
+        $vid = (int) $v['id'];
+        $o = '<div class="d-flex gap-2 flex-wrap">';
+        if ($with_view) {
+            $o .= '<a class="btn btn-sm btn-outline-primary" href="' . $h($view_url . '&version=' . $vid) . '"><i class="ti ti-list-details"></i> View</a>';
+        }
+        $o .= '<a class="btn btn-sm btn-outline-secondary" href="' . $h($view_url . '&version=' . $vid . '&export=csv') . '"><i class="ti ti-download"></i> Export CSV</a>';
+        echo $o;
+        if ($admin) {
+            echo '<form method="post" action="' . $h($self) . '" class="m-0" onsubmit="return confirm(\'Make this version the active LOP? The current LOP is kept under Previous versions.\')">' . $hidden
+                . '<input type="hidden" name="action" value="version_activate"><input type="hidden" name="version" value="' . $vid . '">'
+                . '<button class="btn btn-sm btn-outline-primary" type="submit"><i class="ti ti-arrow-back-up"></i> Make active</button>';
+            Html::closeForm();
+            echo '<form method="post" action="' . $h($self) . '" class="m-0" onsubmit="return confirm(\'Delete this previous version for good?\')">' . $hidden
+                . '<input type="hidden" name="action" value="version_delete"><input type="hidden" name="version" value="' . $vid . '">'
+                . '<button class="btn btn-sm btn-outline-danger" type="submit" title="Delete this version"><i class="ti ti-trash"></i></button>';
+            Html::closeForm();
+        }
+        echo '</div>';
+    };
+    $vid = (int) ($_GET['version'] ?? 0);
+    $ver = $vid > 0 ? PluginProjectreportsLop::version($sid, $vid) : null;
+    if ($ver) {
+        // one previous version, read-only
+        $vl = PluginProjectreportsLop::versionLines($vid);
+        echo '<div class="pr-card"><div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap"><div><h3 class="m-0">' . $h($ver['name']) . ' · ' . $h(Dropdown::getDropdownName('glpi_suppliers', $sid)) . '</h3>'
+            . '<div class="pr-sub">Previous version · ' . count($vl) . ' parts · VAT ' . $h($money($ver['vat'])) . '% · replaced ' . $h(substr((string) $ver['archived'], 0, 16)) . '</div></div><div class="d-flex gap-2 align-items-center">';
+        $version_buttons($ver, false);
+        echo '<a class="btn btn-outline-secondary btn-sm" href="' . $h($view_url) . '">Back to the active LOP</a></div></div>';
+        echo '<div class="pr-tbl" style="max-height:640px;overflow:auto"><table><thead><tr><th>Part Number</th><th>Device</th><th>Spare Part number</th><th>Description</th><th class="r">QTY per device</th><th class="r">Qty</th><th class="r">Unit Price</th></tr></thead><tbody>';
+        foreach ($vl as $r) {
+            echo '<tr><td><b>' . $h($r['part']) . '</b></td><td>' . ($r['device'] !== '' ? '<span class="badge bg-blue-lt">' . $h($r['device']) . '</span>' : '<span class="text-secondary">part</span>') . '</td>'
+                . '<td>' . ($r['spare'] !== '' ? $h($r['spare']) : '<span class="text-secondary">—</span>') . '</td><td>' . $h($r['description']) . '</td>'
+                . '<td class="r">' . ($r['qty_per_device'] === null ? '<span class="text-secondary">—</span>' : (int) $r['qty_per_device']) . '</td><td class="r">' . (int) $r['qty'] . '</td><td class="r">' . $h($money($r['price'])) . '</td></tr>';
+        }
+        echo '</tbody></table></div></div></div>';
+        Html::footer();
+        return;
+    }
     echo '<div class="pr-card"><div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap"><h3 class="m-0">' . $h($i['name']) . ' · ' . $h(Dropdown::getDropdownName('glpi_suppliers', $sid)) . '</h3><div class="d-flex gap-2">';
     if ($admin) {
         echo $editing ? '<a class="btn btn-primary btn-sm" href="' . $h($view_url) . '"><i class="ti ti-check"></i> Done editing</a>'
@@ -215,7 +277,6 @@ if ($preview) {
     echo '<a class="btn btn-outline-secondary btn-sm" href="' . $h($view_url . '&export=csv') . '"><i class="ti ti-download"></i> Export CSV</a>';
     echo '<a class="btn btn-outline-secondary btn-sm" href="' . $h($self) . '">Back</a></div></div>';
     $rows = iterator_to_array($DB->request(['FROM' => PluginProjectreportsLop::TABLE, 'WHERE' => ['suppliers_id' => $sid], 'ORDER' => ['device DESC', 'part']]), false);
-    $hidden = '<input type="hidden" name="suppliers_id" value="' . $sid . '">';
 
     if ($editing) {
         // LOP name and delete
@@ -279,6 +340,21 @@ if ($preview) {
             echo '<tr data-dev="' . $h($r['device'] ?: 'part') . '" data-q="' . (int) $r['qty'] . '"><td><b>' . $h($r['part']) . '</b></td><td>' . ($r['device'] !== '' ? '<span class="badge bg-blue-lt">' . $h($r['device']) . '</span>' : '<span class="text-secondary">part</span>') . '</td><td>' . ($r['spare'] !== '' ? $h($r['spare']) : '<span class="text-secondary">—</span>') . '</td><td>' . $h($r['description']) . '</td><td class="r">' . ($r['qty_per_device'] === null ? '<span class="text-secondary">—</span>' : (int) $r['qty_per_device']) . '</td><td class="r">' . (int) $r['qty'] . '</td><td class="r">' . $h($money($r['price'])) . '</td><td>' . $h(substr((string) $r['date_mod'], 0, 16)) . '</td></tr>';
         }
         echo '</tbody></table></div></div>';
+        $versions = PluginProjectreportsLop::versions($sid);
+        echo '<div class="pr-card" id="previous-versions"><h3>Previous versions</h3>';
+        if (!$versions) {
+            echo '<p class="pr-sub m-0">None yet. When you import a new LOP for this supplier and choose "Save as a new LOP", the current one is kept here.</p>';
+        } else {
+            echo '<div class="pr-tbl"><table><thead><tr><th>LOP</th><th class="r">Part numbers</th><th class="r">VAT %</th><th>Imported</th><th>Replaced</th><th></th></tr></thead><tbody>';
+            foreach ($versions as $v) {
+                echo '<tr><td><a href="' . $h($view_url . '&version=' . (int) $v['id']) . '"><b>' . $h($v['name']) . '</b></a></td><td class="r">' . (int) $v['parts'] . '</td><td class="r">' . $h($money($v['vat'])) . '</td>'
+                    . '<td>' . $h(substr((string) $v['imported'], 0, 16)) . '</td><td>' . $h(substr((string) $v['archived'], 0, 16)) . '</td><td>';
+                $version_buttons($v, true);
+                echo '</td></tr>';
+            }
+            echo '</tbody></table></div>';
+        }
+        echo '</div>';
         echo "<script>document.getElementById('lop-dev').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;"
             . "document.querySelectorAll('#lop-dev button').forEach(x=>{x.classList.toggle('btn-primary',x===b);x.classList.toggle('btn-outline-secondary',x!==b);});"
             . "document.querySelectorAll('tr[data-dev]').forEach(t=>{t.hidden=!!b.dataset.dev&&t.dataset.dev!==b.dataset.dev;});});</script>";
@@ -313,15 +389,27 @@ if ($preview) {
                 'parts' => (int) $DB->request(['COUNT' => 'c', 'FROM' => PluginProjectreportsLop::TABLE, 'WHERE' => ['suppliers_id' => (int) $r['suppliers_id']]])->current()['c']];
         }
     }
+    // suppliers that only have previous versions (their active LOP was deleted)
+    $vcount = [];
+    if ($DB->tableExists(PluginProjectreportsLop::VERSIONS)) {
+        foreach ($DB->request(['SELECT' => ['suppliers_id', 'COUNT' => 'id AS c'], 'FROM' => PluginProjectreportsLop::VERSIONS, 'GROUPBY' => 'suppliers_id']) as $r) {
+            $vcount[(int) $r['suppliers_id']] = (int) $r['c'];
+            if ((int) $r['suppliers_id'] > 0 && !in_array((int) $r['suppliers_id'], $sids, true)) {
+                $sids[] = (int) $r['suppliers_id'];
+                $info[(int) $r['suppliers_id']] = ['name' => '(no active LOP)', 'imported' => '', 'parts' => 0];
+            }
+        }
+    }
     if (!$sids) {
         echo '<p class="pr-sub">No LOP imported yet.</p>';
     } else {
-        echo '<div class="pr-tbl"><table><thead><tr><th>Supplier</th><th>LOP</th><th class="r">Part numbers</th><th>Imported</th><th></th></tr></thead><tbody>';
+        echo '<div class="pr-tbl"><table><thead><tr><th>Supplier</th><th>LOP</th><th class="r">Part numbers</th><th>Imported</th><th class="r">Previous versions</th><th></th></tr></thead><tbody>';
         foreach ($sids as $sid) {
             $i = $info[$sid] ?? null;
             echo '<tr><td>' . $h($sid ? Dropdown::getDropdownName('glpi_suppliers', $sid) : '(no supplier)') . '</td><td>' . ($i ? '<a href="' . $h($self . '?view=' . $sid) . '" title="Show the parts and prices of this LOP"><b>' . $h($i['name']) . '</b></a>' : '<span class="text-danger">no LOP imported</span>') . '</td>'
                 . '<td class="r">' . $h($i['parts'] ?? '') . '</td>'
-                . '<td>' . $h(substr((string) ($i['imported'] ?? ''), 0, 16)) . '</td><td>';
+                . '<td>' . $h(substr((string) ($i['imported'] ?? ''), 0, 16)) . '</td>'
+                . '<td class="r">' . (($vcount[$sid] ?? 0) ? '<a href="' . $h($self . '?view=' . $sid) . '#previous-versions">' . (int) $vcount[$sid] . '</a>' : '<span class="text-secondary">—</span>') . '</td><td>';
             if ($sid) {
                 echo '<div class="d-flex gap-2">';
                 if ($i) {
