@@ -740,41 +740,83 @@ class PluginProjectreportsDemocommand extends AbstractCommand
             }
         }
 
-        // the most recent capacity requests get an order, equipment in a rack and an installation date
-        $capacity = array_column(iterator_to_array($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_itilcategories',
-            'WHERE' => ['name' => ['DEMO Capacity expansion', 'DEMO New server', 'DEMO Storage request', 'DEMO License / support renewal']]])), 'id');
-        $orders = $DB->tableExists('glpi_plugin_order_orders') ? array_column(iterator_to_array($DB->request(['SELECT' => 'id',
-            'FROM' => 'glpi_plugin_order_orders', 'WHERE' => ['name' => ['LIKE', 'DEMO BOQ-%'], 'NOT' => ['name' => ['LIKE', 'DEMO BOQ-AUTO%']]],
-            'ORDER' => 'id'])), 'id') : [];
-        $servers = array_column(iterator_to_array($DB->request(['SELECT' => 'c.id', 'FROM' => 'glpi_computers AS c',
-            'INNER JOIN' => ['glpi_items_racks AS ir' => ['ON' => ['ir' => 'items_id', 'c' => 'id', ['AND' => ['ir.itemtype' => 'Computer']]]]],
-            'WHERE' => ['c.name' => ['LIKE', 'DEMO-SRV-%']], 'ORDER' => 'c.id'])), 'id');
-        $sans = array_column(iterator_to_array($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_networkequipments',
-            'WHERE' => ['name' => ['LIKE', 'DEMO-SAN-%']], 'ORDER' => 'id'])), 'id');
-        $storage_cat = array_column(iterator_to_array($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_itilcategories',
-            'WHERE' => ['name' => 'DEMO Storage request']])), 'id');
+        // every request gets its own purchase order (PO number, cost, delivery date = warehouse arrival), equipment in a
+        // rack (data center) and an installation task. The orders have no budget, so the budget and cost reports keep
+        // the same figures; they are named "DEMO BOQ-REQ ..." and removed with the other demo orders.
+        $byname = fn(string $table, string $like) => array_column(iterator_to_array($DB->request(['SELECT' => 'id',
+            'FROM' => $table, 'WHERE' => ['name' => ['LIKE', $like]], 'ORDER' => 'id'])), 'id');
+        $pools = [
+            'server'  => array_column(iterator_to_array($DB->request(['SELECT' => 'c.id', 'FROM' => 'glpi_computers AS c',
+                'INNER JOIN' => ['glpi_items_racks AS ir' => ['ON' => ['ir' => 'items_id', 'c' => 'id', ['AND' => ['ir.itemtype' => 'Computer']]]]],
+                'WHERE' => ['c.name' => ['LIKE', 'DEMO-SRV-%']], 'ORDER' => 'c.id'])), 'id'),
+            'storage' => $byname('glpi_networkequipments', 'DEMO-SAN-%'),
+            'network' => $byname('glpi_networkequipments', 'DEMO-SW-%'),
+        ];
+        $catname = array_column(iterator_to_array($DB->request(['SELECT' => ['id', 'name'], 'FROM' => 'glpi_itilcategories',
+            'WHERE' => ['name' => ['LIKE', 'DEMO %']]])), 'name', 'id');
+        // category => [equipment kind, catalog reference (part code prefix), quantity]
+        $plan = [
+            'DEMO Capacity expansion' => ['network', 'DEMO-SW-25G', 2], 'DEMO New server' => ['server', 'DEMO-SRV-2U', 2],
+            'DEMO Storage request' => ['storage', 'DEMO-SSD-3T8', 12], 'DEMO Network change' => ['network', 'DEMO-SFP-25G', 8],
+            'DEMO Access request' => ['server', 'DEMO-SVC-INS', 1], 'DEMO Hardware incident' => ['storage', 'DEMO-SSD-3T8', 2],
+            'DEMO Link / uplink incident' => ['network', 'DEMO-SFP-25G', 4], 'DEMO License / support renewal' => ['server', 'DEMO-SVC-INS', 1],
+        ];
+        $orders_ok = $DB->tableExists('glpi_plugin_order_orders');
+        $cfg = $orders_ok ? ($DB->request(['FROM' => 'glpi_plugin_order_configs', 'LIMIT' => 1])->current() ?: []) : [];
+        $refs = [];
+        if ($orders_ok) {
+            foreach ($DB->request(['SELECT' => ['id', 'name', 'itemtype'], 'FROM' => 'glpi_plugin_order_references', 'WHERE' => ['name' => ['LIKE', 'DEMO-%']]]) as $r) {
+                foreach (self::REFERENCES as $label => [, $price]) {
+                    if (str_starts_with($label, $r['name']) || str_starts_with($r['name'], strtok($label, ' '))) {
+                        $refs[strtok($label, ' ')] = [(int) $r['id'], $r['itemtype'], $price];
+                    }
+                }
+            }
+        }
+        $tax = $orders_ok ? $DB->request(['SELECT' => 'id', 'FROM' => 'glpi_plugin_order_ordertaxes', 'WHERE' => ['name' => '20'], 'LIMIT' => 1])->current() : null;
+        $supplier = $DB->request(['SELECT' => 'id', 'FROM' => 'glpi_suppliers', 'WHERE' => ['name' => 'DEMO Supplier'], 'LIMIT' => 1])->current();
+        $today = new DateTime('today');
         $linked = 0;
+        $n = 0;
         foreach ($tickets as $t) {
-            if (!in_array($t['itilcategories_id'], $capacity) || $linked >= max(count($orders), 12)) {
-                continue;
+            $n++;
+            [$kind, $code, $qty] = $plan[$catname[$t['itilcategories_id']] ?? ''] ?? ['server', 'DEMO-SRV-2U', 1];
+            $opened = new DateTime($t['date']);
+            if ($orders_ok && isset($refs[$code])) {
+                [$rid, $itemtype, $price] = $refs[$code];
+                $order_date = (clone $opened)->modify('+' . (2 + $n % 5) . ' day');
+                $arrival = (clone $order_date)->modify('+' . (10 + $n % 20) . ' day');
+                if ($arrival > $today) {
+                    $arrival = clone $today;
+                }
+                $oid = $this->ins('glpi_plugin_order_orders', ['entities_id' => 0, 'is_recursive' => 1,
+                    'name' => 'DEMO BOQ-REQ ' . $t['id'], 'num_order' => 'PO-' . (78000 + (int) $t['id']), 'budgets_id' => 0,
+                    'plugin_order_ordertaxes_id' => $tax ? (int) $tax['id'] : 0, 'order_date' => $order_date->format('Y-m-d'),
+                    'duedate' => $arrival->format('Y-m-d'), 'suppliers_id' => $supplier ? (int) $supplier['id'] : 0,
+                    'plugin_order_orderstates_id' => (int) ($cfg['order_status_completly_delivered'] ?? 0), 'port_price' => 0,
+                    'global_discount' => 0, 'is_deleted' => 0, 'is_template' => 0, 'date_mod' => $now]);
+                for ($u = 0; $u < $qty; $u++) {
+                    $this->ins('glpi_plugin_order_orders_items', ['entities_id' => 0, 'is_recursive' => 1,
+                        'plugin_order_orders_id' => $oid, 'itemtype' => $itemtype, 'items_id' => 0, 'plugin_order_references_id' => $rid,
+                        'plugin_order_deliverystates_id' => 0, 'plugin_order_ordertaxes_id' => $tax ? (int) $tax['id'] : 0,
+                        'price_taxfree' => $price, 'price_discounted' => $price, 'discount' => 0, 'price_ati' => round($price * 1.2, 2),
+                        'states_id' => 2, 'delivery_date' => $arrival->format('Y-m-d')]);
+                }
+                $this->ins('glpi_items_tickets', ['itemtype' => 'PluginOrderOrder', 'items_id' => $oid, 'tickets_id' => $t['id']]);
             }
-            if (isset($orders[$linked])) {
-                $this->ins('glpi_items_tickets', ['itemtype' => 'PluginOrderOrder', 'items_id' => $orders[$linked], 'tickets_id' => $t['id']]);
-            }
-            $is_storage = in_array($t['itilcategories_id'], $storage_cat) && $sans;
-            $pool = $is_storage ? $sans : $servers;
+            $pool = $pools[$kind] ?: $pools['server'];
             if ($pool) {
-                $this->ins('glpi_items_tickets', ['itemtype' => $is_storage ? 'NetworkEquipment' : 'Computer',
-                    'items_id' => $pool[($linked * 3) % count($pool)], 'tickets_id' => $t['id']]);
+                $this->ins('glpi_items_tickets', ['itemtype' => $kind === 'server' || !$pools[$kind] ? 'Computer' : 'NetworkEquipment',
+                    'items_id' => $pool[($n * 7) % count($pool)], 'tickets_id' => $t['id']]);
             }
-            $begin = (new DateTime($t['date']))->modify('+' . (18 + 4 * $linked) . ' day')->setTime(9, 0);
+            $begin = (clone $opened)->modify('+' . (20 + $n % 25) . ' day')->setTime(9, 0);
             $this->ins('glpi_tickettasks', ['tickets_id' => $t['id'], 'content' => '<p>نصب و راه‌اندازی تجهیزات</p>',
                 'begin' => $begin->format('Y-m-d H:i:s'), 'end' => (clone $begin)->modify('+4 hour')->format('Y-m-d H:i:s'),
                 'actiontime' => 14400, 'state' => 1, 'users_id' => 0, 'users_id_tech' => $techs[$t['id'] % count($techs)],
                 'date' => $now, 'date_creation' => $now, 'date_mod' => $now, 'is_private' => 0]);
             $linked++;
         }
-        $output->writeln(sprintf('People: %d; requests with order, equipment and installation date: %d', count($users), $linked));
+        $output->writeln(sprintf('People: %d; requests with an order, equipment and an installation date: %d', count($users), $linked));
     }
 
     private function remove(OutputInterface $output): void
