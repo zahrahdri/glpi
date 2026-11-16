@@ -32,7 +32,6 @@
 
 @use "@fontsource-utils/scss" as fontsource;
 @use "@fontsource/inter/scss" as inter;
-@use "@fontsource/cormorant-garamond/scss" as cormorant;
 
 $enable-negative-margins: true;
 $link-hover-decoration: none;
@@ -43,14 +42,6 @@ $link-hover-decoration: none;
     $metadata: inter.$metadata,
     $subsets: all,
     $weights: all,
-    $styles: normal
-);
-
-// Formal serif used for the statement on the login page
-@include fontsource.faces(
-    $metadata: cormorant.$metadata,
-    $subsets: latin,
-    $weights: (500, 600),
     $styles: normal
 );
 

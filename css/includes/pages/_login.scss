@@ -85,15 +85,14 @@
     }
 
     .login-brand-text {
+        // Same typeface and style as the form title ("Log in to your account"), larger
         h1 {
-            font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
-            font-size: 3.5rem;
-            font-weight: 500;
-            line-height: 1.12;
-            letter-spacing: 0.005em;
+            font-size: 2.75rem;
+            font-weight: 700;
+            line-height: 1.15;
+            letter-spacing: -0.02em;
             color: #fff;
             margin: 0;
-            text-wrap: balance;
         }
     }
 
