@@ -150,6 +150,10 @@
 .db-grid > .s6 { grid-column: span 6; }
 .db-grid > .s7 { grid-column: span 7; }
 .db-grid > .s8 { grid-column: span 8; }
+.db-grid > .s12 { grid-column: span 12; }
+.db-card.s12 .db-tbl-wrap { max-height: none; }
+#db-latest td:nth-child(2) { white-space: normal; min-width: 180px; } /* titles wrap instead of pushing the date out of view */
+.db-id { color: var(--muted); white-space: nowrap; direction: ltr; display: inline-block; font-variant-numeric: tabular-nums; }
 .db-card-h {
   background: #2b3240; color: #fff; padding: 9px 14px;
   font-weight: 700; font-size: 13px; display: block;

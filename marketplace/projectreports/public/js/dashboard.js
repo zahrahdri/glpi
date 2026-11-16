@@ -354,13 +354,6 @@
     var stl = STATUSES.filter(function (s) { return sc[s]; });
     chart('c-hstatus', hbarOpt(stl.map(function (s) { return STATUS_FA[s]; }), stl.map(function (s) { return sc[s]; }), COL.gold));
 
-    // open requests (key list)
-    var keyR = R.filter(function (r) { return r.status !== 'Closed'; }).sort(byDateDesc).slice(0, 6);
-    var keyList = keyR.length ? '<ul class="db-list">' + keyR.map(function (r) {
-      return '<li><span class="id">REQ-' + esc(fa(r.ticket_id)) + '</span><span class="t">' + esc(r.title) + '</span>'
-        + chip(GROUP_LABEL[GROUP[r.status]], GROUP_CLS[GROUP[r.status]]) + '</li>';
-    }).join('') + '</ul>' : '<div class="db-empty">درخواست باز وجود ندارد.</div>';
-
     var assetsCard = moneyOk
       ? (function () {
           var ac = countBy(A, function (a) { return a.asset_type; });
@@ -381,17 +374,23 @@
         })()
       : noticeCard(6, 'هزینه بر اساس پروژه (بدون مالیات)', 'money');
 
-    var detailsCard = demOk
-      ? card(8, 'جزئیات آخرین درخواست‌ها', table('db-latest', [
-          { h: 'درخواست', f: function (d) { return 'REQ-' + esc(fa(d.ticket_id)); } },
-          { h: 'عنوان', f: function (d) { return esc(d.title); } },
-          { h: 'تیم', f: function (d) { return esc(d.team); } },
-          { h: 'هزینه BOQ', num: true, f: function (d) { return num(d.boq_cost); } },
-          { h: 'تأمین‌کننده', f: function (d) { return esc(d.supplier); } },
-          { h: 'مرحله', f: function (d) { return chip(STAGE_FA[d.stage] || d.stage, d.stage === 'committed' ? 'ok' : (d.stage === 'estimate' ? 'info' : '')); } },
-          { h: 'تاریخ ثبت', f: function (d) { return jdate(d.opened); } }
-        ], Dm.slice().sort(byDateDesc), 10))
-      : noticeCard(8, 'جزئیات آخرین درخواست‌ها', 'demands');
+    // latest requests with their status (and BOQ cost when the request has a BOQ)
+    var boqBy = {};
+    Dm.forEach(function (d) { boqBy[d.ticket_id] = d; });
+    var latest = R.slice().sort(byDateDesc);
+    var latestCols = [
+      { h: 'درخواست', f: function (r) { return '<span class="db-id">REQ-' + esc(fa(r.ticket_id)) + '</span>'; } },
+      { h: 'عنوان', f: function (r) { return esc(r.title); } },
+      { h: 'پروژه', f: function (r) { return esc(r.project); } },
+      { h: 'تیم', f: function (r) { return esc(r.requesting_team); } },
+      { h: 'وضعیت', f: function (r) { return chip(STATUS_FA[r.status] || r.status, GROUP_CLS[GROUP[r.status]]); } }
+    ];
+    // BOQ cost only when some of the listed requests have a BOQ
+    if (latest.slice(0, 10).some(function (r) { return boqBy[r.ticket_id] && boqBy[r.ticket_id].boq_cost; })) {
+      latestCols.push({ h: 'هزینه BOQ', num: true, f: function (r) { var d = boqBy[r.ticket_id]; return d && d.boq_cost ? num(d.boq_cost) : '—'; } });
+    }
+    latestCols.push({ h: 'تاریخ ثبت', f: function (r) { return jdate(r.opened); } });
+    var latestCard = card(12, 'آخرین وضعیت درخواست‌ها', table('db-latest', latestCols, latest, 10));
 
     return '<div class="db-kpis">' + kpis + '</div>'
       + '<div class="db-grid">'
@@ -401,8 +400,7 @@
       + gaugeCard(pct, done, n)
       + assetsCard
       + costCard
-      + card(4, 'درخواست‌های باز', keyList)
-      + detailsCard
+      + latestCard
       + '</div>';
   }
 
