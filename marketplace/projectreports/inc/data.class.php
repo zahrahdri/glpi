@@ -259,9 +259,12 @@ PRSQL;
     private const SQL_ASSETS = <<<'PRSQL'
 WITH pb AS (SELECT DISTINCT projects_id, budgets_id FROM glpi_projectcosts WHERE budgets_id > 0)
 SELECT pr.name AS project,
-  CASE WHEN ic.itemtype = 'Computer' THEN 'Server'
+  CASE WHEN ic.itemtype LIKE '%SANStorage%'
+         -- storage recorded as a network device or computer whose type says so (SAN, NAS, storage, ذخیره‌ساز)
+         OR LOWER(COALESCE(nt.name, ct.name, '')) REGEXP '(^|[^a-z])(san|nas)([^a-z]|$)|storage|ذخیره'
+         THEN 'Storage'
+       WHEN ic.itemtype = 'Computer' THEN 'Server'
        WHEN ic.itemtype = 'NetworkEquipment' THEN 'Network device'
-       WHEN ic.itemtype LIKE '%SANStorage%' THEN 'SAN storage'
        ELSE ic.itemtype END AS asset_type,
   ic.items_id AS asset_id,
   ic.value AS asset_value,
@@ -278,6 +281,10 @@ FROM glpi_infocoms ic
 JOIN pb ON pb.budgets_id = ic.budgets_id
 JOIN glpi_projects pr ON pr.id = pb.projects_id
 LEFT JOIN glpi_suppliers s ON s.id = ic.suppliers_id
+LEFT JOIN glpi_networkequipments ne ON ic.itemtype = 'NetworkEquipment' AND ne.id = ic.items_id
+LEFT JOIN glpi_networkequipmenttypes nt ON nt.id = ne.networkequipmenttypes_id
+LEFT JOIN glpi_computers c ON ic.itemtype = 'Computer' AND c.id = ic.items_id
+LEFT JOIN glpi_computertypes ct ON ct.id = c.computertypes_id
 WHERE ic.budgets_id > 0
 PRSQL;
 
