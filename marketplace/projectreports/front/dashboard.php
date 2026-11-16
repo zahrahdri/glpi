@@ -30,8 +30,9 @@ if (!isset($pages[$page])) {
 }
 
 $plugin_root = $CFG_GLPI['root_doc'] . '/plugins/projectreports';
-$ver = '?v=' . PLUGIN_PROJECTREPORTS_VERSION;
-echo '<link rel="stylesheet" href="' . htmlescape($plugin_root . '/css/dashboard.css' . $ver) . '">';
+// file dates in the address, so browsers fetch the new files after every update
+$ver_of = fn(string $f) => '?v=' . PLUGIN_PROJECTREPORTS_VERSION . '-' . @filemtime(__DIR__ . '/../public/' . $f);
+echo '<link rel="stylesheet" href="' . htmlescape($plugin_root . '/css/dashboard.css' . $ver_of('css/dashboard.css')) . '">';
 ?>
 <div id="db-app" class="db" dir="rtl" lang="fa" data-page="<?php echo htmlescape($page); ?>">
   <header class="db-top">
@@ -57,6 +58,6 @@ echo json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_Q
 ?></script>
 <?php
 echo '<script src="' . htmlescape($plugin_root . '/lib/echarts.min.js?v=5.6.0') . '"></script>';
-echo '<script src="' . htmlescape($plugin_root . '/js/dashboard.js' . $ver) . '"></script>';
+echo '<script src="' . htmlescape($plugin_root . '/js/dashboard.js' . $ver_of('js/dashboard.js')) . '"></script>';
 
 Html::footer();
