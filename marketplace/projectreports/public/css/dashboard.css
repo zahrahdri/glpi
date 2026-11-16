@@ -35,22 +35,38 @@
 .db button, .db select, .db input { font-family: inherit; }
 
 /* ---------- top bar ---------- */
+/* The header is a grid: logo, title, tabs and button each have their own place, and the line drawing has its own
+   column on the left, so nothing ever sits on top of it. Narrower dashboards drop the drawing, then stack. */
+.db { container-type: inline-size; }
 .db-top {
-  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
-  padding: 24px 30px; min-height: 124px; border-radius: var(--radius); color: #fff;
-  /* line drawing (tower, data center, cloud) on the left, fading out under the title */
-  background:
-    linear-gradient(90deg, rgba(44, 52, 61, .15) 0%, rgba(44, 52, 61, .35) 30%, rgba(44, 52, 61, .92) 52%, #2c343d 62%),
-    url("../img/header-it.svg") no-repeat left 24px bottom 4px / auto 58%,
-    #2c343d;
+  display: grid; align-items: center; gap: 12px 18px;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(200px, 300px);
+  grid-template-areas:
+    "logo title title art"
+    "nav  nav   btn   btn";
+  padding: 20px 26px; min-height: 124px; border-radius: var(--radius); color: #fff;
+  background: #2c343d;
   box-shadow: 0 12px 30px rgba(15, 23, 42, .18), inset 0 -4px 0 var(--gold);
+}
+.db-top::after {
+  content: ""; grid-area: art; align-self: stretch; min-height: 96px;
+  background: url("../img/header-it.svg") no-repeat left bottom / contain;
+}
+.db-top .db-logo { grid-area: logo; }
+.db-top .db-title { grid-area: title; }
+.db-top .db-nav { grid-area: nav; justify-self: start; }
+.db-top .db-btn { grid-area: btn; justify-self: end; }
+@container (max-width: 720px) {
+  .db-top::after { display: none; }
+  .db-top { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "logo title" "nav nav" "btn btn"; }
+  .db-top .db-btn { justify-self: start; }
 }
 .db-logo {
   height: 80px; width: auto; flex: 0 0 auto;
   background: #fff; border-radius: 12px; padding: 5px 10px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
 }
-.db-title { flex: 1; min-width: 240px; }
+.db-title { min-width: 0; }
 .db-h { font-size: 23px; font-weight: 800; line-height: 1.6; }
 .db-sub { font-size: 14px; opacity: .8; margin-top: 4px; }
 .db-nav { display: flex; gap: 4px; flex-wrap: wrap; background: rgba(255, 255, 255, .06); padding: 4px; border-radius: 12px; }
