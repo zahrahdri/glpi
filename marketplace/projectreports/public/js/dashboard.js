@@ -33,7 +33,7 @@
   var STATUS_FA = { New: 'جدید', Assigned: 'واگذار شده', Planned: 'برنامه‌ریزی', Pending: 'در انتظار', Solved: 'حل‌شده', Closed: 'بسته' };
   var STATUSES = ['New', 'Assigned', 'Planned', 'Pending', 'Solved', 'Closed'];
   var STAGE_FA = { committed: 'تأییدشده', estimate: 'برآورد', 'no BOQ': 'بدون BOQ', canceled: 'لغو شده' };
-  var ASSET_FA = { Server: 'سرور', 'Network device': 'تجهیز شبکه', Storage: 'ذخیره‌ساز', 'SAN storage': 'ذخیره‌ساز', 'Patch panel': 'پچ‌پنل', 'Core switch': 'سوئیچ هسته', Switch: 'سوئیچ' };
+  var ASSET_FA = { Server: 'سرور', 'Network device': 'تجهیز شبکه', Storage: 'فضای ذخیره‌سازی', 'SAN storage': 'فضای ذخیره‌سازی', 'Patch panel': 'پچ‌پنل', 'Core switch': 'سوئیچ هسته', Switch: 'سوئیچ' };
   var AGE_FA = ['۰ تا ۷ روز', '۸ تا ۳۰ روز', '۳۱ تا ۹۰ روز', 'بیش از ۹۰ روز'];
   var COL = { gold: '#f5b800', blue: '#2f7de1', green: '#16a34a', red: '#e5484d', grey: '#cbd5e1', ink: '#334155', muted: '#64748b' };
   var PALETTE = ['#f5b800', '#2f7de1', '#16a34a', '#7c5cf0', '#e5484d', '#0fb5a6', '#f97316', '#64748b'];
