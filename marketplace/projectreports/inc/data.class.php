@@ -519,11 +519,138 @@ PRSQL;
     }
 
     /** Everything the page needs, for the sections this user may see. */
+    /**
+     * Per request (ticket id): requester, follow-up person, equipment, PO numbers, purchase cost, warehouse arrival
+     * (delivery date on the order), data center and installation date (first planned task). Read from the users and
+     * items linked to the ticket and the Orders plugin orders linked to it (Ticket > Items). Money only with $money.
+     */
+    public static function details(bool $money): array
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $out = [];
+        $set = function (int $tid, string $key, $value) use (&$out) {
+            if ($value !== null && $value !== '') {
+                $out[$tid][$key] = $value;
+            }
+        };
+        $person = "COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.realname, ''))), ''), u.name)";
+
+        // requester (1) and assigned technician (2)
+        $res = $DB->doQuery("SELECT tu.tickets_id, tu.type, GROUP_CONCAT(DISTINCT $person ORDER BY tu.id SEPARATOR '، ') AS names
+            FROM glpi_tickets_users tu JOIN glpi_users u ON u.id = tu.users_id
+            JOIN glpi_tickets t ON t.id = tu.tickets_id AND t.is_deleted = 0
+            WHERE tu.type IN (1, 2) GROUP BY tu.tickets_id, tu.type");
+        while ($r = $res->fetch_assoc()) {
+            $set((int) $r['tickets_id'], (int) $r['type'] === 1 ? 'requester' : 'follower', $r['names']);
+        }
+        // installation date: the first planned task
+        $res = $DB->doQuery("SELECT tt.tickets_id, MIN(tt.begin) AS b FROM glpi_tickettasks tt
+            JOIN glpi_tickets t ON t.id = tt.tickets_id AND t.is_deleted = 0 WHERE tt.begin IS NOT NULL GROUP BY tt.tickets_id");
+        while ($r = $res->fetch_assoc()) {
+            $set((int) $r['tickets_id'], 'install', substr((string) $r['b'], 0, 10));
+        }
+
+        // equipment: items linked to the ticket, plus the items delivered on its orders
+        $items = [];   // itemtype => [items_id => [ticket ids]]
+        $res = $DB->doQuery("SELECT it.tickets_id, it.itemtype, it.items_id FROM glpi_items_tickets it
+            JOIN glpi_tickets t ON t.id = it.tickets_id AND t.is_deleted = 0 WHERE it.itemtype <> 'PluginOrderOrder'");
+        while ($r = $res->fetch_assoc()) {
+            $items[$r['itemtype']][(int) $r['items_id']][] = (int) $r['tickets_id'];
+        }
+        $orders = $DB->tableExists('glpi_plugin_order_orders') && $DB->tableExists('glpi_plugin_order_orders_items');
+        $refnames = [];
+        if ($orders) {
+            $cfg = $DB->request(['FROM' => 'glpi_plugin_order_configs', 'LIMIT' => 1])->current() ?: [];
+            $canceled = (int) ($cfg['order_status_canceled'] ?? 0);
+            $refs = $DB->tableExists('glpi_plugin_order_references');
+            $res = $DB->doQuery("SELECT it.tickets_id, o.id, o.num_order, o.port_price, o.plugin_order_orderstates_id AS state,
+                    COALESCE((SELECT SUM(i.price_discounted) FROM glpi_plugin_order_orders_items i WHERE i.plugin_order_orders_id = o.id), 0) AS total,
+                    (SELECT MAX(i.delivery_date) FROM glpi_plugin_order_orders_items i WHERE i.plugin_order_orders_id = o.id) AS delivered
+                FROM glpi_items_tickets it
+                JOIN glpi_plugin_order_orders o ON o.id = it.items_id AND it.itemtype = 'PluginOrderOrder'
+                JOIN glpi_tickets t ON t.id = it.tickets_id AND t.is_deleted = 0
+                WHERE o.is_deleted = 0 ORDER BY o.id");
+            $per = [];
+            while ($r = $res->fetch_assoc()) {
+                $tid = (int) $r['tickets_id'];
+                $per[$tid]['po'][] = (string) $r['num_order'];
+                if ((int) $r['state'] !== $canceled) {
+                    $per[$tid]['cost'] = ($per[$tid]['cost'] ?? 0) + (float) $r['total'] + (float) $r['port_price'];
+                }
+                if ($r['delivered']) {
+                    $per[$tid]['warehouse'] = max($per[$tid]['warehouse'] ?? '', (string) $r['delivered']);
+                }
+                $per[$tid]['orders'][] = (int) $r['id'];
+            }
+            foreach ($per as $tid => $x) {
+                if ($money) {
+                    $set($tid, 'po', implode('، ', array_unique(array_filter($x['po']))));
+                    $set($tid, 'cost', isset($x['cost']) ? round($x['cost'], 2) : null);
+                }
+                $set($tid, 'warehouse', $x['warehouse'] ?? null);
+                // delivered items (generated assets) and ordered references
+                foreach ($DB->request(['SELECT' => ['itemtype', 'items_id', 'plugin_order_references_id'],
+                    'FROM' => 'glpi_plugin_order_orders_items', 'WHERE' => ['plugin_order_orders_id' => $x['orders']]]) as $oi) {
+                    if ((int) $oi['items_id'] > 0) {
+                        $items[$oi['itemtype']][(int) $oi['items_id']][] = $tid;
+                    } elseif ($refs) {
+                        $refnames[$tid][(int) $oi['plugin_order_references_id']] = true;
+                    }
+                }
+            }
+            if ($refs && $refnames) {
+                $all = array_keys(array_replace(...array_values($refnames)));
+                $names = [];
+                foreach ($DB->request(['SELECT' => ['id', 'name'], 'FROM' => 'glpi_plugin_order_references', 'WHERE' => ['id' => $all ?: [0]]]) as $ref) {
+                    $names[(int) $ref['id']] = $ref['name'];
+                }
+                foreach ($refnames as $tid => $ids) {
+                    $refnames[$tid] = array_values(array_filter(array_map(fn($id) => $names[$id] ?? '', array_keys($ids))));
+                }
+            }
+        }
+        $equip = [];
+        $dcs = [];
+        foreach ($items as $itemtype => $byid) {
+            $item = getItemForItemtype($itemtype);
+            if (!$item || !$DB->tableExists($item->getTable()) || !$DB->fieldExists($item->getTable(), 'name')) {
+                continue;
+            }
+            foreach ($DB->request(['SELECT' => ['id', 'name'], 'FROM' => $item->getTable(), 'WHERE' => ['id' => array_keys($byid)]]) as $row) {
+                foreach ($byid[(int) $row['id']] as $tid) {
+                    $equip[$tid][$row['name']] = true;
+                }
+            }
+            $res = $DB->doQuery('SELECT ir.items_id, dc.name FROM glpi_items_racks ir
+                JOIN glpi_racks r ON r.id = ir.racks_id JOIN glpi_dcrooms rm ON rm.id = r.dcrooms_id
+                JOIN glpi_datacenters dc ON dc.id = rm.datacenters_id
+                WHERE ir.itemtype = ' . $DB->quoteValue($itemtype) . ' AND ir.items_id IN (' . implode(',', array_map('intval', array_keys($byid))) . ')');
+            while ($r = $res->fetch_assoc()) {
+                foreach ($byid[(int) $r['items_id']] ?? [] as $tid) {
+                    $dcs[$tid][$r['name']] = true;
+                }
+            }
+        }
+        foreach ($equip as $tid => $names) {
+            $set($tid, 'equipment', implode('، ', array_keys($names)));
+        }
+        foreach ($refnames as $tid => $names) {
+            if (empty($equip[$tid]) && $names) {
+                $set($tid, 'equipment', implode('، ', $names));
+            }
+        }
+        foreach ($dcs as $tid => $names) {
+            $set($tid, 'datacenter', implode('، ', array_keys($names)));
+        }
+        return $out;
+    }
+
     public static function all(): array
     {
         $data = ['today' => date('Y-m-d'), 'sections' => []];
         $sections = [
-            'requests' => [PluginProjectreportsMenu::canSeeRequests(), ['requests']],
+            'requests' => [PluginProjectreportsMenu::canSeeRequests(), ['requests', 'details']],
             'money'    => [PluginProjectreportsMenu::canSeeMoney(), ['finance', 'orders', 'timeline', 'assets']],
             'racks'    => [PluginProjectreportsMenu::canSeeRacks(), ['racks', 'rack_items', 'reserved']],
             'demands'  => [PluginProjectreportsMenu::canSeeRequests() && PluginProjectreportsMenu::canSeeMoney(), ['demands']],
@@ -540,7 +667,11 @@ PRSQL;
             }
             try {
                 foreach ($queries as $q) {
-                    $data[$q] = $q === 'demands' ? self::demands() : self::rows($q);
+                    $data[$q] = match ($q) {
+                        'demands' => self::demands(),
+                        'details' => self::details(PluginProjectreportsMenu::canSeeMoney()),
+                        default   => self::rows($q),
+                    };
                 }
                 $data['sections'][$section] = ['state' => 'ok'];
             } catch (Throwable $e) {

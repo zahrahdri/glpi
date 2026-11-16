@@ -24,6 +24,13 @@ class PluginProjectreportsDemocommand extends AbstractCommand
     private int $tax_id = 0;
     private int $supplier = 0;
 
+    // demo people (login => [first name, last name]); requesters and the technicians who follow the requests up
+    private const PEOPLE = [
+        'demo-ali.ahmadi' => ['علی', 'احمدی'], 'demo-maryam.rezaei' => ['مریم', 'رضایی'], 'demo-hossein.naderi' => ['حسین', 'نادری'],
+        'demo-zahra.karimi' => ['زهرا', 'کریمی'], 'demo-reza.mohammadi' => ['رضا', 'محمدی'], 'demo-mina.karimi' => ['مینا', 'کریمی'],
+        'demo-sara.amini' => ['سارا', 'امینی'], 'demo-amir.hosseini' => ['امیر', 'حسینی'],
+    ];
+
     private const TEAMS = ['DEMO NOC', 'DEMO Core Network', 'DEMO Data Center Ops', 'DEMO IT Applications', 'DEMO Security', 'DEMO Transmission'];
 
     private const CATEGORIES = [
@@ -280,6 +287,7 @@ class PluginProjectreportsDemocommand extends AbstractCommand
             $created++;
         }
         $output->writeln(sprintf('Requests: %d', $created));
+        $this->createDetails($output);
 
         $this->createDemands($output, $projects, $teams);
     }
@@ -707,6 +715,68 @@ class PluginProjectreportsDemocommand extends AbstractCommand
         return end($values);
     }
 
+    /**
+     * Who asked and who follows up each demo request, and for the most recent capacity requests: the BOQ order
+     * (PO number, cost, delivery date = warehouse arrival), the racked equipment (data center) and an installation task.
+     */
+    private function createDetails(OutputInterface $output): void
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $now = $this->now();
+        $users = [];
+        foreach (self::PEOPLE as $login => [$first, $last]) {
+            $users[] = $this->ins('glpi_users', ['name' => $login, 'firstname' => $first, 'realname' => $last, 'is_active' => 1,
+                'entities_id' => 0, 'authtype' => 1, 'date_creation' => $now, 'date_mod' => $now]);
+        }
+        $requesters = array_slice($users, 0, 5);
+        $techs = array_slice($users, 4);
+        $tickets = iterator_to_array($DB->request(['SELECT' => ['id', 'date', 'status', 'itilcategories_id'], 'FROM' => 'glpi_tickets',
+            'WHERE' => ['name' => ['LIKE', '[DEMO]%']], 'ORDER' => 'date DESC']));
+        foreach ($tickets as $t) {
+            $this->ins('glpi_tickets_users', ['tickets_id' => $t['id'], 'users_id' => $requesters[$t['id'] % count($requesters)], 'type' => 1, 'use_notification' => 0]);
+            if ((int) $t['status'] > 1) {
+                $this->ins('glpi_tickets_users', ['tickets_id' => $t['id'], 'users_id' => $techs[$t['id'] % count($techs)], 'type' => 2, 'use_notification' => 0]);
+            }
+        }
+
+        // the most recent capacity requests get an order, equipment in a rack and an installation date
+        $capacity = array_column(iterator_to_array($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_itilcategories',
+            'WHERE' => ['name' => ['DEMO Capacity expansion', 'DEMO New server', 'DEMO Storage request', 'DEMO License / support renewal']]])), 'id');
+        $orders = $DB->tableExists('glpi_plugin_order_orders') ? array_column(iterator_to_array($DB->request(['SELECT' => 'id',
+            'FROM' => 'glpi_plugin_order_orders', 'WHERE' => ['name' => ['LIKE', 'DEMO BOQ-%'], 'NOT' => ['name' => ['LIKE', 'DEMO BOQ-AUTO%']]],
+            'ORDER' => 'id'])), 'id') : [];
+        $servers = array_column(iterator_to_array($DB->request(['SELECT' => 'c.id', 'FROM' => 'glpi_computers AS c',
+            'INNER JOIN' => ['glpi_items_racks AS ir' => ['ON' => ['ir' => 'items_id', 'c' => 'id', ['AND' => ['ir.itemtype' => 'Computer']]]]],
+            'WHERE' => ['c.name' => ['LIKE', 'DEMO-SRV-%']], 'ORDER' => 'c.id'])), 'id');
+        $sans = array_column(iterator_to_array($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_networkequipments',
+            'WHERE' => ['name' => ['LIKE', 'DEMO-SAN-%']], 'ORDER' => 'id'])), 'id');
+        $storage_cat = array_column(iterator_to_array($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_itilcategories',
+            'WHERE' => ['name' => 'DEMO Storage request']])), 'id');
+        $linked = 0;
+        foreach ($tickets as $t) {
+            if (!in_array($t['itilcategories_id'], $capacity) || $linked >= max(count($orders), 12)) {
+                continue;
+            }
+            if (isset($orders[$linked])) {
+                $this->ins('glpi_items_tickets', ['itemtype' => 'PluginOrderOrder', 'items_id' => $orders[$linked], 'tickets_id' => $t['id']]);
+            }
+            $is_storage = in_array($t['itilcategories_id'], $storage_cat) && $sans;
+            $pool = $is_storage ? $sans : $servers;
+            if ($pool) {
+                $this->ins('glpi_items_tickets', ['itemtype' => $is_storage ? 'NetworkEquipment' : 'Computer',
+                    'items_id' => $pool[($linked * 3) % count($pool)], 'tickets_id' => $t['id']]);
+            }
+            $begin = (new DateTime($t['date']))->modify('+' . (18 + 4 * $linked) . ' day')->setTime(9, 0);
+            $this->ins('glpi_tickettasks', ['tickets_id' => $t['id'], 'content' => '<p>نصب و راه‌اندازی تجهیزات</p>',
+                'begin' => $begin->format('Y-m-d H:i:s'), 'end' => (clone $begin)->modify('+4 hour')->format('Y-m-d H:i:s'),
+                'actiontime' => 14400, 'state' => 1, 'users_id' => 0, 'users_id_tech' => $techs[$t['id'] % count($techs)],
+                'date' => $now, 'date_creation' => $now, 'date_mod' => $now, 'is_private' => 0]);
+            $linked++;
+        }
+        $output->writeln(sprintf('People: %d; requests with order, equipment and installation date: %d', count($users), $linked));
+    }
+
     private function remove(OutputInterface $output): void
     {
         /** @var DBmysql $DB */
@@ -730,8 +800,10 @@ class PluginProjectreportsDemocommand extends AbstractCommand
             $DB->delete('glpi_itils_projects', ['itemtype' => 'Ticket', 'items_id' => $tickets]);
             $DB->delete('glpi_groups_tickets', ['tickets_id' => $tickets]);
             $DB->delete('glpi_tickets_users', ['tickets_id' => $tickets]);
+            $DB->delete('glpi_tickettasks', ['tickets_id' => $tickets]);
             $DB->delete('glpi_tickets', ['id' => $tickets]);
         }
+        $DB->delete('glpi_users', ['name' => array_keys(self::PEOPLE)]);
         // data center, racks and the items in them
         $rooms = $ids('glpi_dcrooms', 'name', 'DEMO %');
         $racks = $rooms ? array_column(iterator_to_array($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_racks', 'WHERE' => ['dcrooms_id' => $rooms]])), 'id') : [];

@@ -374,22 +374,30 @@
         })()
       : noticeCard(6, 'هزینه بر اساس پروژه (بدون مالیات)', 'money');
 
-    // latest requests with their status (and BOQ cost when the request has a BOQ)
-    var boqBy = {};
-    Dm.forEach(function (d) { boqBy[d.ticket_id] = d; });
+    // latest requests with requester, equipment, order (PO, cost, warehouse), data center, installation and follow-up
+    var DET = D.details || {};
+    var det = function (r, k) { var x = DET[r.ticket_id]; return x && x[k] !== undefined && x[k] !== '' ? x[k] : null; };
+    var dash = '<span class="db-dash">—</span>';
+    var txt = function (k) { return function (r) { var v = det(r, k); return v === null ? dash : esc(v); }; };
+    var day = function (k) { return function (r) { var v = det(r, k); return v === null ? dash : jdate(v); }; };
     var latest = R.slice().sort(byDateDesc);
     var latestCols = [
-      { h: 'درخواست', f: function (r) { return '<span class="db-id">REQ-' + esc(fa(r.ticket_id)) + '</span>'; } },
-      { h: 'عنوان', f: function (r) { return esc(r.title); } },
-      { h: 'پروژه', f: function (r) { return esc(r.project); } },
-      { h: 'تیم', f: function (r) { return esc(r.requesting_team); } },
-      { h: 'وضعیت', f: function (r) { return chip(STATUS_FA[r.status] || r.status, GROUP_CLS[GROUP[r.status]]); } }
+      { h: 'درخواست', f: function (r) { return '<span class="db-id">REQ-' + esc(fa(r.ticket_id)) + '</span><div class="db-sub-t">' + esc(r.title) + '</div>'; } },
+      { h: 'درخواست‌کننده', f: txt('requester') },
+      { h: 'معاونت', f: function (r) { return r.requesting_team && r.requesting_team !== '(no team)' ? esc(r.requesting_team) : dash; } },
+      { h: 'تجهیزات', f: txt('equipment') }
     ];
-    // BOQ cost only when some of the listed requests have a BOQ
-    if (latest.slice(0, 10).some(function (r) { return boqBy[r.ticket_id] && boqBy[r.ticket_id].boq_cost; })) {
-      latestCols.push({ h: 'هزینه BOQ', num: true, f: function (r) { var d = boqBy[r.ticket_id]; return d && d.boq_cost ? num(d.boq_cost) : '—'; } });
+    if (D.sections && D.sections.money && D.sections.money.state === 'ok') {
+      latestCols.push({ h: 'هزینه خرید (تومان)', num: true, f: function (r) { var v = det(r, 'cost'); return v === null ? dash : num(v); } });
+      latestCols.push({ h: 'شماره PO', f: function (r) { var v = det(r, 'po'); return v === null ? dash : '<span class="db-id">' + esc(v) + '</span>'; } });
     }
-    latestCols.push({ h: 'تاریخ ثبت', f: function (r) { return jdate(r.opened); } });
+    latestCols.push(
+      { h: 'تاریخ ورود به انبار', f: day('warehouse') },
+      { h: 'دیتاسنتر', f: txt('datacenter') },
+      { h: 'برنامه نصب', f: day('install') },
+      { h: 'پیگیری‌کننده', f: function (r) { var v = det(r, 'follower') || r.assigned_to; return v ? esc(v) : dash; } },
+      { h: 'وضعیت', f: function (r) { return chip(STATUS_FA[r.status] || r.status, GROUP_CLS[GROUP[r.status]]); } }
+    );
     var latestCard = card(12, 'آخرین وضعیت درخواست‌ها', table('db-latest', latestCols, latest, 10));
 
     return '<div class="db-kpis">' + kpis + '</div>'
