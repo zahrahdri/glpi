@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 300 390" fill="none" stroke="#f5b800" stroke-linejoin="round" stroke-linecap="round">
+  <defs>
+    <g id="r" stroke-width="1.6">
+      <path d="M0 15 L30 0 L60 15 V85 L30 100 L0 85 Z" fill="#1f2737"/>
+      <path d="M0 15 L30 30 L60 15 M30 30 V100"/>
+      <path d="M4 34 L26 45 M4 46 L26 57 M4 58 L26 69 M4 70 L26 81 M4 82 L26 93" stroke-opacity=".55"/>
+      <path d="M34 45 L56 34 M34 57 L56 46 M34 69 L56 58 M34 81 L56 70 M34 93 L56 82" stroke-opacity=".3"/>
+    </g>
+  </defs>
+  <g stroke-width="1" stroke-opacity=".25"><path d="M0 330 L300 180 M0 380 L300 230 M20 140 L300 280 M0 270 L240 390"/></g>
+  <path d="M50 40 C90 0, 200 0, 230 130" stroke-width="1.2" stroke-dasharray="4 5" stroke-opacity=".7"/>
+  <use href="#r" x="20" y="40"/><circle cx="36" cy="84" r="2.4" fill="#34d399" stroke="none"/><circle cx="36" cy="102" r="2.4" fill="#34d399" stroke="none"/><use href="#r" x="80" y="70"/><circle cx="96" cy="114" r="2.4" fill="#34d399" stroke="none"/><circle cx="96" cy="132" r="2.4" fill="#34d399" stroke="none"/><use href="#r" x="140" y="100"/><circle cx="156" cy="144" r="2.4" fill="#f5b800" stroke="none"/><circle cx="156" cy="162" r="2.4" fill="#ef4444" stroke="none"/><use href="#r" x="200" y="130"/><circle cx="216" cy="174" r="2.4" fill="#34d399" stroke="none"/><circle cx="216" cy="192" r="2.4" fill="#34d399" stroke="none"/><use href="#r" x="20" y="175"/><circle cx="36" cy="219" r="2.4" fill="#34d399" stroke="none"/><circle cx="36" cy="237" r="2.4" fill="#34d399" stroke="none"/><use href="#r" x="80" y="205"/><circle cx="96" cy="249" r="2.4" fill="#ef4444" stroke="none"/><circle cx="96" cy="267" r="2.4" fill="#34d399" stroke="none"/><use href="#r" x="140" y="235"/><circle cx="156" cy="279" r="2.4" fill="#34d399" stroke="none"/><circle cx="156" cy="297" r="2.4" fill="#34d399" stroke="none"/><use href="#r" x="200" y="265"/><circle cx="216" cy="309" r="2.4" fill="#34d399" stroke="none"/><circle cx="216" cy="327" r="2.4" fill="#f5b800" stroke="none"/>
+</svg>
