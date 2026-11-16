@@ -44,7 +44,7 @@ if (($_POST['action'] ?? '') === 'delete_boq') {
 $rows = PluginProjectreportsDemand::approved();
 $csrf = fn() => '<input type="hidden" name="_glpi_csrf_token" value="' . $h(Session::getNewCSRFToken(true)) . '">';
 
-Html::header('Approved requests', '', 'tools', 'PluginProjectreportsMenu');
+Html::header('Approved requests', '', 'tools', 'PluginProjectreportsDashboardmenu');
 ?>
 <style>
 .pd{--ink:#1d2939;--muted:#667085;--line:#e4e7ec;--accent:#4338ca;--ok:#067647;--ok-soft:#ecfdf3;--bad:#b42318;--bad-soft:#fef3f2;color:var(--ink)}
@@ -69,7 +69,7 @@ Html::header('Approved requests', '', 'tools', 'PluginProjectreportsMenu');
       <h2>Approved requests</h2>
       <div class="sub">Each approved capacity request, the budget it is paid from, and whether that budget covers its BOQ. Prices before tax.</div>
     </div>
-    <a class="btn btn-outline-secondary" href="<?php echo $h($CFG_GLPI['root_doc'] . '/plugins/projectreports/front/reports.php'); ?>">← Project reports</a>
+    <a class="btn btn-outline-secondary" href="<?php echo $h($CFG_GLPI['root_doc'] . '/plugins/projectreports/front/dashboard.php'); ?>">← Reporting dashboard</a>
   </div>
 
   <div class="card-box">

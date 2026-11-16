@@ -44,7 +44,7 @@ class PluginProjectreportsMenu extends CommonGLPI
     {
         return [
             'title' => self::getTypeName(2),
-            'page'  => '/plugins/projectreports/front/reports.php',
+            'page'  => '/plugins/projectreports/front/dashboard.php',
             'icon'  => self::getIcon(),
         ];
     }

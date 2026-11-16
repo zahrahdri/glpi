@@ -34,8 +34,8 @@ function plugin_init_projectreports()
 
     if (Session::getLoginUserID()) {
         $menus = [];
-        if (PluginProjectreportsMenu::canView()) {
-            $menus[] = 'PluginProjectreportsMenu';
+        if (PluginProjectreportsDashboardmenu::canView()) {
+            $menus[] = 'PluginProjectreportsDashboardmenu';
         }
         if (PluginProjectreportsLom::canView()) {
             $menus[] = 'PluginProjectreportsLom';
