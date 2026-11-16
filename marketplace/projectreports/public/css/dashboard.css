@@ -84,8 +84,6 @@
     radial-gradient(circle at 1px 1px, rgba(255, 255, 255, .05) 1px, transparent 0) 0 0 / 22px 22px,
     linear-gradient(180deg, #2b3446 0%, #222a3a 50%, #1b2230 100%);
 }
-/* the filters follow the page while scrolling, and stop above the tower */
-.db-sl-inner { position: sticky; top: 76px; } /* below GLPI's fixed top bar */
 /* tower artwork at the bottom, fading into the panel */
 .db-slicers::after {
   content: ""; position: absolute; inset: auto 0 0 0; height: 360px; z-index: -1; pointer-events: none;
@@ -218,6 +216,5 @@
   .db-layout { grid-template-columns: 1fr; }
   .db-slicers { padding-bottom: 220px; }
   .db-slicers::after { height: 240px; }
-  .db-sl-inner { position: static; }
   .db-grid > .db-card { grid-column: 1 / -1; }
 }
