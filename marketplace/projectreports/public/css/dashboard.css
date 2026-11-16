@@ -76,17 +76,20 @@
 
 /* ---------- slicers ---------- */
 .db-slicers {
-  border-radius: var(--radius); box-shadow: var(--shadow);
-  padding: 16px 16px 240px; /* room for the tower artwork under the controls */
-  position: sticky; top: 8px; color: #fff;
-  align-self: start; /* as tall as its content, so it never stretches into an empty column */
-  overflow: hidden; isolation: isolate;
-  background: linear-gradient(180deg, #2b3446 0%, #1f2737 55%, #1b2230 100%);
+  border-radius: var(--radius); box-shadow: var(--shadow); color: #fff;
+  /* same height as the dashboard next to it; the bottom padding is the room for the tower artwork */
+  align-self: stretch; position: relative; isolation: isolate; overflow: clip;
+  padding: 16px 16px 330px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, .05) 1px, transparent 0) 0 0 / 22px 22px,
+    linear-gradient(180deg, #2b3446 0%, #222a3a 50%, #1b2230 100%);
 }
-/* Tower artwork at the bottom, fading into the panel instead of a hard-edged picture */
+/* the filters follow the page while scrolling, and stop above the tower */
+.db-sl-inner { position: sticky; top: 76px; } /* below GLPI's fixed top bar */
+/* tower artwork at the bottom, fading into the panel */
 .db-slicers::after {
-  content: ""; position: absolute; inset: auto 0 0 0; height: 300px; z-index: -1; pointer-events: none;
-  background: url("../img/bg-tower.png") no-repeat center bottom / cover;
+  content: ""; position: absolute; inset: auto 0 0 0; height: 360px; z-index: -1; pointer-events: none;
+  background: url("../img/filters-tower.png") no-repeat center bottom / cover;
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, .55) 35%, #000 70%);
   mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, .55) 35%, #000 70%);
 }
@@ -213,6 +216,8 @@
 /* ---------- small screens ---------- */
 @media (max-width: 1100px) {
   .db-layout { grid-template-columns: 1fr; }
-  .db-slicers { position: static; }
+  .db-slicers { padding-bottom: 220px; }
+  .db-slicers::after { height: 240px; }
+  .db-sl-inner { position: static; }
   .db-grid > .db-card { grid-column: 1 / -1; }
 }

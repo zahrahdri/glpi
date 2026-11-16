@@ -193,13 +193,13 @@
       return '<option value="' + t[0] + '"' + (String(F.time) === t[0] ? ' selected' : '') + '>' + esc(t[1]) + '</option>';
     }).join('') + '</select></label>';
 
-    slicers.innerHTML = '<div class="db-sl-head">فیلترها</div>' + time
+    slicers.innerHTML = '<div class="db-sl-inner"><div class="db-sl-head">فیلترها</div>' + time
       + sel('team', 'تیم درخواست‌دهنده', teams)
       + sel('project', 'پروژه', projects)
       + sel('status', 'وضعیت درخواست', statuses, function (s) { return STATUS_FA[s] || s; })
       + sel('category', 'دسته‌بندی', cats)
       + sel('supplier', 'تأمین‌کننده', sups)
-      + '<button type="button" class="db-reset">بازنشانی فیلترها</button>';
+      + '<button type="button" class="db-reset">بازنشانی فیلترها</button></div>';
   }
 
   // ---------- building blocks ----------
