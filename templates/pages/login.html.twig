@@ -38,8 +38,8 @@
             <div class="login-brand-inner">
                 <span class="login-brand-logo"></span>
                 <div class="login-brand-text">
-                    <h1>{{ __('Plan capacity. Forecast growth. Stay ahead.') }}</h1>
-                    <p>{{ __('One view of your infrastructure: track what you have, see how it is used and know what you will need next.') }}</p>
+                    <h1>{{ __('Plan capacity.') }}<br>{{ __('Forecast growth.') }}</h1>
+                    <p>{{ __('Infrastructure insights in one place.') }}</p>
                 </div>
                 <ul class="login-brand-features">
                     <li><i class="ti ti-server-2"></i>{{ __('Infrastructure inventory') }}</li>
@@ -71,7 +71,7 @@
         <input type="hidden" name="redirect" value="{{ redirect }}"/>
 
         <div class="login-heading">
-            <h2>{{ __('Login to your account') }}</h2>
+            <h2>{{ __('Log in to your account') }}</h2>
         </div>
 
         {% if text_login|length > 0 %}
