@@ -545,15 +545,46 @@
     pendingCharts.forEach(function (p) { draw(p[0], p[1]); });
     pendingCharts = [];
 
-    var search = document.querySelector('.db-search');
-    if (search) {
-      search.addEventListener('input', function () {
-        var q = search.value.toLowerCase();
-        document.querySelectorAll('#db-req-tbl tbody tr').forEach(function (tr) {
-          tr.style.display = tr.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
-        });
-      });
+    var reqTbl = document.getElementById('db-req-tbl');
+    if (reqTbl) { pager(reqTbl, document.querySelector('.db-search'), 10); }
+  }
+
+  // Shows a table PER rows at a time, with previous / next buttons; the search box filters before paging.
+  function pager(tbl, search, PER) {
+    var rows = Array.prototype.slice.call(tbl.tBodies[0].rows);
+    var text = rows.map(function (tr) { return tr.textContent.toLowerCase(); });
+    var page = 0;
+    var box = document.createElement('div');
+    box.className = 'db-pager';
+    tbl.parentNode.parentNode.insertBefore(box, tbl.parentNode.nextSibling);
+    var empty = document.createElement('div');
+    empty.className = 'db-empty';
+    empty.textContent = 'موردی با این جستجو یافت نشد.';
+    tbl.parentNode.parentNode.insertBefore(empty, box);
+
+    function show() {
+      var q = search ? search.value.trim().toLowerCase() : '';
+      var match = rows.filter(function (tr, i) { return !q || text[i].indexOf(q) >= 0; });
+      var pages = Math.max(1, Math.ceil(match.length / PER));
+      if (page > pages - 1) { page = pages - 1; }
+      rows.forEach(function (tr) { tr.style.display = 'none'; });
+      match.slice(page * PER, (page + 1) * PER).forEach(function (tr) { tr.style.display = ''; });
+      tbl.parentNode.style.display = match.length ? '' : 'none';
+      empty.style.display = match.length ? 'none' : '';
+      var from = page * PER + 1, to = Math.min((page + 1) * PER, match.length);
+      box.style.display = match.length > PER ? '' : 'none';
+      box.innerHTML = '<button type="button" class="db-pg-btn" data-go="-1"' + (page === 0 ? ' disabled' : '') + '>‹ ۱۰ مورد قبلی</button>'
+        + '<span class="db-pg-info">' + num(from) + ' تا ' + num(to) + ' از ' + num(match.length) + '</span>'
+        + '<button type="button" class="db-pg-btn" data-go="1"' + (page >= pages - 1 ? ' disabled' : '') + '>۱۰ مورد بعدی ›</button>';
     }
+    box.addEventListener('click', function (e) {
+      var b = e.target.closest('.db-pg-btn');
+      if (!b || b.disabled) { return; }
+      page += Number(b.getAttribute('data-go'));
+      show();
+    });
+    if (search) { search.addEventListener('input', function () { page = 0; show(); }); }
+    show();
   }
 
   // ---------- events ----------
