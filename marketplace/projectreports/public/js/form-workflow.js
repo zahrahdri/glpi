@@ -78,6 +78,16 @@
     out: 'Equipment in stock, registered in GLPI and reserved for you',
     status: 'supply'
   };
+  // what the requester sees: one step. The detailed version (order, purchase, inbound) is for administrators only
+  // (Setup > Request workflow).
+  var procurementProcess = {
+    id: 'procurement', role: 'procurement', title: 'Procurement process', box: 'Procurement process', gate: 'G3', optional: NEED,
+    does: ['The missing hardware is ordered and purchased from the vendor.',
+      'It is received in the warehouse, checked and reserved for your request until installation.'],
+    out: 'Equipment received in the warehouse and reserved for you',
+    status: 'supply', you: 'Usually the longest part: it depends on the vendor\'s delivery time. The expected date is noted in your ticket.',
+    detail: [order, purchase, inbound]
+  };
   var delivery = {
     id: 'delivery', role: 'requester', title: 'Delivery', box: 'Delivery', gate: 'G4',
     does: ['You receive the delivery details: names, addresses, access and the capacity delivered.',
@@ -86,9 +96,10 @@
     status: 'solved', you: 'After your confirmation the ticket is closed and you may get a short satisfaction survey.'
   };
   var decision = {
-    decision: true, id: 'decision', role: 'planning', question: 'Can it be delivered from what we already have?',
+    decision: true, id: 'decision', role: 'planning', question: 'Resource available?',
+    hint: 'Can the request be delivered from what we already have: warehouse stock and free capacity on the platforms?',
     yes: 'The resources are reserved for you and installation starts right away.',
-    no: 'The missing hardware is ordered, purchased and received in the warehouse first, then installed.'
+    no: 'The missing hardware goes through the procurement process first, then it is installed.'
   };
   var change = 'Work on production systems is done through a GLPI Change: planned, approved and scheduled, so you know when it happens.';
 
@@ -110,7 +121,7 @@
           'Prepares the bill of quantities (BOQ) and the cost estimate when new equipment is needed.'],
         out: 'Technical design confirmed; BOQ with cost if equipment is needed',
         status: 'processing'
-      }, decision, order, purchase, inbound, {
+      }, decision, procurementProcess, {
         id: 'install', role: 'delivery', title: 'HW installation', box: 'HW installation',
         does: ['Installs the hardware in the data center: racking, cabling, power and configuration.',
           'Or provisions the resources on an existing platform (virtual machines, storage).',
@@ -136,7 +147,7 @@
           'Prepares the BOQ and the cost estimate when new equipment is needed.'],
         out: 'Expansion plan confirmed; BOQ with cost if equipment is needed',
         status: 'processing'
-      }, decision, order, purchase, inbound, {
+      }, decision, procurementProcess, {
         id: 'install', role: 'delivery', title: 'HW installation', box: 'HW installation',
         does: ['Installs the extra hardware (hosts, disks, storage) or adds capacity on the existing platform.',
           'The installed equipment is recorded in GLPI and linked to your request.', change],
@@ -160,7 +171,7 @@
           'Prepares the BOQ and the cost estimate.'],
         out: 'Replacement model and migration plan confirmed; BOQ with cost',
         status: 'processing'
-      }, decision, order, purchase, inbound, {
+      }, decision, procurementProcess, {
         id: 'install', role: 'delivery', title: 'HW installation', box: 'HW installation',
         does: ['Installs the new hardware and migrates the services in the agreed window.',
           'Checks that everything runs on the new device; the old one stays ready for a rollback.', change],
@@ -182,6 +193,15 @@
   }
   function anchor(type, id) { return 'prwf-' + type + '-' + id; }
 
+  // the steps shown: the procurement process in one box, or in detail (administrators)
+  function stepsOf(type, detailed) {
+    var out = [];
+    WORKFLOWS[type].steps.forEach(function (s) {
+      if (detailed && Array.isArray(s.detail)) { out.push.apply(out, s.detail); } else { out.push(s); }
+    });
+    return out;
+  }
+
   // ---------------------------------------------------------------- swimlane diagram (SVG)
   // box label, on two lines when it is long
   function boxText(label, x, y) {
@@ -197,9 +217,9 @@
     return '<text class="prwf-box-t" x="' + x + '" y="' + (y - 2) + '"><tspan x="' + x + '">' + esc(words.slice(0, best).join(' ')) + '</tspan>'
       + '<tspan x="' + x + '" dy="13">' + esc(words.slice(best).join(' ')) + '</tspan></text>';
   }
-  function swimlane(type) {
+  function swimlane(type, detailed) {
     var wf = WORKFLOWS[type];
-    var items = wf.steps;
+    var items = stepsOf(type, detailed);
     var used = {};
     items.forEach(function (s) { used[s.role] = true; });
     var lanes = Object.keys(ROLES).filter(function (k) { return used[k]; });
@@ -212,7 +232,8 @@
 
     var out = [];
     out.push('<svg class="prwf-lanes" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(NAME + ': ' + wf.label) + ' swimlane diagram">');
-    out.push('<defs><marker id="prwf-arr-' + type + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
+    var arrowId = 'prwf-arr-' + type + (detailed ? '-d' : '');
+    out.push('<defs><marker id="' + arrowId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
       + '<path d="M0,0 L10,5 L0,10 z" class="prwf-arrhead"/></marker></defs>');
     // lanes
     lanes.forEach(function (r, i) {
@@ -230,10 +251,11 @@
       }
     });
     // arrows
-    var mk = 'marker-end="url(#prwf-arr-' + type + ')"';
+    var mk = 'marker-end="url(#' + arrowId + ')"';
+    var DW = 50, DH = 23;   // half width and height of the decision diamond
     var edge = function (a, b, cls, label, lx, ly) {
       var A = pos[a], B = pos[b];
-      var x1 = A.x + (A.s.decision ? 17 : BW / 2), x2 = B.x - (B.s.decision ? 17 : BW / 2) - 2;
+      var x1 = A.x + (A.s.decision ? DW : BW / 2), x2 = B.x - (B.s.decision ? DW : BW / 2) - 2;
       var d;
       if (A.y === B.y) { d = 'M' + x1 + ',' + A.y + ' H' + x2; } else {
         var mx = (x1 + x2) / 2;
@@ -242,27 +264,28 @@
       out.push('<path class="prwf-edge ' + (cls || '') + '" d="' + d + '" ' + mk + '/>');
       if (label) { out.push('<text class="prwf-edge-t ' + cls + '" x="' + (lx || (x1 + 6)) + '" y="' + (ly || (A.y - 6)) + '">' + label + '</text>'); }
     };
-    var iDec = idx('decision'), iProc = idx('order'), iDel = idx('install');
+    var iDec = idx('decision'), iProc = idx(detailed ? 'order' : 'procurement'), iDel = idx('install');
     for (var i = 0; i < items.length - 1; i++) {
       if (i === iDec) { continue; }
       edge(i, i + 1);
     }
     if (iDec >= 0) {
       // No -> procurement
-      edge(iDec, iProc, 'no', 'No', pos[iDec].x + 20, pos[iDec].y + 16);
+      edge(iDec, iProc, 'no', 'No', pos[iDec].x + DW + 4, pos[iDec].y + 14);
       // Yes -> delivery, along the planning lane above procurement, then down
       var D = pos[iDec], E = pos[iDel];
-      var yy = D.y - 14;
-      out.push('<path class="prwf-edge yes" d="M' + D.x + ',' + (D.y - 17) + ' V' + yy + ' H' + E.x + ' V' + (E.y - BH / 2 - 2) + '" ' + mk + '/>');
+      var yy = D.y - DH - 4;
+      out.push('<path class="prwf-edge yes" d="M' + D.x + ',' + (D.y - DH) + ' V' + yy + ' H' + E.x + ' V' + (E.y - BH / 2 - 2) + '" ' + mk + '/>');
       out.push('<text class="prwf-edge-t yes" x="' + (D.x + 8) + '" y="' + (yy - 5) + '">Yes</text>');
     }
     // boxes
     pos.forEach(function (p) {
       var s = p.s, c = ROLES[s.role].color;
       if (s.decision) {
-        out.push('<a href="#' + anchor(type, 'decision') + '" class="prwf-node"><polygon class="prwf-dia" points="' + p.x + ',' + (p.y - 17) + ' ' + (p.x + 17) + ',' + p.y + ' '
-          + p.x + ',' + (p.y + 17) + ' ' + (p.x - 17) + ',' + p.y + '" style="stroke:' + c + '"/><text class="prwf-dia-t" x="' + p.x + '" y="' + (p.y + 5) + '">?</text>'
-          + '<title>' + esc(s.question) + '</title></a>');
+        out.push('<a href="#' + anchor(type, 'decision') + '" class="prwf-node"><polygon class="prwf-dia" points="' + p.x + ',' + (p.y - DH) + ' ' + (p.x + DW) + ',' + p.y + ' '
+          + p.x + ',' + (p.y + DH) + ' ' + (p.x - DW) + ',' + p.y + '" style="stroke:' + c + '"/>'
+          + '<text class="prwf-dia-t" x="' + p.x + '" y="' + (p.y - 2) + '"><tspan x="' + p.x + '">Resource</tspan><tspan x="' + p.x + '" dy="11">available?</tspan></text>'
+          + '<title>' + esc(s.hint) + '</title></a>');
         return;
       }
       out.push('<a href="#' + anchor(type, s.id) + '" class="prwf-node"><rect class="prwf-box' + (s.optional ? ' opt' : '') + '" x="' + (p.x - BW / 2) + '" y="' + (p.y - BH / 2)
@@ -274,14 +297,14 @@
   }
 
   // ---------------------------------------------------------------- step cards
-  function render(type) {
+  function render(type, detailed) {
     var wf = WORKFLOWS[type];
     if (!wf) { return ''; }
     var n = 0;
-    var body = wf.steps.map(function (s) {
+    var body = stepsOf(type, detailed).map(function (s) {
       if (s.decision) {
         return '<li class="prwf-decision" id="' + anchor(type, 'decision') + '"><div class="prwf-diamond" aria-hidden="true">?</div><div class="prwf-dec-b">'
-          + '<div class="prwf-dec-q">' + esc(s.question) + '</div>'
+          + '<div class="prwf-dec-q">' + esc(s.question) + ' <span>' + esc(s.hint) + '</span></div>'
           + '<div class="prwf-dec-paths"><div class="prwf-yes"><b>Yes</b> ' + esc(s.yes) + '</div>'
           + '<div class="prwf-no"><b>No</b> ' + esc(s.no) + '</div></div></div></li>';
       }
@@ -305,7 +328,8 @@
 
     return '<div class="prwf">'
       + '<p class="prwf-intro"><span class="prwf-kicker">' + esc(NAME) + '</span>' + esc(wf.intro) + '</p>'
-      + swimlane(type) + gates
+      + (detailed ? '<div class="prwf-admin-note"><i class="ti ti-lock"></i> Administrator view: the procurement process is shown in detail (order, purchase, warehouse inbound). Requesters see it as one step.</div>' : '')
+      + swimlane(type, detailed) + gates
       + '<ol class="prwf-steps">' + body + '</ol>'
       + '<div class="prwf-track"><b>Follow your request:</b> Assistance › Tickets (or "My tickets"). The ticket shows its status, '
       + 'the approvals and every follow-up; answer follow-ups there so the request does not stay pending.</div>'
@@ -372,7 +396,7 @@
     btn.title = 'What happens after you submit this request';
     row.appendChild(btn);
 
-    var page = BASE + '/front/workflow.php?type=' + type;
+    var page = BASE + '/front/workflow.php?view=customer&type=' + type;
     var modal = document.createElement('div');
     modal.className = 'modal fade prwf-modal';
     modal.tabIndex = -1;
@@ -409,10 +433,13 @@
     var view = root.querySelector('.prwf-view');
     var title = root.querySelector('.prwf-page-top h1');
     if (title) { title.textContent = NAME; }
+    var detailed = root.getAttribute('data-detailed') === '1';
     var show = function (t) {
-      view.innerHTML = '<h2 class="prwf-page-h">' + esc(WORKFLOWS[t].label) + ' request</h2>' + render(t);
+      type = t;
+      view.innerHTML = '<h2 class="prwf-page-h">' + esc(WORKFLOWS[t].label) + ' request</h2>' + render(t, detailed);
       tabs.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-type') === t ? 'true' : 'false'); });
-      try { window.history.replaceState(null, '', '?type=' + t); } catch (e) { /* not important */ }
+      root.querySelectorAll('.prwf-viewswitch a').forEach(function (l) { l.setAttribute('href', l.getAttribute('href').replace(/type=[a-z]+/, 'type=' + t)); });
+      try { window.history.replaceState(null, '', '?' + (root.getAttribute('data-view') ? 'view=' + root.getAttribute('data-view') + '&' : '') + 'type=' + t); } catch (e) { /* not important */ }
     };
     tabs.innerHTML = Object.keys(WORKFLOWS).map(function (k) {
       return '<button type="button" role="tab" data-type="' + k + '">' + esc(WORKFLOWS[k].label) + '</button>';

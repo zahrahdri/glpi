@@ -55,7 +55,7 @@ function plugin_init_projectreports()
         }
         // Setup › Forecast data: the Excel files behind the forecast tab (administrators)
         if (PluginProjectreportsForecastmenu::canView()) {
-            $add['config'] = ['PluginProjectreportsForecastmenu'];
+            $add['config'] = ['PluginProjectreportsForecastmenu', 'PluginProjectreportsWorkflowmenu'];
         }
         if ($add) {
             $PLUGIN_HOOKS['menu_toadd']['projectreports'] = $add;

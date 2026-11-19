@@ -55,7 +55,7 @@
 .prwf-box.opt { stroke-dasharray: 5 3; }
 .prwf-box-t { font-size: 11px; font-weight: 700; fill: var(--prwf-ink); text-anchor: middle; }
 .prwf-dia { fill: var(--prwf-surface); stroke-width: 1.8; }
-.prwf-dia-t { font-size: 13px; font-weight: 800; fill: var(--prwf-ink); text-anchor: middle; }
+.prwf-dia-t { font-size: 10px; font-weight: 800; fill: var(--prwf-ink); text-anchor: middle; }
 .prwf-node { cursor: pointer; }
 .prwf-node:hover .prwf-box, .prwf-node:focus .prwf-box { stroke-width: 2.6; }
 .prwf-gate-top rect { fill: var(--prwf-ink); }
@@ -110,8 +110,14 @@
 .prwf-diamond { width: 30px; height: 30px; margin: 3px; transform: rotate(45deg); background: var(--prwf-surface); border: 2px solid var(--prwf-muted);
   color: var(--prwf-ink); font-weight: 800; display: flex; align-items: center; justify-content: center; position: relative; z-index: 1; border-radius: 4px; }
 .prwf-diamond { font-size: 0; }
-.prwf-diamond::after { content: "?"; transform: rotate(-45deg); font-size: 15px; }
+.prwf-diamond::after { content: ""; }
 .prwf-dec-q { font-weight: 700; margin: 2px 0 8px; }
+.prwf-dec-q span { display: block; font-weight: 400; font-size: .86rem; color: var(--prwf-muted); }
+.prwf-admin-note { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; font-size: .85rem;
+  background: color-mix(in srgb, #d9622b 10%, var(--prwf-surface)); border: 1px solid color-mix(in srgb, #d9622b 35%, var(--prwf-line)); }
+.prwf-viewswitch { display: inline-flex; gap: 4px; padding: 4px; border-radius: 10px; background: var(--prwf-soft); border: 1px solid var(--prwf-line); }
+.prwf-viewswitch a { padding: 6px 12px; border-radius: 7px; font-weight: 600; color: var(--prwf-muted); text-decoration: none; }
+.prwf-viewswitch a[aria-current="true"] { background: var(--prwf-surface); color: var(--prwf-ink); box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
 .prwf-dec-paths { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .prwf-yes, .prwf-no { padding: 9px 12px; border-radius: 10px; font-size: .86rem; line-height: 1.45; border: 1px solid var(--prwf-line); background: var(--prwf-surface); }
 .prwf-yes b, .prwf-no b { display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 6px; color: #fff; font-size: .75rem; }
