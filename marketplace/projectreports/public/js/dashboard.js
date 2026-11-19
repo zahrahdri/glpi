@@ -677,7 +677,9 @@
   }
 
   function renderAssets() {
-    return (ok('money') ? renderAssetMoney() : '') + inventorySection();
+    // the current inventory first, then value, warranties and renewals
+    return inventorySection()
+      + (ok('money') ? '<div class="db-section-h">ارزش، گارانتی و تمدید دارایی‌ها</div>' + renderAssetMoney() : '');
   }
 
   // ---------- current inventory (servers, storage, switches, racks, cables, spare RAM and disks) ----------
@@ -886,9 +888,10 @@
     syncAddress();
     pendingCharts = [];
 
-    ['db-req-tbl', 'db-inv-tbl', 'db-cab-tbl', 'db-rack-tbl'].forEach(function (id) {
+    ['db-req-tbl', 'db-inv-tbl', 'db-cab-tbl', 'db-rack-tbl', 'db-asset-tbl'].forEach(function (id) {
       var t = document.getElementById(id);
-      if (t) { pager(t, t.closest('.db-card-b').querySelector('.db-search'), 10); }
+      var b = t && t.closest('.db-card-b');
+      if (t) { pager(t, b ? b.querySelector('.db-search') : null, 10); }
     });
     if (window.location.hash) { var target = document.querySelector(window.location.hash); if (target) { target.scrollIntoView(); } }
   }
