@@ -17,6 +17,19 @@ Html::header('Reporting dashboard', $_SERVER['PHP_SELF'], 'tools', 'PluginProjec
 
 $data = PluginProjectreportsData::all();
 $data['root'] = $CFG_GLPI['root_doc'];
+// form address of each kind of record the dashboard links to (Ticket, Project, ...; asset types as found in the data)
+$data['urls'] = [];
+$types = ['Ticket', 'Project', 'Group', 'User', 'Supplier', 'Budget', 'Datacenter', 'ITILCategory'];
+foreach ($data['assets'] ?? [] as $a) {
+    $types[] = (string) ($a['itemtype'] ?? '');
+}
+foreach (array_unique(array_filter($types)) as $type) {
+    $item = getItemForItemtype($type);
+    if ($item) {
+        $data['urls'][$type] = $item::getFormURL();
+    }
+}
+$data['urls']['search_ticket'] = Ticket::getSearchURL();
 
 $pages = [
     'overview' => 'نمای کلی',

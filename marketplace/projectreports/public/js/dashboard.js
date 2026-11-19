@@ -26,6 +26,14 @@
   // slicer state; time is 'all' or a number of days
   var F = { time: 'all', team: '', project: '', status: '', category: '', supplier: '' };
   var TIMES = [['all', 'همه زمان‌ها'], ['30', '۳۰ روز اخیر'], ['90', '۹۰ روز اخیر'], ['365', '۱۲ ماه اخیر']];
+  // drill-down filters set by clicking a chart or a card (not in the filter panel)
+  var X = { group: '', age: '', sla: '', open: '', atype: '' };
+  var U = D.urls || {};
+  (function readAddress() {
+    var q = new URLSearchParams(window.location.search);
+    Object.keys(F).forEach(function (k) { if (q.get(k)) { F[k] = q.get(k); } });
+    Object.keys(X).forEach(function (k) { if (q.get(k)) { X[k] = q.get(k); } });
+  })();
 
   var GROUP = { New: 'Waiting', Assigned: 'In progress', Planned: 'In progress', Pending: 'In progress', Solved: 'Completed', Closed: 'Completed' };
   var GROUP_LABEL = { Waiting: 'در انتظار اقدام', 'In progress': 'در حال پیگیری', Completed: 'تکمیل‌شده' };
@@ -35,6 +43,7 @@
   var STAGE_FA = { committed: 'تأییدشده', estimate: 'برآورد', 'no BOQ': 'بدون BOQ', canceled: 'لغو شده' };
   var ASSET_FA = { Server: 'سرور', 'Network device': 'تجهیز شبکه', Storage: 'فضای ذخیره‌سازی', 'SAN storage': 'فضای ذخیره‌سازی', 'Patch panel': 'پچ‌پنل', 'Core switch': 'سوئیچ هسته', Switch: 'سوئیچ' };
   var AGE_FA = ['۰ تا ۷ روز', '۸ تا ۳۰ روز', '۳۱ تا ۹۰ روز', 'بیش از ۹۰ روز'];
+  var PAGE_FA = { overview: 'نمای کلی', requests: 'درخواست‌ها', budget: 'بودجه و هزینه', assets: 'دارایی‌ها و تمدید' };
   var COL = { gold: '#f5b800', blue: '#2f7de1', green: '#16a34a', red: '#e5484d', grey: '#cbd5e1', ink: '#334155', muted: '#64748b' };
   var PALETTE = ['#f5b800', '#2f7de1', '#16a34a', '#7c5cf0', '#e5484d', '#0fb5a6', '#f97316', '#64748b'];
   var ICONS = {
@@ -157,7 +166,11 @@
       && (!F.team || r.requesting_team === F.team)
       && (!F.project || r.project === F.project)
       && (!F.status || r.status === F.status)
-      && (!F.category || r.category === F.category);
+      && (!F.category || r.category === F.category)
+      && (!X.group || GROUP[r.status] === X.group)
+      && (!X.age || String(r.open_age || '').charAt(0) === X.age)
+      && (!X.sla || r.sla === X.sla)
+      && (!X.open || String(r.is_open) === X.open);
   }
   function reqs() { return REQ.filter(passReq); }
   function reqIds() {
@@ -172,7 +185,56 @@
     });
   }
   function fins() { return FIN.filter(function (f) { return !F.project || f.project === F.project; }); }
-  function asts() { return AST.filter(function (a) { return !F.project || a.project === F.project; }); }
+  function asts() {
+    return AST.filter(function (a) { return (!F.project || a.project === F.project) && (!X.atype || a.asset_type === X.atype); });
+  }
+
+  // ---------- links: to a filtered page of the dashboard, or to the GLPI record itself ----------
+  function query(page, changes) {
+    var q = new URLSearchParams();
+    q.set('page', page);
+    var all = {};
+    Object.keys(F).forEach(function (k) { all[k] = F[k]; });
+    Object.keys(X).forEach(function (k) { all[k] = X[k]; });
+    Object.keys(changes || {}).forEach(function (k) { all[k] = changes[k]; });
+    Object.keys(all).forEach(function (k) { if (all[k] && !(k === 'time' && all[k] === 'all')) { q.set(k, all[k]); } });
+    return '?' + q.toString();
+  }
+  function go(page, changes) { window.location.href = query(page, changes); }
+  function rec(type, id) { return U[type] && id ? U[type] + '?id=' + encodeURIComponent(id) : ''; }
+  function link(url, html, title) {
+    return url ? '<a class="db-link" href="' + esc(url) + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' + html + '</a>' : html;
+  }
+  function links(list) {
+    return (list || []).map(function (x) { return link(x.url, esc(x.name)); }).join('، ');
+  }
+  function filterLink(changes, html, page) {
+    return '<a class="db-link db-flt" href="' + esc(query(page || PAGE, changes)) + '" title="نمایش همه موارد مشابه">' + html + '</a>';
+  }
+  function syncAddress() {
+    try { window.history.replaceState(null, '', query(PAGE, {})); } catch (e) { /* not important */ }
+    // page tabs keep the filter panel's choices (the drill-down filters belong to the page they were set on)
+    document.querySelectorAll('.db-nav a').forEach(function (a) {
+      var k = new URLSearchParams((a.getAttribute('href') || '').split('?')[1] || '').get('page');
+      if (k) { a.setAttribute('href', query(k, { group: '', age: '', sla: '', open: '', atype: '' })); }
+    });
+  }
+  // the drill-down filters in force, each removable
+  function activeBar() {
+    var names = {
+      group: function (v) { return GROUP_LABEL[v] || v; },
+      age: function (v) { return 'سن درخواست: ' + (AGE_FA[Number(v) - 1] || v); },
+      sla: function (v) { return v === 'Overdue' ? 'دیرکرد' : 'به‌موقع'; },
+      open: function (v) { return v === '1' ? 'فقط باز' : 'بسته'; },
+      atype: function (v) { return 'نوع دارایی: ' + (ASSET_FA[v] || v); }
+    };
+    var on = Object.keys(X).filter(function (k) { return X[k]; });
+    if (!on.length) { return ''; }
+    return '<div class="db-active"><span>نمایش:</span>' + on.map(function (k) {
+      var c = {}; c[k] = '';
+      return '<a class="db-active-chip" href="' + esc(query(PAGE, c)) + '" title="حذف این فیلتر">' + esc(names[k](X[k])) + ' <b>×</b></a>';
+    }).join('') + '</div>';
+  }
 
   // ---------- slicer column ----------
   function sel(key, label, opts, labelOf) {
@@ -203,12 +265,18 @@
   }
 
   // ---------- building blocks ----------
-  function chart(id, opt) { pendingCharts.push([id, opt]); }
-  function draw(id, opt) {
+  function chart(id, opt, onClick) { pendingCharts.push([id, opt, onClick]); }
+  function draw(id, opt, onClick) {
     var el = document.getElementById(id);
     if (!el || !window.echarts) { return; }
     var c = echarts.init(el);
     c.setOption(opt);
+    if (onClick) {
+      // a gauge has no clickable item: the whole chart area is the target
+      if (opt.series && opt.series[0] && opt.series[0].type === 'gauge') { el.addEventListener('click', onClick); } else { c.on('click', onClick); }
+      el.classList.add('db-click');
+      el.title = 'برای جزئیات کلیک کنید';
+    }
     charts.push(c);
   }
   window.addEventListener('resize', function () { charts.forEach(function (c) { c.resize(); }); });
@@ -220,12 +288,13 @@
   function noticeCard(span, title, sec) {
     return card(span, title, '<div class="db-empty">' + esc(stateMsg(sec)) + '</div>');
   }
-  function kpi(label, value, delta, tone) {
+  function kpi(label, value, delta, tone, href) {
     var icon = ICONS[TONE_ICON[tone] || 'chart'];
-    return '<div class="db-kpi tone-' + tone + '"><div class="db-kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + icon + '</svg></div>'
+    var tag = href ? 'a' : 'div';
+    return '<' + tag + ' class="db-kpi tone-' + tone + (href ? ' db-kpi-link' : '') + '"' + (href ? ' href="' + esc(href) + '" title="نمایش جزئیات"' : '') + '><div class="db-kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + icon + '</svg></div>'
       + '<div class="db-kpi-v">' + value + '</div><div class="db-kpi-l">' + esc(label) + '</div>'
       + (delta ? '<div class="db-delta ' + (delta.up ? 'up' : 'down') + '">' + (delta.up ? '▲ ' : '▼ ') + esc(delta.txt) + '</div>' : '')
-      + '</div>';
+      + '</' + tag + '>';
   }
   function chip(text, cls) { return '<span class="db-chip ' + (cls || '') + '">' + esc(text) + '</span>'; }
   function table(id, cols, rows, limit) {
@@ -305,7 +374,7 @@
     };
   }
   function gaugeCard(pct, done, total) {
-    chart('c-gauge', gaugeOpt(pct));
+    chart('c-gauge', gaugeOpt(pct), function () { go('requests', { group: 'Completed' }); });
     return card(3, 'پیشرفت کلی',
       '<div class="db-gauge">' + chartHtml('c-gauge', 210)
       + '<div class="db-gauge-txt"><div class="db-gauge-v">' + fa(pct) + '٪</div><span>' + num(done) + ' از ' + num(total) + ' درخواست تکمیل شده</span></div></div>');
@@ -330,35 +399,37 @@
     var pct = n ? Math.round(done / n * 100) : 0;
     var cost = sum(Dm, function (d) { return d.boq_cost; });
 
-    var kpis = kpi('کل درخواست‌ها', num(n), growth(R), 'gold')
-      + kpi('در حال پیگیری / اجرا', num(prog), growth(R.filter(function (r) { return GROUP[r.status] === 'In progress'; })), 'blue')
-      + kpi('تکمیل‌شده', num(done), growth(R.filter(function (r) { return GROUP[r.status] === 'Completed'; })), 'green')
-      + kpi('در انتظار اقدام', num(wait), growth(R.filter(function (r) { return GROUP[r.status] === 'Waiting'; })), 'red')
-      + kpi('جمع هزینه خرید (BOQ)', demOk ? compact(cost) : '—', demOk ? growth(Dm) : null, 'green');
+    var kpis = kpi('کل درخواست‌ها', num(n), growth(R), 'gold', query('requests', { group: '' }))
+      + kpi('در حال پیگیری / اجرا', num(prog), growth(R.filter(function (r) { return GROUP[r.status] === 'In progress'; })), 'blue', query('requests', { group: 'In progress' }))
+      + kpi('تکمیل‌شده', num(done), growth(R.filter(function (r) { return GROUP[r.status] === 'Completed'; })), 'green', query('requests', { group: 'Completed' }))
+      + kpi('در انتظار اقدام', num(wait), growth(R.filter(function (r) { return GROUP[r.status] === 'Waiting'; })), 'red', query('requests', { group: 'Waiting' }))
+      + kpi('جمع هزینه خرید (BOQ)', demOk ? compact(cost) : '—', demOk ? growth(Dm) : null, 'green', D.root + '/plugins/projectreports/front/demand.php');
 
     // status donut
     var order = ['Completed', 'In progress', 'Waiting'];
     var colors = { Completed: COL.green, 'In progress': COL.blue, Waiting: COL.gold };
     var statusItems = order.filter(function (g) { return grp[g]; }).map(function (g) {
-      return { name: GROUP_LABEL[g], value: grp[g], itemStyle: { color: colors[g] } };
+      return { name: GROUP_LABEL[g], value: grp[g], key: g, itemStyle: { color: colors[g] } };
     });
-    chart('c-status', donutOpt(statusItems, 'درخواست'));
+    chart('c-status', donutOpt(statusItems, 'درخواست'), function (e) { if (e.data && e.data.key) { go('requests', { group: e.data.key }); } });
 
     // requests by team
     var teamC = countBy(R, function (r) { return r.requesting_team; });
     var teams = Object.keys(teamC).sort(function (a, b) { return teamC[b] - teamC[a]; }).slice(0, 8);
-    chart('c-team', vbarOpt(teams, [{ name: 'درخواست', data: teams.map(function (t) { return teamC[t]; }), color: COL.gold }]));
+    chart('c-team', vbarOpt(teams, [{ name: 'درخواست', data: teams.map(function (t) { return teamC[t]; }), color: COL.gold }]),
+      function (e) { go('requests', { team: teams[e.dataIndex] }); });
 
     // requests by status
     var sc = countBy(R, function (r) { return r.status; });
     var stl = STATUSES.filter(function (s) { return sc[s]; });
-    chart('c-hstatus', hbarOpt(stl.map(function (s) { return STATUS_FA[s]; }), stl.map(function (s) { return sc[s]; }), COL.gold));
+    chart('c-hstatus', hbarOpt(stl.map(function (s) { return STATUS_FA[s]; }), stl.map(function (s) { return sc[s]; }), COL.gold),
+      function (e) { go('requests', { status: stl[e.dataIndex] }); });
 
     var assetsCard = moneyOk
       ? (function () {
           var ac = countBy(A, function (a) { return a.asset_type; });
-          var items = Object.keys(ac).map(function (k) { return { name: ASSET_FA[k] || k, value: ac[k] }; });
-          chart('c-assets', donutOpt(items, 'دارایی'));
+          var items = Object.keys(ac).map(function (k) { return { name: ASSET_FA[k] || k, value: ac[k], key: k }; });
+          chart('c-assets', donutOpt(items, 'دارایی'), function (e) { if (e.data && e.data.key) { go('assets', { atype: e.data.key }); } });
           return card(3, 'دارایی‌ها بر اساس نوع', chartHtml('c-assets', 260));
         })()
       : noticeCard(3, 'دارایی‌ها بر اساس نوع', 'money');
@@ -369,7 +440,7 @@
           chart('c-cost', vbarOpt(P.map(function (p) { return p.project; }), [
             { name: 'تخصیص‌یافته', data: P.map(function (p) { return Number(p.allocated); }), color: COL.blue, stack: 'cost' },
             { name: 'پیش‌نویس‌ها', data: P.map(function (p) { return Number(p.pipeline); }), color: COL.gold, stack: 'cost' }
-          ]));
+          ]), function (e) { go('budget', { project: P[e.dataIndex].project }); });
           return card(6, 'هزینه بر اساس پروژه (بدون مالیات)', chartHtml('c-cost', 260));
         })()
       : noticeCard(6, 'هزینه بر اساس پروژه (بدون مالیات)', 'money');
@@ -379,24 +450,26 @@
     var det = function (r, k) { var x = DET[r.ticket_id]; return x && x[k] !== undefined && x[k] !== '' ? x[k] : null; };
     var dash = '<span class="db-dash">—</span>';
     var txt = function (k) { return function (r) { var v = det(r, k); return v === null ? dash : esc(v); }; };
+    var many = function (k) { return function (r) { var l = det(r, k + '_links'); return l ? links(l) : (det(r, k) === null ? dash : esc(det(r, k))); }; };
+    var person = function (k) { return function (r) { var v = det(r, k); return v === null ? dash : link(det(r, k + '_url'), esc(v)); }; };
     var day = function (k) { return function (r) { var v = det(r, k); return v === null ? dash : jdate(v); }; };
     var latest = R.slice().sort(byDateDesc);
     var latestCols = [
-      { h: 'درخواست', f: function (r) { return '<span class="db-id">REQ-' + esc(fa(r.ticket_id)) + '</span><div class="db-sub-t">' + esc(r.title) + '</div>'; } },
-      { h: 'درخواست‌کننده', f: txt('requester') },
-      { h: 'معاونت', f: function (r) { return r.requesting_team && r.requesting_team !== '(no team)' ? esc(r.requesting_team) : dash; } },
-      { h: 'تجهیزات', f: txt('equipment') }
+      { h: 'درخواست', f: function (r) { return link(rec('Ticket', r.ticket_id), '<span class="db-id">REQ-' + esc(fa(r.ticket_id)) + '</span><div class="db-sub-t">' + esc(r.title) + '</div>', 'باز کردن درخواست در GLPI'); } },
+      { h: 'درخواست‌کننده', f: person('requester') },
+      { h: 'معاونت', f: function (r) { return r.requesting_team && r.requesting_team !== '(no team)' ? link(rec('Group', r.team_id), esc(r.requesting_team)) : dash; } },
+      { h: 'تجهیزات', f: many('equipment') }
     ];
     if (D.sections && D.sections.money && D.sections.money.state === 'ok') {
       latestCols.push({ h: 'هزینه خرید (تومان)', num: true, f: function (r) { var v = det(r, 'cost'); return v === null ? dash : num(v); } });
-      latestCols.push({ h: 'شماره PO', f: function (r) { var v = det(r, 'po'); return v === null ? dash : '<span class="db-id">' + esc(v) + '</span>'; } });
+      latestCols.push({ h: 'شماره PO', f: function (r) { var l = det(r, 'po_links'); return l ? '<span class="db-id">' + links(l) + '</span>' : (det(r, 'po') === null ? dash : esc(det(r, 'po'))); } });
     }
     latestCols.push(
       { h: 'تاریخ ورود به انبار', f: day('warehouse') },
-      { h: 'دیتاسنتر', f: txt('datacenter') },
+      { h: 'دیتاسنتر', f: many('datacenter') },
       { h: 'برنامه نصب', f: day('install') },
-      { h: 'پیگیری‌کننده', f: function (r) { var v = det(r, 'follower') || r.assigned_to; return v ? esc(v) : dash; } },
-      { h: 'وضعیت', f: function (r) { return chip(STATUS_FA[r.status] || r.status, GROUP_CLS[GROUP[r.status]]); } }
+      { h: 'پیگیری‌کننده', f: function (r) { var v = det(r, 'follower'); return v ? link(det(r, 'follower_url'), esc(v)) : (r.assigned_to ? esc(r.assigned_to) : dash); } },
+      { h: 'وضعیت', f: function (r) { return filterLink({ status: r.status }, chip(STATUS_FA[r.status] || r.status, GROUP_CLS[GROUP[r.status]]), 'requests'); } }
     );
     var latestCard = card(12, 'آخرین وضعیت درخواست‌ها', table('db-latest', latestCols, latest, 10));
 
@@ -421,28 +494,28 @@
     var solved = R.filter(function (r) { return r.is_open === 0 && r.days_to_solve != null; });
     var avg = solved.length ? sum(solved, function (r) { return r.days_to_solve; }) / solved.length : 0;
 
-    var kpis = kpi('درخواست‌ها', num(R.length), growth(R), 'gold')
-      + kpi('باز', num(open.length), growth(open), 'blue')
-      + kpi('دیرکرد', num(over.length), null, 'red')
+    var kpis = kpi('درخواست‌ها', num(R.length), growth(R), 'gold', query('requests', { open: '', sla: '', age: '' }))
+      + kpi('باز', num(open.length), growth(open), 'blue', query('requests', { open: '1' }))
+      + kpi('دیرکرد', num(over.length), null, 'red', query('requests', { sla: 'Overdue' }))
       + kpi('میانگین روز تا حل', decimal(avg, 1), null, 'green');
 
     var keys = ['1', '2', '3', '4'];
     var ac = countBy(open.filter(function (r) { return r.open_age; }), function (r) { return String(r.open_age).charAt(0); });
     chart('c-age', vbarOpt(AGE_FA, [
       { name: 'باز', data: keys.map(function (k) { return ac[k] || 0; }), color: COL.blue }
-    ]));
+    ]), function (e) { go('requests', { age: keys[e.dataIndex], open: '1' }); });
 
     var cc = countBy(R, function (r) { return r.category; });
     var cats = Object.keys(cc).sort(function (a, b) { return cc[b] - cc[a]; }).slice(0, 10);
-    chart('c-cat', hbarOpt(cats, cats.map(function (c) { return cc[c]; }), COL.gold));
+    chart('c-cat', hbarOpt(cats, cats.map(function (c) { return cc[c]; }), COL.gold), function (e) { go('requests', { category: cats[e.dataIndex] }); });
 
     var tbl = table('db-req-tbl', [
-      { h: 'درخواست', f: function (r) { return 'REQ-' + esc(fa(r.ticket_id)); } },
-      { h: 'عنوان', f: function (r) { return esc(r.title); } },
-      { h: 'پروژه', f: function (r) { return esc(r.project); } },
-      { h: 'تیم', f: function (r) { return esc(r.requesting_team); } },
-      { h: 'دسته‌بندی', f: function (r) { return esc(r.category); } },
-      { h: 'وضعیت', f: function (r) { return chip(STATUS_FA[r.status] || r.status, GROUP_CLS[GROUP[r.status]]); } },
+      { h: 'درخواست', f: function (r) { return link(rec('Ticket', r.ticket_id), 'REQ-' + esc(fa(r.ticket_id)), 'باز کردن درخواست در GLPI'); } },
+      { h: 'عنوان', f: function (r) { return link(rec('Ticket', r.ticket_id), esc(r.title)); } },
+      { h: 'پروژه', f: function (r) { return link(rec('Project', r.project_id), esc(r.project)); } },
+      { h: 'تیم', f: function (r) { return link(rec('Group', r.team_id), esc(r.requesting_team)); } },
+      { h: 'دسته‌بندی', f: function (r) { return filterLink({ category: r.category }, esc(r.category)); } },
+      { h: 'وضعیت', f: function (r) { return filterLink({ status: r.status }, chip(STATUS_FA[r.status] || r.status, GROUP_CLS[GROUP[r.status]])); } },
       { h: 'SLA', f: function (r) { return r.sla ? chip(r.sla === 'Overdue' ? 'دیرکرد' : 'به‌موقع', r.sla === 'Overdue' ? 'bad' : 'ok') : ''; } },
       { h: 'تاریخ ثبت', f: function (r) { return jdate(r.opened); } },
       { h: 'سررسید', f: function (r) { return jdate(r.due); } }
@@ -474,11 +547,11 @@
     chart('c-bud', vbarOpt(labels, [
       { name: 'بودجه', data: Fn.map(function (f) { return Number(f.budget); }), color: COL.grey },
       { name: 'تخصیص‌یافته', data: Fn.map(function (f) { return Number(f.allocated); }), color: COL.blue }
-    ]));
+    ]), function (e) { var u = rec('Project', Fn[e.dataIndex].project_id); if (u) { window.location.href = u; } });
 
     var RUNS = { 'lasts to end': 'تا پایان دوره کافی است', 'no BOQ spend yet': 'هنوز هزینه‌ای ثبت نشده', 'already exceeded': 'از بودجه گذشته' };
     var tbl = table('db-bud-tbl', [
-      { h: 'پروژه', f: function (f) { return esc(f.project); } },
+      { h: 'پروژه', f: function (f) { return link(rec('Project', f.project_id), esc(f.project), 'باز کردن پروژه در GLPI'); } },
       { h: 'دسته‌بندی', f: function (f) { return esc(f.category); } },
       { h: 'بودجه', num: true, f: function (f) { return num(f.budget); } },
       { h: 'تخصیص‌یافته', num: true, f: function (f) { return num(f.allocated); } },
@@ -517,13 +590,13 @@
     var types = Object.keys(tc).sort(function (a, b) { return tc[b] - tc[a]; });
     chart('c-types', vbarOpt(types.map(function (t) { return ASSET_FA[t] || t; }), [
       { name: 'دارایی', data: types.map(function (t) { return tc[t]; }), color: COL.blue }
-    ]));
+    ]), function (e) { go('assets', { atype: types[e.dataIndex] }); });
 
     var tbl = table('db-asset-tbl', [
-      { h: 'نوع', f: function (a) { return esc(ASSET_FA[a.asset_type] || a.asset_type); } },
-      { h: 'شماره دارایی', f: function (a) { return esc(fa(a.asset_id)); } },
-      { h: 'پروژه', f: function (a) { return esc(a.project); } },
-      { h: 'تأمین‌کننده', f: function (a) { return esc(a.supplier); } },
+      { h: 'نوع', f: function (a) { return filterLink({ atype: a.asset_type }, esc(ASSET_FA[a.asset_type] || a.asset_type)); } },
+      { h: 'دارایی', f: function (a) { return link(rec(a.itemtype, a.asset_id), esc(a.asset_name || fa(a.asset_id)), 'باز کردن دارایی در GLPI'); } },
+      { h: 'پروژه', f: function (a) { return link(rec('Project', a.project_id), esc(a.project)); } },
+      { h: 'تأمین‌کننده', f: function (a) { return link(rec('Supplier', a.supplier_id), esc(a.supplier)); } },
       { h: 'ارزش', num: true, f: function (a) { return num(a.asset_value); } },
       { h: 'بهره‌برداری', f: function (a) { return jdate(a.in_service); } },
       { h: 'پایان گارانتی', f: function (a) { return jdate(a.warranty_end); } },
@@ -549,8 +622,9 @@
     charts = [];
     pendingCharts = [];
     var fn = PAGES[PAGE] || renderOverview;
-    body.innerHTML = fn();
-    pendingCharts.forEach(function (p) { draw(p[0], p[1]); });
+    body.innerHTML = activeBar() + fn();
+    pendingCharts.forEach(function (p) { draw(p[0], p[1], p[2]); });
+    syncAddress();
     pendingCharts = [];
 
     var reqTbl = document.getElementById('db-req-tbl');
@@ -605,6 +679,7 @@
   slicers.addEventListener('click', function (e) {
     if (!e.target.classList.contains('db-reset')) { return; }
     Object.keys(F).forEach(function (k) { F[k] = k === 'time' ? 'all' : ''; });
+    Object.keys(X).forEach(function (k) { X[k] = ''; });
     renderSlicers();
     render();
   });

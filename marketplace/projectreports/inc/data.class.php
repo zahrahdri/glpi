@@ -17,6 +17,9 @@ class PluginProjectreportsData
 SELECT
   t.id AS ticket_id,
   t.name AS title,
+  p.id AS project_id,
+  rg.id AS team_id,
+  c.id AS category_id,
   COALESCE(p.name, '(no project)') AS project,
   COALESCE(rg.name, '(no team)') AS requesting_team,
   COALESCE(ag.names, '') AS assigned_to,
@@ -96,7 +99,7 @@ pf AS (   -- money per project
   LEFT JOIN glpi_projecttypes pt ON pt.id = p.projecttypes_id
   WHERE p.is_deleted = 0
   GROUP BY p.id, p.name, pt.name)
-SELECT pf.project, pf.category,
+SELECT pf.project_id, pf.project, pf.category,
   pf.budget, pf.committed AS boq_orders, pf.assets, pf.other_costs, pf.allocated, pf.pipeline,
   pf.budget - pf.allocated AS remaining,
   pf.budget - pf.allocated - pf.pipeline AS remaining_after_pipeline,
@@ -258,7 +261,8 @@ PRSQL;
 
     private const SQL_ASSETS = <<<'PRSQL'
 WITH pb AS (SELECT DISTINCT projects_id, budgets_id FROM glpi_projectcosts WHERE budgets_id > 0)
-SELECT pr.name AS project,
+SELECT pr.name AS project, pr.id AS project_id, ic.itemtype, s.id AS supplier_id,
+  COALESCE(c.name, ne.name, CONCAT(ic.itemtype, ' #', ic.items_id)) AS asset_name,
   CASE WHEN ic.itemtype LIKE '%SANStorage%'
          -- storage recorded as a network device or computer whose type says so (SAN, NAS, storage, ذخیره‌ساز)
          OR LOWER(COALESCE(nt.name, ct.name, '')) REGEXP '(^|[^a-z])(san|nas)([^a-z]|$)|storage|ذخیره'
@@ -537,12 +541,14 @@ PRSQL;
         $person = "COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.realname, ''))), ''), u.name)";
 
         // requester (1) and assigned technician (2)
-        $res = $DB->doQuery("SELECT tu.tickets_id, tu.type, GROUP_CONCAT(DISTINCT $person ORDER BY tu.id SEPARATOR '، ') AS names
+        $res = $DB->doQuery("SELECT tu.tickets_id, tu.type, MIN(tu.users_id) AS uid, GROUP_CONCAT(DISTINCT $person ORDER BY tu.id SEPARATOR '، ') AS names
             FROM glpi_tickets_users tu JOIN glpi_users u ON u.id = tu.users_id
             JOIN glpi_tickets t ON t.id = tu.tickets_id AND t.is_deleted = 0
             WHERE tu.type IN (1, 2) GROUP BY tu.tickets_id, tu.type");
         while ($r = $res->fetch_assoc()) {
-            $set((int) $r['tickets_id'], (int) $r['type'] === 1 ? 'requester' : 'follower', $r['names']);
+            $key = (int) $r['type'] === 1 ? 'requester' : 'follower';
+            $set((int) $r['tickets_id'], $key, $r['names']);
+            $set((int) $r['tickets_id'], $key . '_url', User::getFormURLWithID((int) $r['uid']));
         }
         // installation date: the first planned task
         $res = $DB->doQuery("SELECT tt.tickets_id, MIN(tt.begin) AS b FROM glpi_tickettasks tt
@@ -575,6 +581,7 @@ PRSQL;
             while ($r = $res->fetch_assoc()) {
                 $tid = (int) $r['tickets_id'];
                 $per[$tid]['po'][] = (string) $r['num_order'];
+                $per[$tid]['po_links'][] = ['name' => (string) ($r['num_order'] ?: '#' . $r['id']), 'url' => PluginOrderOrder::getFormURLWithID((int) $r['id'])];
                 if ((int) $r['state'] !== $canceled) {
                     $per[$tid]['cost'] = ($per[$tid]['cost'] ?? 0) + (float) $r['total'] + (float) $r['port_price'];
                 }
@@ -587,6 +594,7 @@ PRSQL;
                 if ($money) {
                     $set($tid, 'po', implode('، ', array_unique(array_filter($x['po']))));
                     $set($tid, 'cost', isset($x['cost']) ? round($x['cost'], 2) : null);
+                    $set($tid, 'po_links', $x['po_links'] ?? null);
                 }
                 $set($tid, 'warehouse', $x['warehouse'] ?? null);
                 // delivered items (generated assets) and ordered references
@@ -619,21 +627,23 @@ PRSQL;
             }
             foreach ($DB->request(['SELECT' => ['id', 'name'], 'FROM' => $item->getTable(), 'WHERE' => ['id' => array_keys($byid)]]) as $row) {
                 foreach ($byid[(int) $row['id']] as $tid) {
-                    $equip[$tid][$row['name']] = true;
+                    $equip[$tid][$row['name']] = $itemtype::getFormURLWithID((int) $row['id']);
                 }
             }
-            $res = $DB->doQuery('SELECT ir.items_id, dc.name FROM glpi_items_racks ir
+            $res = $DB->doQuery('SELECT ir.items_id, dc.id AS dc_id, dc.name FROM glpi_items_racks ir
                 JOIN glpi_racks r ON r.id = ir.racks_id JOIN glpi_dcrooms rm ON rm.id = r.dcrooms_id
                 JOIN glpi_datacenters dc ON dc.id = rm.datacenters_id
                 WHERE ir.itemtype = ' . $DB->quoteValue($itemtype) . ' AND ir.items_id IN (' . implode(',', array_map('intval', array_keys($byid))) . ')');
             while ($r = $res->fetch_assoc()) {
                 foreach ($byid[(int) $r['items_id']] ?? [] as $tid) {
-                    $dcs[$tid][$r['name']] = true;
+                    $dcs[$tid][$r['name']] = Datacenter::getFormURLWithID((int) $r['dc_id']);
                 }
             }
         }
+        $links = fn(array $byname) => array_map(fn($n, $u) => ['name' => (string) $n, 'url' => $u], array_keys($byname), array_values($byname));
         foreach ($equip as $tid => $names) {
             $set($tid, 'equipment', implode('، ', array_keys($names)));
+            $set($tid, 'equipment_links', $links($names));
         }
         foreach ($refnames as $tid => $names) {
             if (empty($equip[$tid]) && $names) {
@@ -642,6 +652,7 @@ PRSQL;
         }
         foreach ($dcs as $tid => $names) {
             $set($tid, 'datacenter', implode('، ', array_keys($names)));
+            $set($tid, 'datacenter_links', $links($names));
         }
         return $out;
     }
