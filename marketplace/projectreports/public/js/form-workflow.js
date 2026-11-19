@@ -20,16 +20,16 @@
     manager: { label: 'Your approving manager', short: 'Approving manager', color: '#7a4fd6' },
     pm: { label: 'Project manager', short: 'Project manager', color: '#b97f00' },
     planning: { label: 'Infrastructure planning', short: 'Infra planning', color: '#0d9488' },
-    procurement: { label: 'Procurement & finance', short: 'Procurement & finance', color: '#d9622b' },
+    procurement: { label: 'Finance (budget & purchase)', short: 'Finance & purchase', color: '#d9622b' },
     delivery: { label: 'Infrastructure delivery', short: 'Infra delivery', color: '#2e9e4f' }
   };
 
   // decision gates: points where a request can be stopped or sent back
   var GATES = {
-    G1: 'Business approval',
-    G2: 'Design & BOQ sign-off',
-    G3: 'Budget approval',
-    G4: 'Acceptance'
+    G1: 'Manager approval',
+    G2: 'Technical check',
+    G3: 'Budget check',
+    G4: 'Delivery'
   };
 
   // what the requester sees on the ticket at each step
@@ -37,7 +37,7 @@
     created: 'New',
     approval: 'Waiting for approval',
     processing: 'Processing (assigned)',
-    vendor: 'Pending (waiting for vendor)',
+    budget: 'Pending (budget check / purchase)',
     solved: 'Solved → Closed'
   };
 
@@ -49,111 +49,111 @@
     status: 'created', you: 'You get a ticket number. Every next step is visible in that ticket.'
   };
   var approval = {
-    id: 'approval', role: 'manager', title: 'Manager approval', box: 'Approve', gate: 'G1',
+    id: 'approval', role: 'manager', title: 'Manager approval', box: 'Manager approval', gate: 'G1',
     does: ['The manager you chose in the form receives an approval request in GLPI.',
       'They approve or refuse it, with a comment.'],
-    out: 'Approved request',
+    out: 'Request approved by your manager',
     status: 'approval', you: 'If it is refused, the request is closed and the reason is shown in the ticket.'
   };
-  var procurement = {
-    id: 'procurement', role: 'procurement', title: 'Procurement', box: 'Procure', gate: 'G3', optional: 'Only when the resources are not available',
-    does: ['Budget approval of the bill of quantities (BOQ).',
-      'Purchase order (PO) to the vendor; the PO is linked to your request.',
-      'Delivery to the warehouse and acceptance check of the equipment.'],
-    out: 'Purchase order; equipment received in the warehouse',
-    status: 'vendor', you: 'Usually the longest step; the expected delivery date is noted in the ticket.'
+  var budget = {
+    id: 'budget', role: 'procurement', title: 'Budget check', box: 'Budget check', gate: 'G3', optional: 'Only when new equipment is needed',
+    does: ['Finance checks that the budget covers the bill of quantities (BOQ) and its cost.',
+      'Once the budget is confirmed, the equipment is purchased (purchase order to the vendor, linked to your request).',
+      'The equipment is received in the warehouse and checked before installation.'],
+    out: 'Budget confirmed; equipment received in the warehouse',
+    status: 'budget', you: 'Usually the longest step; the expected date is noted in the ticket. If the budget is not available, you are told in the ticket.'
   };
-  var handover = {
-    id: 'handover', role: 'requester', title: 'Handover & acceptance', box: 'Accept', gate: 'G4',
-    does: ['You receive the handover details (names, addresses, access, capacity delivered).',
-      'You check them and accept the solution, or reopen the ticket if something is not right.'],
-    out: 'Handover document; request closed',
-    status: 'solved', you: 'After your acceptance the ticket is closed and you may get a short satisfaction survey.'
+  var delivery = {
+    id: 'delivery', role: 'requester', title: 'Delivery', box: 'Delivery', gate: 'G4',
+    does: ['You receive the delivery details: names, addresses, access and the capacity delivered.',
+      'You check them and confirm the delivery, or reopen the ticket if something is not right.'],
+    out: 'Delivery confirmed; request closed',
+    status: 'solved', you: 'After your confirmation the ticket is closed and you may get a short satisfaction survey.'
   };
   var decision = {
     decision: true, id: 'decision', role: 'planning', question: 'Can it be delivered from what we already have?',
-    yes: 'The resources are reserved for you and delivery starts; procurement is skipped.',
-    no: 'The missing equipment is procured first.'
+    yes: 'The resources are reserved for you and installation starts; the budget check is skipped.',
+    no: 'New equipment is needed: the budget is checked and the equipment purchased first.'
   };
   var change = 'Work on production systems is done through a GLPI Change: planned, approved and scheduled, so you know when it happens.';
 
   var WORKFLOWS = {
     'new': {
       label: 'New project',
-      intro: 'Infrastructure for a new business project, from your request to the handover of the delivered resources.',
+      intro: 'Infrastructure for a new business project, from your request to the delivery of the resources.',
       steps: [submit, approval, {
-        id: 'review', role: 'pm', title: 'Project review', box: 'Review project',
+        id: 'review', role: 'pm', title: 'Project review', box: 'Project review',
         does: ['Checks that the request belongs to an approved business project.',
           'Creates the project in GLPI and links your request to it.',
           'Confirms priority and go-live date, and asks you if anything is missing.'],
         out: 'Request linked to the project; priority and date confirmed',
         status: 'processing', you: 'If information is missing the ticket goes to Pending until you answer the follow-up.'
       }, {
-        id: 'planning', role: 'planning', title: 'Design & capacity check', box: 'Design & check', gate: 'G2',
+        id: 'technical', role: 'planning', title: 'Technical check', box: 'Technical check', gate: 'G2',
         does: ['Reviews the sizing and the technical design.',
           'Checks available capacity: virtual clusters, warehouse stock, rack space and power.',
-          'Prepares the bill of quantities (BOQ) and the cost estimate.'],
-        out: 'Approved design and BOQ with cost',
+          'Prepares the bill of quantities (BOQ) and the cost estimate when new equipment is needed.'],
+        out: 'Technical design confirmed; BOQ with cost if equipment is needed',
         status: 'processing'
-      }, decision, procurement, {
-        id: 'delivery', role: 'delivery', title: 'Build & deliver', box: 'Build & deliver',
-        does: ['Installation in the data center: racking, cabling, configuration.',
-          'Or provisioning on an existing platform (virtual machines, storage).',
-          'The delivered equipment is recorded in GLPI and linked to your request.', change],
-        out: 'Resources ready and recorded in GLPI',
+      }, decision, budget, {
+        id: 'install', role: 'delivery', title: 'HW installation', box: 'HW installation',
+        does: ['Installs the hardware in the data center: racking, cabling, power and configuration.',
+          'Or provisions the resources on an existing platform (virtual machines, storage).',
+          'The installed equipment is recorded in GLPI and linked to your request.', change],
+        out: 'Hardware installed, configured and recorded in GLPI',
         status: 'processing'
-      }, handover]
+      }, delivery]
     },
     expansion: {
       label: 'Expansion',
-      intro: 'More capacity for an existing project or platform, from your request to the handover of the added capacity.',
+      intro: 'More capacity for an existing project or platform, from your request to the delivery of the added capacity.',
       steps: [submit, approval, {
-        id: 'review', role: 'pm', title: 'Project review', box: 'Review project',
+        id: 'review', role: 'pm', title: 'Project review', box: 'Project review',
         does: ['Confirms the existing project and the current use of its resources.',
           'Checks the request against the project plan and priorities.',
           'Asks you if anything is missing.'],
         out: 'Request confirmed against the project plan',
         status: 'processing', you: 'If information is missing the ticket goes to Pending until you answer the follow-up.'
       }, {
-        id: 'planning', role: 'planning', title: 'Capacity check', box: 'Capacity check', gate: 'G2',
+        id: 'technical', role: 'planning', title: 'Technical check', box: 'Technical check', gate: 'G2',
         does: ['Checks the current use and growth of the platform (virtual clusters, storage).',
           'Decides how to expand: free capacity, extra hosts or disks, or new equipment.',
-          'Prepares the BOQ and the cost estimate when equipment is needed.'],
-        out: 'Expansion plan and BOQ with cost',
+          'Prepares the BOQ and the cost estimate when new equipment is needed.'],
+        out: 'Expansion plan confirmed; BOQ with cost if equipment is needed',
         status: 'processing'
-      }, decision, procurement, {
-        id: 'delivery', role: 'delivery', title: 'Expand the platform', box: 'Expand',
-        does: ['Adds the capacity to the existing platform (hosts, disks, storage, quota).',
-          'The added equipment is recorded in GLPI and linked to your request.', change],
-        out: 'Capacity added and recorded in GLPI',
+      }, decision, budget, {
+        id: 'install', role: 'delivery', title: 'HW installation', box: 'HW installation',
+        does: ['Installs the extra hardware (hosts, disks, storage) or adds capacity on the existing platform.',
+          'The installed equipment is recorded in GLPI and linked to your request.', change],
+        out: 'Capacity installed and recorded in GLPI',
         status: 'processing'
-      }, handover]
+      }, delivery]
     },
     modernization: {
       label: 'Modernization & swap',
-      intro: 'Replacement of an old or unsupported device, from your request to the removal of the old device.',
+      intro: 'Replacement of an old or unsupported device, from your request to the delivery of the new device and the removal of the old one.',
       steps: [submit, approval, {
-        id: 'review', role: 'pm', title: 'Project review', box: 'Review project',
+        id: 'review', role: 'pm', title: 'Project review', box: 'Project review',
         does: ['Confirms the device to replace (hostname) and the services running on it.',
           'Agrees the business impact and a migration window with you.'],
         out: 'Device, impact and migration window agreed',
         status: 'processing', you: 'If information is missing the ticket goes to Pending until you answer the follow-up.'
       }, {
-        id: 'planning', role: 'planning', title: 'Replacement plan', box: 'Replacement plan', gate: 'G2',
+        id: 'technical', role: 'planning', title: 'Technical check', box: 'Technical check', gate: 'G2',
         does: ['Checks the device age and support status (DCIM).',
           'Chooses the replacement model and plans the migration (swap).',
           'Prepares the BOQ and the cost estimate.'],
-        out: 'Replacement design, migration plan and BOQ',
+        out: 'Replacement model and migration plan confirmed; BOQ with cost',
         status: 'processing'
-      }, decision, procurement, {
-        id: 'delivery', role: 'delivery', title: 'Install & migrate', box: 'Install & migrate',
-        does: ['Installs the new device and migrates the services in the agreed window.',
+      }, decision, budget, {
+        id: 'install', role: 'delivery', title: 'HW installation', box: 'HW installation',
+        does: ['Installs the new hardware and migrates the services in the agreed window.',
           'Checks that everything runs on the new device; the old one stays ready for a rollback.', change],
-        out: 'Services running on the new device',
+        out: 'New hardware installed; services running on it',
         status: 'processing'
-      }, handover, {
+      }, delivery, {
         id: 'decommission', role: 'delivery', title: 'Decommission the old device', box: 'Decommission',
-        does: ['After your acceptance the old device is switched off and removed.',
+        does: ['After your confirmation of the delivery, the old device is switched off and removed.',
           'Its data is wiped and its status is updated in GLPI (warehouse, spare or disposal).'],
         out: 'Old device removed; asset record updated',
         status: 'solved'
@@ -174,7 +174,7 @@
     var used = {};
     items.forEach(function (s) { used[s.role] = true; });
     var lanes = Object.keys(ROLES).filter(function (k) { return used[k]; });
-    var LABEL = 146, COL = 128, LANE = 62, TOP = 30, BW = 108, BH = 38;
+    var LABEL = 146, COL = 134, LANE = 62, TOP = 30, BW = 120, BH = 38;
     var W = LABEL + items.length * COL + 12, H = TOP + lanes.length * LANE + 8;
     var laneY = function (role) { return TOP + lanes.indexOf(role) * LANE + LANE / 2; };
     var colX = function (i) { return LABEL + i * COL + COL / 2; };
@@ -213,7 +213,7 @@
       out.push('<path class="prwf-edge ' + (cls || '') + '" d="' + d + '" ' + mk + '/>');
       if (label) { out.push('<text class="prwf-edge-t ' + cls + '" x="' + (lx || (x1 + 6)) + '" y="' + (ly || (A.y - 6)) + '">' + label + '</text>'); }
     };
-    var iDec = idx('decision'), iProc = idx('procurement'), iDel = idx('delivery');
+    var iDec = idx('decision'), iProc = idx('budget'), iDel = idx('install');
     for (var i = 0; i < items.length - 1; i++) {
       if (i === iDec) { continue; }
       edge(i, i + 1);
@@ -261,7 +261,7 @@
       return '<li class="prwf-step' + (s.optional ? ' is-optional' : '') + '" id="' + anchor(type, s.id) + '" style="--c:' + role.color + '">'
         + '<div class="prwf-num" aria-hidden="true">' + n + '</div>'
         + '<div class="prwf-card"><div class="prwf-card-h"><h3>' + esc(s.title)
-        + (s.gate ? ' <span class="prwf-gate" title="Decision gate: the request can be stopped or sent back here">' + s.gate + ' · ' + esc(GATES[s.gate]) + '</span>' : '') + '</h3>'
+        + (s.gate ? ' <span class="prwf-gate" title="Decision gate: the request can be stopped or sent back here">' + s.gate + (GATES[s.gate].toLowerCase() === s.title.toLowerCase() ? '' : ' · ' + esc(GATES[s.gate])) + '</span>' : '') + '</h3>'
         + '<span class="prwf-role"><i></i>' + esc(role.label) + '</span></div>'
         + (s.optional ? '<div class="prwf-opt">' + esc(s.optional) + '</div>' : '')
         + '<ul class="prwf-does">' + s.does.map(function (d) { return '<li' + (d === change ? ' class="prwf-change"' : '') + '>' + esc(d) + '</li>'; }).join('') + '</ul>'
@@ -335,8 +335,10 @@
     row.appendChild(title);
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'btn btn-outline-secondary prwf-btn';
-    btn.innerHTML = '<i class="ti ti-route" aria-hidden="true"></i><span>Workflow</span>';
+    btn.className = 'prwf-btn';
+    btn.innerHTML = '<span class="prwf-btn-ic" aria-hidden="true"><i class="ti ti-route"></i></span>'
+      + '<span class="prwf-btn-tx"><b>Workflow</b><small>What happens after you submit</small></span>'
+      + '<i class="ti ti-chevron-right prwf-btn-go" aria-hidden="true"></i>';
     btn.setAttribute('aria-haspopup', 'dialog');
     btn.title = 'What happens after you submit this request';
     row.appendChild(btn);
