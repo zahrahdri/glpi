@@ -20,7 +20,8 @@
     manager: { label: 'Your approving manager', short: 'Approving manager', color: '#7a4fd6' },
     pm: { label: 'Project manager', short: 'Project manager', color: '#b97f00' },
     planning: { label: 'Infrastructure planning', short: 'Infra planning', color: '#0d9488' },
-    procurement: { label: 'Finance (budget & purchase)', short: 'Finance & purchase', color: '#d9622b' },
+    procurement: { label: 'Procurement', short: 'Procurement', color: '#d9622b' },
+    warehouse: { label: 'Warehouse', short: 'Warehouse', color: '#8a6a3b' },
     delivery: { label: 'Infrastructure delivery', short: 'Infra delivery', color: '#2e9e4f' }
   };
 
@@ -28,7 +29,7 @@
   var GATES = {
     G1: 'Manager approval',
     G2: 'Technical check',
-    G3: 'Budget check',
+    G3: 'Purchase approval',
     G4: 'Delivery'
   };
 
@@ -37,7 +38,7 @@
     created: 'New',
     approval: 'Waiting for approval',
     processing: 'Processing (assigned)',
-    budget: 'Pending (budget check / purchase)',
+    supply: 'Pending (waiting for equipment)',
     solved: 'Solved → Closed'
   };
 
@@ -55,13 +56,27 @@
     out: 'Request approved by your manager',
     status: 'approval', you: 'If it is refused, the request is closed and the reason is shown in the ticket.'
   };
-  var budget = {
-    id: 'budget', role: 'procurement', title: 'Budget check', box: 'Budget check', gate: 'G3', optional: 'Only when new equipment is needed',
-    does: ['Finance checks that the budget covers the bill of quantities (BOQ) and its cost.',
-      'Once the budget is confirmed, the equipment is purchased (purchase order to the vendor, linked to your request).',
-      'The equipment is received in the warehouse and checked before installation.'],
-    out: 'Budget confirmed; equipment received in the warehouse',
-    status: 'budget', you: 'Usually the longest step; the expected date is noted in the ticket. If the budget is not available, you are told in the ticket.'
+  var NEED = 'Only when the hardware is not available';
+  var order = {
+    id: 'order', role: 'procurement', title: 'Order the resources', box: 'Order', optional: NEED,
+    does: ['The missing hardware is ordered from the BOQ prepared in the technical check.',
+      'The order is registered in GLPI and linked to your request.'],
+    out: 'Order registered with quantities and models',
+    status: 'supply'
+  };
+  var purchase = {
+    id: 'purchase', role: 'procurement', title: 'Purchase', box: 'Purchase', gate: 'G3', optional: NEED,
+    does: ['The purchase is approved and the purchase order (PO) is sent to the vendor.',
+      'The vendor confirms the delivery date; it is noted in your ticket.'],
+    out: 'Purchase order sent; delivery date confirmed',
+    status: 'supply', you: 'Usually the longest part: it depends on the vendor\'s delivery time.'
+  };
+  var inbound = {
+    id: 'inbound', role: 'warehouse', title: 'Warehouse inbound', box: 'Warehouse inbound', optional: NEED,
+    does: ['The equipment is received in the warehouse and checked against the order (models, quantities, serial numbers).',
+      'It is registered in GLPI as stock and reserved for your request until installation.'],
+    out: 'Equipment in stock, registered in GLPI and reserved for you',
+    status: 'supply'
   };
   var delivery = {
     id: 'delivery', role: 'requester', title: 'Delivery', box: 'Delivery', gate: 'G4',
@@ -72,8 +87,8 @@
   };
   var decision = {
     decision: true, id: 'decision', role: 'planning', question: 'Can it be delivered from what we already have?',
-    yes: 'The resources are reserved for you and installation starts; the budget check is skipped.',
-    no: 'New equipment is needed: the budget is checked and the equipment purchased first.'
+    yes: 'The resources are reserved for you and installation starts right away.',
+    no: 'The missing hardware is ordered, purchased and received in the warehouse first, then installed.'
   };
   var change = 'Work on production systems is done through a GLPI Change: planned, approved and scheduled, so you know when it happens.';
 
@@ -95,7 +110,7 @@
           'Prepares the bill of quantities (BOQ) and the cost estimate when new equipment is needed.'],
         out: 'Technical design confirmed; BOQ with cost if equipment is needed',
         status: 'processing'
-      }, decision, budget, {
+      }, decision, order, purchase, inbound, {
         id: 'install', role: 'delivery', title: 'HW installation', box: 'HW installation',
         does: ['Installs the hardware in the data center: racking, cabling, power and configuration.',
           'Or provisions the resources on an existing platform (virtual machines, storage).',
@@ -121,7 +136,7 @@
           'Prepares the BOQ and the cost estimate when new equipment is needed.'],
         out: 'Expansion plan confirmed; BOQ with cost if equipment is needed',
         status: 'processing'
-      }, decision, budget, {
+      }, decision, order, purchase, inbound, {
         id: 'install', role: 'delivery', title: 'HW installation', box: 'HW installation',
         does: ['Installs the extra hardware (hosts, disks, storage) or adds capacity on the existing platform.',
           'The installed equipment is recorded in GLPI and linked to your request.', change],
@@ -145,7 +160,7 @@
           'Prepares the BOQ and the cost estimate.'],
         out: 'Replacement model and migration plan confirmed; BOQ with cost',
         status: 'processing'
-      }, decision, budget, {
+      }, decision, order, purchase, inbound, {
         id: 'install', role: 'delivery', title: 'HW installation', box: 'HW installation',
         does: ['Installs the new hardware and migrates the services in the agreed window.',
           'Checks that everything runs on the new device; the old one stays ready for a rollback.', change],
@@ -168,13 +183,27 @@
   function anchor(type, id) { return 'prwf-' + type + '-' + id; }
 
   // ---------------------------------------------------------------- swimlane diagram (SVG)
+  // box label, on two lines when it is long
+  function boxText(label, x, y) {
+    var words = String(label).split(' ');
+    if (label.length <= 13 || words.length < 2) {
+      return '<text class="prwf-box-t" x="' + x + '" y="' + (y + 4) + '">' + esc(label) + '</text>';
+    }
+    var best = 1, diff = 1e9;
+    for (var i = 1; i < words.length; i++) {
+      var d = Math.abs(words.slice(0, i).join(' ').length - words.slice(i).join(' ').length);
+      if (d < diff) { diff = d; best = i; }
+    }
+    return '<text class="prwf-box-t" x="' + x + '" y="' + (y - 2) + '"><tspan x="' + x + '">' + esc(words.slice(0, best).join(' ')) + '</tspan>'
+      + '<tspan x="' + x + '" dy="13">' + esc(words.slice(best).join(' ')) + '</tspan></text>';
+  }
   function swimlane(type) {
     var wf = WORKFLOWS[type];
     var items = wf.steps;
     var used = {};
     items.forEach(function (s) { used[s.role] = true; });
     var lanes = Object.keys(ROLES).filter(function (k) { return used[k]; });
-    var LABEL = 146, COL = 134, LANE = 62, TOP = 30, BW = 120, BH = 38;
+    var LABEL = 132, COL = 118, LANE = 56, TOP = 30, BW = 104, BH = 40;
     var W = LABEL + items.length * COL + 12, H = TOP + lanes.length * LANE + 8;
     var laneY = function (role) { return TOP + lanes.indexOf(role) * LANE + LANE / 2; };
     var colX = function (i) { return LABEL + i * COL + COL / 2; };
@@ -213,7 +242,7 @@
       out.push('<path class="prwf-edge ' + (cls || '') + '" d="' + d + '" ' + mk + '/>');
       if (label) { out.push('<text class="prwf-edge-t ' + cls + '" x="' + (lx || (x1 + 6)) + '" y="' + (ly || (A.y - 6)) + '">' + label + '</text>'); }
     };
-    var iDec = idx('decision'), iProc = idx('budget'), iDel = idx('install');
+    var iDec = idx('decision'), iProc = idx('order'), iDel = idx('install');
     for (var i = 0; i < items.length - 1; i++) {
       if (i === iDec) { continue; }
       edge(i, i + 1);
@@ -238,7 +267,7 @@
       }
       out.push('<a href="#' + anchor(type, s.id) + '" class="prwf-node"><rect class="prwf-box' + (s.optional ? ' opt' : '') + '" x="' + (p.x - BW / 2) + '" y="' + (p.y - BH / 2)
         + '" width="' + BW + '" height="' + BH + '" rx="8" style="stroke:' + c + ';fill:color-mix(in srgb,' + c + ' 12%, var(--prwf-surface))"/>'
-        + '<text class="prwf-box-t" x="' + p.x + '" y="' + (p.y + 4) + '">' + esc(s.box) + '</text><title>' + esc(s.title) + '</title></a>');
+        + boxText(s.box, p.x, p.y) + '<title>' + esc(s.title) + '</title></a>');
     });
     out.push('</svg>');
     return '<div class="prwf-lanes-wrap" tabindex="0" aria-label="Diagram (scroll sideways on small screens)">' + out.join('') + '</div>';
