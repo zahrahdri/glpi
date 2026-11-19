@@ -172,6 +172,8 @@ Everything is named DEMO and `--remove` deletes exactly that (your own kits and 
 ## Extras
 
 - `extras/forms/capacity-request-1-new-project.json` … `-4-release.json`: the capacity request, one form per request type (import all four)
+  or, from the command line: `php bin/console plugins:projectreports:import-forms` (forms already there are skipped;
+  users the forms name but your GLPI lacks are mapped to `--user=<login>`, else to the first Super-Admin)
 - `extras/forms/project-based-capacity-planning-request-v2.json`: the earlier single form (all four types in one)
   (Administration › Forms › Import). Import creates a new form; deactivate the old one afterwards.
 - `public/templates/BOQ_MODEL.csv`: the template for standard kit files (Part Number, Qty, …).
