@@ -17,16 +17,19 @@ class PluginProjectreportsForecast
     public const DCIM = 'glpi_plugin_projectreports_dcim';
     private const CONTEXT = 'plugin:projectreports';
 
+    /** Years before a device is due for replacement, by type (fixed). */
+    public const AGE_LIMITS = ['Server' => 5, 'Storage' => 6, 'Network' => 7];
+    /** % of a VM cluster's capacity planned to be used at most (fixed). */
+    public const TARGET_UTIL = 80;
+
     /** Settings with their defaults. */
     public const DEFAULTS = [
-        'fc_age_server' => 5, 'fc_age_storage' => 6, 'fc_age_network' => 7,   // years before a device is due for replacement
-        'fc_target_util' => 80,                                                // % of a cluster's capacity we plan to use at most
         'virops_imported' => '', 'virops_file' => '',
         'icare_imported' => '', 'icare_file' => '',
         'dcim_imported' => '', 'dcim_file' => '',
     ];
     /** Settings of the former live VirOPS link, removed on install. */
-    public const OLD_KEYS = ['virops_url', 'virops_user', 'virops_password', 'virops_authsource', 'virops_verify_ssl', 'virops_last_sync', 'virops_last_error'];
+    public const OLD_KEYS = ['fc_age_server', 'fc_age_storage', 'fc_age_network', 'fc_target_util', 'virops_url', 'virops_user', 'virops_password', 'virops_authsource', 'virops_verify_ssl', 'virops_last_sync', 'virops_last_error'];
 
     public static function ensureSchema(): void
     {
@@ -585,13 +588,12 @@ class PluginProjectreportsForecast
         }
         $demo = $real_icare ? 0 : (int) $DB->request(['COUNT' => 'c', 'FROM' => self::ICARE, 'WHERE' => ['is_demo' => 1]])->current()['c'];
         return [
-            'ages' => ['Server' => (float) $cfg['fc_age_server'], 'Storage' => (float) $cfg['fc_age_storage'], 'Network' => (float) $cfg['fc_age_network']],
-            'target_util' => (float) $cfg['fc_target_util'],
+            'ages' => self::AGE_LIMITS,
+            'target_util' => self::TARGET_UTIL,
             'virops' => ['imported' => $cfg['virops_imported'], 'file' => $cfg['virops_file'],
                 'clusters' => $clusters, 'demo' => (bool) array_filter($clusters, fn($c) => $c['source'] === 'demo')],
             'dcim' => self::dcimData($cfg),
             'icare' => ['imported' => $cfg['icare_imported'], 'file' => $cfg['icare_file'], 'trend' => $trend, 'demo' => $demo > 0],
-            'settings_url' => self::canConfigure() ? $CFG_GLPI['root_doc'] . '/plugins/projectreports/front/forecast.php' : '',
         ];
     }
 }

@@ -1,8 +1,8 @@
 <?php
 
 /**
- * Tools > Reporting dashboard > پیش‌بینی > تنظیمات پیش‌بینی (administrators: Setup > General UPDATE):
- *   - age limit per device type and the target use of the VM clusters,
+ * Setup > Forecast data (administrators: Setup > General UPDATE): the Excel files behind the forecast tab of the
+ * Reporting dashboard (not linked from the dashboard):
  *   - DCIM device list (in-service dates for the age check): import an Excel / CSV export, or delete it,
  *   - VirOPS clusters: import an Excel / CSV export, or delete it,
  *   - the iCare history: import an Excel / CSV export, or delete it.
@@ -25,16 +25,6 @@ $action = $_POST['action'] ?? '';
 $note = fn(string $msg, bool $ok = true) => Session::addMessageAfterRedirect(htmlescape($msg), false, $ok ? INFO : ERROR);
 $template = fn(string $f) => $root . '/templates/' . $f . '?v=' . @filemtime(__DIR__ . '/../public/templates/' . $f);
 
-if ($action === 'save') {
-    $v = [];
-    foreach (['fc_age_server', 'fc_age_storage', 'fc_age_network'] as $k) {
-        $v[$k] = max(1, min(30, (float) ($_POST[$k] ?? 0)));
-    }
-    $v['fc_target_util'] = max(30, min(100, (float) ($_POST['fc_target_util'] ?? 80)));
-    PluginProjectreportsForecast::setConfig($v);
-    $note('تنظیمات ذخیره شد.');
-    Html::redirect($self);
-}
 if ($action === 'import' || $action === 'virops_import' || $action === 'dcim_import') {
     $field = ['import' => 'icare', 'virops_import' => 'virops', 'dcim_import' => 'dcim'][$action];
     $label = ['icare' => 'iCare', 'virops' => 'VirOPS', 'dcim' => 'DCIM'][$field];
@@ -102,36 +92,19 @@ $kind_fa = ['Server' => 'سرور', 'Storage' => 'فضای ذخیره‌سازی
 $imported_clusters = array_filter($clusters, fn($c) => $c['source'] !== 'demo');
 $imported_years = array_filter($years, fn($y) => !$y['is_demo']);
 
-Html::header('Forecast settings', '', 'tools', 'PluginProjectreportsDashboardmenu');
+Html::header('Forecast data', '', 'config', 'PluginProjectreportsForecastmenu');
 echo '<link rel="stylesheet" href="' . $h($root . '/css/dashboard.css?v=' . @filemtime(__DIR__ . '/../public/css/dashboard.css')) . '">';
-$field = fn($label, $input, $help = '') => '<label class="fc-f"><span>' . $h($label) . '</span>' . $input . ($help ? '<small>' . $h($help) . '</small>' : '') . '</label>';
-$num = fn($name, $step = '0.5') => '<input class="form-control" type="number" step="' . $step . '" name="' . $name . '" value="' . $h($cfg[$name]) . '">';
 $src = fn($demo) => $demo ? 'نمونه (DEMO)' : 'فایل واردشده';
 ?>
 <div class="db fc-set" dir="rtl" lang="fa">
-  <p><a href="<?php echo $h($root . '/front/dashboard.php?page=forecast'); ?>">← بازگشت به پیش‌بینی</a></p>
-  <h2>تنظیمات پیش‌بینی زیرساخت</h2>
-
-  <form method="post" action="<?php echo $h($self); ?>">
-    <input type="hidden" name="action" value="save">
-    <section class="db-card">
-      <h3>عمر مجاز تجهیزات (سال)</h3>
-      <p class="fc-help">دستگاهی که عمرش (از تاریخ بهره‌برداری در فایل DCIM پایین همین صفحه) تا ۱۲ ماه آینده به این حد برسد، نیازمند نوسازی شمرده می‌شود.</p>
-      <div class="fc-grid">
-        <?php echo $field('سرور', $num('fc_age_server')) . $field('فضای ذخیره‌سازی', $num('fc_age_storage')) . $field('تجهیزات شبکه', $num('fc_age_network')); ?>
-      </div>
-      <h3>کلاسترهای مجازی</h3>
-      <div class="fc-grid">
-        <?php echo $field('حداکثر بهره‌برداری هدف (٪)', $num('fc_target_util', '1'), 'کمبود ظرفیت بر اساس این سقف حساب می‌شود (پیش‌فرض ۸۰٪).'); ?>
-      </div>
-      <p><button class="btn btn-primary" type="submit">ذخیره تنظیمات</button></p>
-    </section>
-  <?php Html::closeForm(); ?>
+  <h2>داده‌های پیش‌بینی زیرساخت</h2>
+  <p class="fc-help">فایل‌های Excel که تب «پیش‌بینی» در داشبورد گزارش‌ها از آن‌ها استفاده می‌کند.</p>
 
   <section class="db-card">
     <h3>DCIM: فهرست دستگاه‌ها برای محاسبه عمر (فایل Excel)</h3>
     <p class="fc-help">خروجی دستگاه‌های DCIM را وارد کنید؛ برای هر دستگاه یک ردیف: نام دستگاه، نوع (سرور، ذخیره‌سازی، سوئیچ/روتر/فایروال)، تاریخ بهره‌برداری
       (شمسی یا میلادی؛ یا به‌جای آن ستون «عمر» به سال) و در صورت وجود مدل، سازنده، سریال، دیتاسنتر، رک و وضعیت.
+      دستگاهی که تا ۱۲ ماه آینده به عمر مجاز برسد (سرور ۵، ذخیره‌سازی ۶، شبکه ۷ سال) نیازمند نوسازی شمرده می‌شود.
       دستگاه‌هایی که وضعیتشان انبار، یدکی یا خارج از سرویس است در محاسبه نوسازی شمرده نمی‌شوند. وقتی این فایل وارد شده باشد، عمر دستگاه‌ها از آن خوانده می‌شود
       (وگرنه از اطلاعات مالی دارایی‌های GLPI). هر بار وارد کردن، فهرست قبلی را جایگزین می‌کند.
       <a href="<?php echo $h($template('DCIM_TEMPLATE.xlsx')); ?>">دانلود نمونه فایل (با داده نمونه)</a></p>

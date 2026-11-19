@@ -1001,7 +1001,7 @@
     var title = '<div class="db-section-h">پیش‌بینی زیرساخت موردنیاز برای ۱۲ ماه آینده (تا ' + jdate(new Date(TODAY.getTime() + 365 * 864e5).toISOString().slice(0, 10)) + ')</div>';
     if (!ok('forecast')) { return title + need(['forecast']); }
     var M = fcModel(), m = M.m;
-    var settings = FC.settings_url ? link(FC.settings_url, 'تنظیمات پیش‌بینی', 'عمر مجاز و ورود فایل‌های DCIM، VirOPS و iCare') : '';
+    var settings = '';   // the data files are managed under Setup > Forecast data, not from the report
     var q = function (v, r) { return r === 'Storage' ? decimal(v, v >= 100 ? 0 : 1) : num(Math.round(v)); };
     var dash = '<span class="db-dash">—</span>';
     var cost = sum(FC_RES, function (r) { return m[r].cost || 0; });
@@ -1115,7 +1115,7 @@
     var dc = FC.dcim || {};
     var dcimNote = '<div class="db-note">' + (M.fromDcim
       ? (dc.demo ? chip('داده نمونه', 'warn') + ' ' : '') + 'منبع: فهرست دستگاه‌های DCIM' + (dc.file ? ' (' + esc(dc.file) + (dc.imported ? '، ' + esc(dc.imported) : '') + ')' : '') + '؛ دستگاه‌هایی که در GLPI هم هستند به رکورد GLPI پیوند دارند.'
-      : 'منبع: دارایی‌های GLPI (تاریخ شروع به کار در اطلاعات مالی). برای استفاده از DCIM، فایل Excel آن را در ' + (settings || 'تنظیمات پیش‌بینی') + ' وارد کنید.') + '</div>';
+      : 'منبع: دارایی‌های GLPI (تاریخ شروع به کار در اطلاعات مالی). برای استفاده از DCIM، فایل Excel آن را در ' + 'منوی Setup › Forecast data' + ' وارد کنید.') + '</div>';
 
     // open requests
     var demTbl = M.open.length ? table('db-fc-dem-tbl', [
