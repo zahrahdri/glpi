@@ -682,12 +682,14 @@
   }
 
   // ---------- current inventory (servers, storage, switches, racks, cables, spare RAM and disks) ----------
-  var INV = D.inventory || [];
-  var SPARES = D.spares || [];
-  var CABLES = D.cables || [];
+  // broken / under repair equipment is not shown (status words: broken, repair, faulty, خراب, تعمیر, معیوب)
+  var notBroken = function (x) { return stKey(x.state) !== 'broken'; };
+  var INV = (D.inventory || []).filter(notBroken);
+  var SPARES = (D.spares || []).filter(notBroken);
+  var CABLES = (D.cables || []).filter(notBroken);
   var IKINDS = ['Server', 'Storage', 'Switch', 'Core switch', 'Patch panel'];
   var IKIND_FA = { Server: 'سرور', Storage: 'فضای ذخیره‌سازی', Switch: 'سوئیچ', 'Core switch': 'سوئیچ هسته', 'Patch panel': 'پچ‌پنل', Cable: 'کابل', RAM: 'رم یدکی', Disk: 'دیسک یدکی' };
-  var ST_ORDER = ['use', 'stock', 'spare', 'broken'];
+  var ST_ORDER = ['use', 'stock', 'spare'];
   var ST_FA = { use: 'در حال استفاده', stock: 'در انبار', spare: 'یدکی', broken: 'خراب / تعمیر', none: 'بدون وضعیت' };
   var ST_CLS = { use: 'ok', stock: 'info', spare: 'warn', broken: 'bad', none: '' };
   // a GLPI status name -> in use / in stock / spare / broken (by its words), else the name itself
