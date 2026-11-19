@@ -52,7 +52,7 @@
   function rcatOf(d) { return RCATS.indexOf(d.category) >= 0 ? d.category : 'Other'; }
   var DEMAP = {};
   DEM.forEach(function (d) { DEMAP[d.ticket_id] = d; });
-  var PAGE_FA = { overview: 'نمای کلی', requests: 'درخواست‌ها', budget: 'بودجه و هزینه', assets: 'دارایی‌ها و تمدید' };
+  var PAGE_FA = { overview: 'نمای کلی', requests: 'درخواست‌ها', budget: 'بودجه و هزینه', assets: 'دارایی‌ها' };
   var COL = { gold: '#f5b800', blue: '#2f7de1', green: '#16a34a', red: '#e5484d', grey: '#cbd5e1', ink: '#334155', muted: '#64748b' };
   var PALETTE = ['#f5b800', '#2f7de1', '#16a34a', '#7c5cf0', '#e5484d', '#0fb5a6', '#f97316', '#64748b'];
   var ICONS = {

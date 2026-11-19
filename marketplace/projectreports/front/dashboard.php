@@ -35,7 +35,7 @@ $pages = [
     'overview' => 'نمای کلی',
     'requests' => 'درخواست‌ها',
     'budget'   => 'بودجه و هزینه',
-    'assets'   => 'دارایی‌ها و تمدید',
+    'assets'   => 'دارایی‌ها',
 ];
 $page = $_GET['page'] ?? 'overview';
 if (!isset($pages[$page])) {
