@@ -19,6 +19,12 @@ function plugin_init_projectreports()
 
     $PLUGIN_HOOKS['csrf_compliant']['projectreports'] = true;
 
+    // "Workflow" button on the capacity request forms (Assistance > Service catalog > form): only on form pages.
+    // ?m= is the file's time, so browsers fetch the new script after an update (GLPI adds its own ?v= after it).
+    if (str_contains((string) ($_SERVER['REQUEST_URI'] ?? ''), '/Form/Render/')) {
+        $PLUGIN_HOOKS['add_javascript']['projectreports'] = ['js/form-workflow.js?m=' . (int) @filemtime(__DIR__ . '/public/js/form-workflow.js')];
+    }
+
     // When a form creates a ticket, link the ticket to the project chosen in the form.
     $PLUGIN_HOOKS['item_add']['projectreports'] = [
         'Glpi\\Form\\Destination\\AnswersSet_FormDestinationItem' => 'plugin_projectreports_link_form_project',
