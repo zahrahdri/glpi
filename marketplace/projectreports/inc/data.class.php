@@ -12,6 +12,7 @@ class PluginProjectreportsData
         'demands'  => ['glpi_tickets', 'glpi_forms_answerssets', 'glpi_forms_destinations_answerssets_formdestinationitems', 'glpi_forms_questions', 'glpi_items_tickets', 'glpi_plugin_order_orders', 'glpi_plugin_order_orders_items', 'glpi_plugin_order_configs'],
         'inventory' => ['glpi_computers', 'glpi_networkequipments', 'glpi_passivedcequipments', 'glpi_items_devicememories', 'glpi_items_deviceharddrives',
             'glpi_devicememories', 'glpi_deviceharddrives', 'glpi_states', 'glpi_locations', 'glpi_cables', 'glpi_items_racks', 'glpi_racks'],
+        'forecast' => ['glpi_infocoms', 'glpi_computers', 'glpi_networkequipments'],
         'racks'    => ['glpi_racks', 'glpi_items_racks', 'glpi_dcrooms', 'glpi_datacenters', 'glpi_infocoms', 'glpi_items_projects', 'glpi_computers', 'glpi_networkequipments', 'glpi_passivedcequipments', 'glpi_assets_assets'],
     ];
 
@@ -526,6 +527,9 @@ PRSQL;
                 'required_by' => $get('Required by (go-live date)'),
                 'site' => $get('Site'),
                 'estimate' => $num('Estimated cost (Rial)'),
+                'hostname' => $get('Device hostname'),
+                'status_id' => (int) $r['status'],
+                'refused' => (int) $r['global_validation'] === 4,
             ];
         }
         return $out;
@@ -551,8 +555,10 @@ PRSQL;
                   (SELECT COUNT(*) FROM glpi_items_devicememories d WHERE d.itemtype = $it AND d.items_id = i.id AND d.is_deleted = 0) AS ram_modules,
                   (SELECT COALESCE(SUM(d.size), 0) FROM glpi_items_devicememories d WHERE d.itemtype = $it AND d.items_id = i.id AND d.is_deleted = 0) AS ram_mb,
                   (SELECT COUNT(*) FROM glpi_items_deviceharddrives d WHERE d.itemtype = $it AND d.items_id = i.id AND d.is_deleted = 0) AS disks,
-                  (SELECT COALESCE(SUM(d.capacity), 0) FROM glpi_items_deviceharddrives d WHERE d.itemtype = $it AND d.items_id = i.id AND d.is_deleted = 0) AS disk_mb
+                  (SELECT COALESCE(SUM(d.capacity), 0) FROM glpi_items_deviceharddrives d WHERE d.itemtype = $it AND d.items_id = i.id AND d.is_deleted = 0) AS disk_mb,
+                  COALESCE(ic.use_date, ic.delivery_date, ic.buy_date) AS in_service
                 FROM $table i
+                LEFT JOIN glpi_infocoms ic ON ic.itemtype = $it AND ic.items_id = i.id
                 $extra_join
                 LEFT JOIN $model_table m ON m.id = i.$model_fk
                 LEFT JOIN glpi_manufacturers mf ON mf.id = i.manufacturers_id
@@ -810,6 +816,7 @@ PRSQL;
             'racks'    => [PluginProjectreportsMenu::canSeeRacks(), ['racks', 'rack_items', 'reserved']],
             'inventory' => [PluginProjectreportsMenu::canSeeInventory(), ['inventory', 'spares', 'cables']],
             'demands'  => [PluginProjectreportsMenu::canSeeRequests() && PluginProjectreportsMenu::canSeeMoney(), ['demands']],
+            'forecast' => [PluginProjectreportsMenu::canSeeInventory() || PluginProjectreportsMenu::canSeeRequests(), ['forecast']],
         ];
         foreach ($sections as $section => [$allowed, $queries]) {
             if (!$allowed) {
@@ -829,6 +836,7 @@ PRSQL;
                         'inventory' => self::inventory(),
                         'spares' => self::spares(),
                         'cables' => self::cables(),
+                        'forecast' => PluginProjectreportsForecast::data(),
                         default   => self::rows($q),
                     };
                 }

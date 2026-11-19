@@ -17,6 +17,7 @@ function plugin_projectreports_install()
     PluginProjectreportsLomorder::install();
     PluginProjectreportsPlan::install(); // 1.22.13: LOM plans checked against budgets
     PluginProjectreportsDemand::install(); // 1.22.16: approved requests linked to a budget
+    PluginProjectreportsForecast::ensureSchema(); // forecast: VirOPS clusters and iCare history
     $migration->executeMigration();
     PluginProjectreportsDashboard::removeAll(); // 1.18.1: no more dashboards or widgets
     return true;
@@ -32,6 +33,7 @@ function plugin_projectreports_uninstall()
     PluginProjectreportsLomorder::uninstall();
     PluginProjectreportsPlan::uninstall();
     PluginProjectreportsDemand::uninstall();
+    PluginProjectreportsForecast::uninstall();
     PluginProjectreportsDashboard::removeAll();
     return true;
 }

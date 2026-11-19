@@ -52,7 +52,7 @@
   function rcatOf(d) { return RCATS.indexOf(d.category) >= 0 ? d.category : 'Other'; }
   var DEMAP = {};
   DEM.forEach(function (d) { DEMAP[d.ticket_id] = d; });
-  var PAGE_FA = { overview: 'نمای کلی', requests: 'درخواست‌ها', budget: 'بودجه و هزینه', assets: 'دارایی‌ها' };
+  var PAGE_FA = { overview: 'نمای کلی', requests: 'درخواست‌ها', budget: 'بودجه و هزینه', assets: 'دارایی‌ها', forecast: 'پیش‌بینی' };
   var COL = { gold: '#f5b800', blue: '#2f7de1', green: '#16a34a', red: '#e5484d', grey: '#cbd5e1', ink: '#334155', muted: '#64748b' };
   var PALETTE = ['#f5b800', '#2f7de1', '#16a34a', '#7c5cf0', '#e5484d', '#0fb5a6', '#f97316', '#64748b'];
   var ICONS = {
@@ -874,7 +874,265 @@
       + '</div>';
   }
 
-  var PAGES = { overview: renderOverview, requests: renderRequests, budget: renderBudget, assets: renderAssets };
+  // ---------- forecast: infrastructure needed in the next 12 months ----------
+  // need = open requests + devices reaching their age limit + VM cluster growth (VirOPS) + the iCare delivery trend
+  // beyond what is already known, minus what is in the warehouse.
+  var FC = D.forecast || {};
+  var FC_RES = ['Compute', 'Storage', 'StorageDev', 'GPU', 'Network'];
+  var FC_FA = { Compute: 'سرور', Storage: 'فضای ذخیره‌سازی', StorageDev: 'دستگاه ذخیره‌سازی', GPU: 'GPU', Network: 'تجهیز شبکه' };
+  var FC_UNIT = { Compute: 'عدد', Storage: 'TB', StorageDev: 'دستگاه', GPU: 'عدد', Network: 'عدد' };
+  var FC_SRC = [['dem', 'درخواست‌های باز', '#f5b800'], ['mod', 'نوسازی (عمر تجهیز)', '#7c5cf0'], ['vm', 'توسعه کلاسترهای VM', '#2f7de1'], ['trend', 'روند iCare (پیش‌بینی‌نشده)', '#0fb5a6']];
+  var AGE_KIND = { Server: 'Server', Storage: 'Storage', Switch: 'Network', 'Core switch': 'Network' };
+  var KIND_RES = { Server: 'Compute', Storage: 'StorageDev', Switch: 'Network', 'Core switch': 'Network' };
+
+  function fcModel() {
+    var H = 12;   // months
+    var end = new Date(TODAY.getTime()); end.setMonth(end.getMonth() + H);
+    var m = {};
+    FC_RES.forEach(function (r) { m[r] = { dem: 0, mod: 0, vm: 0, vmRaw: 0, trend: 0, trendProj: null, stock: 0, total: 0, net: 0, cost: null }; });
+
+    // 1. open capacity requests (teams, new projects, swaps)
+    var open = DEM.filter(function (d) { return d.status_id < 5 && !d.refused && d.request_type !== 'Release old resources'; });
+    var resOf = function (d) {
+      var c = rcatOf(d);
+      if (c === 'Storage') { return d.request_type === 'Modernization' ? 'StorageDev' : 'Storage'; }
+      return m[c] ? c : '';
+    };
+    open.forEach(function (d) { var r = resOf(d); if (r) { m[r].dem += Number(d.quantity || 0); } });
+    var openExp = {};
+    open.forEach(function (d) { if (d.request_type === 'Expansion') { var r = resOf(d); openExp[r] = (openExp[r] || 0) + Number(d.quantity || 0); } });
+
+    // 2. devices in use that reach their type's age limit before the end of the period (not already asked for in a swap request)
+    var asked = {};
+    open.forEach(function (d) { if (d.request_type === 'Modernization' && d.hostname) { asked[String(d.hostname).toLowerCase()] = d; } });
+    var ages = FC.ages || {};
+    var mod = INV.filter(function (r) { return AGE_KIND[r.kind] && stKey(r.state) === 'use' && r.in_service; }).map(function (r) {
+      var limit = Number(ages[AGE_KIND[r.kind]] || 0);
+      var start = new Date(String(r.in_service).slice(0, 10) + 'T00:00:00');
+      var due = new Date(start.getTime()); due.setMonth(due.getMonth() + Math.round(limit * 12));
+      return { r: r, limit: limit, age: (TODAY - start) / (365.25 * 864e5), due: due, req: asked[String(r.name).toLowerCase()] || null };
+    }).filter(function (x) { return x.limit > 0 && x.due <= end; }).sort(function (a, b) { return a.due - b.due; });
+    mod.forEach(function (x) { if (!x.req) { m[KIND_RES[x.r.kind]].mod += 1; } });
+
+    // 3. VM clusters: use in 12 months at the current growth, against the target use; hosts and TB missing
+    var target = Number(FC.target_util || 80) / 100;
+    var CL = ((FC.virops || {}).clusters || []).map(function (c) {
+      var proj = function (use, g) { return Math.max(0, Number(use) + Number(g) * H); };
+      var cpuP = proj(c.cpu_use_ghz, c.cpu_growth_ghz), ramP = proj(c.ram_use_gb, c.ram_growth_gb), stoP = proj(c.sto_use_tb, c.sto_growth_tb);
+      var hosts = Number(c.hosts) || 1;
+      var cpuShort = Math.max(0, cpuP / target - c.cpu_cap_ghz), ramShort = Math.max(0, ramP / target - c.ram_cap_gb);
+      var needHosts = Math.ceil(Math.max(c.cpu_cap_ghz ? cpuShort / (c.cpu_cap_ghz / hosts) : 0, c.ram_cap_gb ? ramShort / (c.ram_cap_gb / hosts) : 0) - 1e-9);
+      var needTb = Math.max(0, stoP / target - c.sto_cap_tb);
+      var months = function (use, cap, g) { var room = cap * target - use; return room <= 0 ? 0 : (g > 0 ? room / g : Infinity); };
+      var full = Math.min(months(c.cpu_use_ghz, c.cpu_cap_ghz, c.cpu_growth_ghz), months(c.ram_use_gb, c.ram_cap_gb, c.ram_growth_gb), months(c.sto_use_tb, c.sto_cap_tb, c.sto_growth_tb));
+      return { c: c, cpuP: cpuP, ramP: ramP, stoP: stoP, hosts: Math.max(0, needHosts), tb: needTb, full: full };
+    });
+    m.Compute.vmRaw = sum(CL, function (x) { return x.hosts; });
+    m.Storage.vmRaw = sum(CL, function (x) { return x.tb; });
+    // open expansion requests are already counted above: only what they do not cover is added
+    ['Compute', 'Storage'].forEach(function (r) { m[r].vm = Math.max(0, m[r].vmRaw - (openExp[r] || 0)); });
+
+    // 4. iCare: deliveries per year; a straight line through the past full years gives the next 12 months
+    var trend = (FC.icare || {}).trend || [];
+    var yNow = TODAY.getFullYear();
+    var years = uniq(trend.map(function (t) { return t.year; })).map(Number).sort();
+    var series = {};
+    ['Compute', 'Storage', 'GPU', 'Network'].forEach(function (r) {
+      var pts = years.filter(function (y) { return y < yNow; }).map(function (y) {
+        return [y + 0.5, sum(trend.filter(function (t) { return t.year === y && t.resource === r; }), function (t) { return t.qty; })];
+      });
+      series[r] = years.map(function (y) { return sum(trend.filter(function (t) { return t.year === y && t.resource === r; }), function (t) { return t.qty; }); });
+      if (!pts.length || !pts.some(function (p) { return p[1] > 0; })) { return; }
+      var x0 = yNow + (TODAY.getMonth() + TODAY.getDate() / 31) / 12 + 0.5;
+      var proj;
+      if (pts.length < 2) { proj = pts[0][1]; } else {
+        var mx = sum(pts, function (p) { return p[0]; }) / pts.length, my = sum(pts, function (p) { return p[1]; }) / pts.length;
+        var nu = sum(pts, function (p) { return (p[0] - mx) * (p[1] - my); }), de = sum(pts, function (p) { return (p[0] - mx) * (p[0] - mx); });
+        proj = Math.max(0, my + (de ? nu / de : 0) * (x0 - mx));
+      }
+      m[r].trendProj = proj;
+      var known = m[r].dem + m[r].mod + m[r].vm;
+      m[r].trend = Math.max(0, proj - known);
+    });
+
+    // 5. warehouse: in stock or spare, ready to use
+    var stock = INV.filter(function (r) { var k = stKey(r.state); return (k === 'stock' || k === 'spare') && KIND_RES[r.kind]; });
+    stock.forEach(function (r) { m[KIND_RES[r.kind]].stock += 1; });
+    m.Storage.stock = sum(stock.filter(function (r) { return r.kind === 'Storage'; }), function (r) { return tb(r.disk_mb); });
+
+    // average cost of one unit, from the priced requests
+    var unitCost = function (r) {
+      var L = DEM.filter(function (d) { return resOf(d) === r && Number(d.boq_cost) > 0 && Number(d.quantity) > 0; });
+      var q = sum(L, function (d) { return d.quantity; });
+      return q ? sum(L, function (d) { return d.boq_cost; }) / q : null;
+    };
+    FC_RES.forEach(function (r) {
+      var x = m[r];
+      x.total = x.dem + x.mod + x.vm + x.trend;
+      x.net = Math.max(0, x.total - x.stock);
+      var uc = unitCost(r);
+      x.cost = uc === null ? null : x.net * uc;
+    });
+    return { m: m, open: open, mod: mod, CL: CL, years: years, series: series, stock: stock, end: end, target: target };
+  }
+
+  function renderForecast() {
+    var title = '<div class="db-section-h">پیش‌بینی زیرساخت موردنیاز برای ۱۲ ماه آینده (تا ' + jdate(new Date(TODAY.getTime() + 365 * 864e5).toISOString().slice(0, 10)) + ')</div>';
+    if (!ok('forecast')) { return title + need(['forecast']); }
+    var M = fcModel(), m = M.m;
+    var settings = FC.settings_url ? link(FC.settings_url, 'تنظیمات پیش‌بینی', 'عمر مجاز، اتصال VirOPS و ورود سوابق iCare') : '';
+    var q = function (v, r) { return r === 'Storage' ? decimal(v, v >= 100 ? 0 : 1) : num(Math.round(v)); };
+    var dash = '<span class="db-dash">—</span>';
+    var cost = sum(FC_RES, function (r) { return m[r].cost || 0; });
+
+    var kpis = kpi('سرور موردنیاز', num(Math.round(m.Compute.net)), { plain: true, txt: 'پس از کسر ' + num(m.Compute.stock) + ' سرور انبار' }, 'gold', '#fc-sum')
+      + kpi('فضای ذخیره‌سازی', decimal(m.Storage.net, 0) + ' TB', { plain: true, txt: num(Math.round(m.StorageDev.net)) + ' دستگاه برای نوسازی' }, 'blue', '#fc-sum')
+      + kpi('GPU', num(Math.round(m.GPU.net)), { plain: true, txt: 'درخواست‌ها و روند' }, 'violet', '#fc-sum')
+      + kpi('تجهیز شبکه', num(Math.round(m.Network.net)), { plain: true, txt: num(m.Network.mod) + ' مورد پایان عمر' }, 'green', '#fc-sum')
+      + kpi('نوسازی بر اساس عمر', num(M.mod.length), { plain: true, txt: 'دستگاه به سقف عمر می‌رسد' }, 'red', '#fc-mod')
+      + kpi('هزینه برآوردی', cost ? '<span class="db-kpi-sm">' + compact(cost) + '</span>' : '—', { plain: true, txt: 'بر اساس میانگین قیمت BOQ' }, 'gold', '#fc-sum');
+
+    // breakdown: one row per resource, one column per factor
+    var cell = function (v, r, anchor) { return v > 0.0001 ? link(anchor, q(v, r)) : dash; };
+    var rows = FC_RES.filter(function (r) { var x = m[r]; return x.total > 0 || x.stock > 0 || x.trendProj; }).map(function (r) {
+      var x = m[r];
+      return '<tr><td><b>' + esc(FC_FA[r]) + '</b> <small class="db-sub-t">' + esc(FC_UNIT[r]) + '</small></td>'
+        + '<td class="num">' + cell(x.dem, r, '#fc-dem') + '</td><td class="num">' + cell(x.mod, r, '#fc-mod') + '</td>'
+        + '<td class="num">' + cell(x.vm, r, '#fc-vm') + (x.vmRaw > x.vm + 0.01 ? '<div class="db-sub-t">کمبود ' + q(x.vmRaw, r) + '</div>' : '') + '</td>'
+        + '<td class="num">' + cell(x.trend, r, '#fc-trend') + (x.trendProj !== null ? '<div class="db-sub-t">روند: ' + q(x.trendProj, r) + '</div>' : '') + '</td>'
+        + '<td class="num"><b>' + q(x.total, r) + '</b></td>'
+        + '<td class="num">' + (x.stock > 0.0001 ? link('#fc-stock', '− ' + q(x.stock, r)) : dash) + '</td>'
+        + '<td class="num"><b class="db-fc-net">' + q(x.net, r) + '</b></td>'
+        + '<td class="num">' + (x.cost ? compact(x.cost) : dash) + '</td></tr>';
+    }).join('');
+    var sumTbl = '<div class="db-tbl-wrap"><table class="db-tbl db-compare" id="db-fc-sum"><thead><tr><th>منبع</th>'
+      + FC_SRC.map(function (s) { return '<th class="num"><i class="db-dot" style="background:' + s[2] + '"></i>' + esc(s[1]) + '</th>'; }).join('')
+      + '<th class="num">جمع نیاز</th><th class="num">موجودی انبار</th><th class="num">نیاز خالص</th><th class="num">هزینه برآوردی</th></tr></thead><tbody>'
+      + (rows || '<tr><td colspan="9" class="db-empty">نیازی پیش‌بینی نشد.</td></tr>') + '</tbody></table></div>'
+      + '<div class="db-note">درخواست‌های باز: درخواست‌های ظرفیت تأییدنشده یا در جریان (به‌جز ردشده و آزادسازی). نوسازی: دستگاه‌های در حال استفاده که تا پایان دوره به عمر مجاز نوع خود می‌رسند (سرور '
+      + fa((FC.ages || {}).Server || 0) + '، ذخیره‌سازی ' + fa((FC.ages || {}).Storage || 0) + '، شبکه ' + fa((FC.ages || {}).Network || 0) + ' سال)، مگر درخواست جایگزینی آن ثبت شده باشد. '
+      + 'توسعه VM: کمبود کلاسترها با رشد ۹۰ روز اخیر و سقف بهره‌برداری ' + fa(Math.round(M.target * 100)) + '٪، منهای درخواست‌های توسعه باز. '
+      + 'روند iCare: آنچه روند تحویل سال‌های گذشته بیش از موارد شناخته‌شده پیش‌بینی می‌کند. ' + (settings ? settings : '') + '</div>';
+
+    // share of each factor per resource (units differ, so the bars show shares; the tooltip shows the amounts)
+    var shown = FC_RES.filter(function (r) { return m[r].total > 0; });
+    chart('c-fc-mix', {
+      textStyle: { fontFamily: FONT },
+      tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: function (ps) {
+        var r = shown[ps[0].dataIndex];
+        return '<b>' + esc(FC_FA[r]) + '</b><br>' + ps.filter(function (p) { return p.value > 0; }).map(function (p) {
+          return p.marker + esc(p.seriesName) + ': ' + q(m[r][FC_SRC[p.seriesIndex][0]], r) + ' ' + esc(FC_UNIT[r]);
+        }).join('<br>');
+      } }, TIP),
+      legend: { bottom: 0, itemWidth: 12, itemHeight: 12, textStyle: { color: COL.ink, fontSize: 12 } },
+      grid: { left: 8, right: 16, top: 8, bottom: 56, containLabel: true },
+      xAxis: { type: 'value', max: 100, axisLabel: { show: false }, splitLine: { lineStyle: { color: '#eef0f3' } } },
+      yAxis: { type: 'category', inverse: true, data: shown.map(function (r) { return FC_FA[r]; }), axisTick: { show: false }, axisLine: { show: false },
+        axisLabel: { color: COL.ink, fontSize: 12, fontWeight: 600 } },
+      series: FC_SRC.map(function (s) {
+        return { name: s[1], type: 'bar', stack: 'fc', barWidth: 22, itemStyle: { color: s[2] }, label: { show: false },
+          data: shown.map(function (r) { return m[r].total ? Math.round(m[r][s[0]] / m[r].total * 1000) / 10 : 0; }) };
+      })
+    }, function (e) { var a = { dem: '#fc-dem', mod: '#fc-mod', vm: '#fc-vm', trend: '#fc-trend' }[FC_SRC[e.seriesIndex][0]]; var t = document.querySelector(a); if (t) { t.scrollIntoView({ behavior: 'smooth' }); } });
+
+    // iCare trend chart: deliveries per year (Jalali years), with the projection for the next 12 months
+    var trendCard;
+    var ic = FC.icare || {};
+    if (M.years.length) {
+      var labels = M.years.map(function (y) { return fa(y - 621); }).concat(['۱۲ ماه آینده']);
+      var line = function (r, color, axis) {
+        return { name: RCAT_FA[r] + (r === 'Storage' ? ' (TB)' : ''), type: 'line', yAxisIndex: axis, smooth: true, symbolSize: 7, itemStyle: { color: color }, lineStyle: { width: 2.5 },
+          data: M.series[r].map(function (v) { return Math.round(v * 10) / 10; }).concat([m[r].trendProj === null ? null : Math.round(m[r].trendProj * 10) / 10]) };
+      };
+      chart('c-fc-trend', {
+        textStyle: { fontFamily: FONT },
+        tooltip: Object.assign({ trigger: 'axis' }, TIP),
+        legend: { top: 0, textStyle: { color: COL.ink } },
+        grid: { left: 8, right: 8, top: 34, bottom: 8, containLabel: true },
+        xAxis: { type: 'category', data: labels, axisTick: { show: false }, axisLabel: { color: COL.muted } },
+        yAxis: [{ type: 'value', name: 'عدد', axisLabel: { color: COL.muted }, splitLine: { lineStyle: { color: '#eef0f3' } } },
+          { type: 'value', name: 'TB', axisLabel: { color: COL.muted }, splitLine: { show: false } }],
+        series: [line('Compute', RCAT_COL.Compute, 0), line('GPU', RCAT_COL.GPU, 0), line('Network', RCAT_COL.Network, 0), line('Storage', RCAT_COL.Storage, 1)]
+      });
+      trendCard = card(6, 'روند تحویل سالانه (iCare) و پیش‌بینی', chartHtml('c-fc-trend', 300)
+        + '<div class="db-note">' + (ic.demo ? chip('داده نمونه', 'warn') + ' ' : '') + (ic.file ? 'فایل: ' + esc(ic.file) + ' · ' : '') + 'سال‌ها شمسی؛ نقطه آخر، خط روند سال‌های کامل گذشته است.</div>');
+    } else {
+      trendCard = card(6, 'روند تحویل سالانه (iCare)', '<div class="db-empty">سوابق iCare وارد نشده است. ' + (settings ? 'از ' + settings + ' فایل Excel یا CSV خروجی iCare را وارد کنید.' : 'از مدیر سیستم بخواهید خروجی iCare را وارد کند.') + '</div>');
+    }
+
+    // VirOPS clusters
+    var vo = FC.virops || {};
+    var pct = function (u, c) { return c ? Math.round(u / c * 100) : 0; };
+    var meter = function (u, c, p) {
+      var a = pct(u, c), b = pct(p, c);
+      return '<div class="db-meter ' + (b >= M.target * 100 ? 'over' : '') + '"><i style="width:' + Math.min(100, a) + '%"></i></div>' + fa(a) + '٪ → ' + fa(b) + '٪';
+    };
+    var vmBody = M.CL.length ? table('db-fc-vm-tbl', [
+      { h: 'کلاستر', f: function (x) { return '<b>' + esc(x.c.cluster) + '</b><div class="db-sub-t">' + num(x.c.hosts) + ' هاست · ' + num(x.c.vms) + ' VM</div>'; } },
+      { h: 'CPU (اکنون → ۱۲ ماه)', f: function (x) { return meter(x.c.cpu_use_ghz, x.c.cpu_cap_ghz, x.cpuP); } },
+      { h: 'RAM', f: function (x) { return meter(x.c.ram_use_gb, x.c.ram_cap_gb, x.ramP); } },
+      { h: 'فضای دیتااستور', f: function (x) { return meter(x.c.sto_use_tb, x.c.sto_cap_tb, x.stoP); } },
+      { h: 'رسیدن به سقف', f: function (x) { return x.full === 0 ? chip('اکنون', 'bad') : (x.full === Infinity ? dash : (x.full <= 12 ? chip(fa(Math.ceil(x.full)) + ' ماه', 'warn') : fa(Math.ceil(x.full)) + ' ماه')); } },
+      { h: 'هاست موردنیاز', num: true, f: function (x) { return x.hosts ? '<b>' + num(x.hosts) + '</b>' : dash; } },
+      { h: 'فضای موردنیاز', num: true, f: function (x) { return x.tb > 0.05 ? decimal(x.tb, 1) + ' TB' : dash; } }
+    ], M.CL, 500) : '<div class="db-empty">' + (vo.configured ? 'هنوز داده‌ای از VirOPS خوانده نشده است.' : 'VirOPS متصل نشده است.') + (settings ? ' ' + settings : '') + '</div>';
+    var vmNote = '<div class="db-note">' + (vo.demo ? chip('داده نمونه', 'warn') + ' ' : '') + (vo.last_sync ? 'آخرین همگام‌سازی VirOPS: ' + esc(vo.last_sync) + '. ' : '')
+      + (vo.last_error ? '<span class="db-fc-err">خطای آخر: ' + esc(vo.last_error) + '</span> ' : '')
+      + 'نوار: بهره‌برداری فعلی؛ عدد دوم: پیش‌بینی ۱۲ ماه بعد با رشد ۹۰ روز اخیر.</div>';
+
+    // devices reaching their age limit
+    var modTbl = M.mod.length ? table('db-fc-mod-tbl', [
+      { h: 'تجهیز', f: function (x) { return link(x.r.url, '<b>' + esc(x.r.name) + '</b>', 'باز کردن در GLPI') + '<div class="db-sub-t">' + esc(x.r.model || '') + '</div>'; } },
+      { h: 'نوع', f: function (x) { return esc(IKIND_FA[x.r.kind] || x.r.kind); } },
+      { h: 'شروع به کار', f: function (x) { return jdate(x.r.in_service); } },
+      { h: 'عمر فعلی', num: true, f: function (x) { return decimal(x.age, 1) + ' سال'; } },
+      { h: 'عمر مجاز', num: true, f: function (x) { return fa(x.limit) + ' سال'; } },
+      { h: 'موعد نوسازی', f: function (x) { return x.due <= TODAY ? chip('گذشته', 'bad') + ' ' + jdate(x.due.toISOString().slice(0, 10)) : jdate(x.due.toISOString().slice(0, 10)); } },
+      { h: 'محل', f: function (x) { return x.r.rack ? link(x.r.rack_url, esc(x.r.datacenter) + ' / رک ' + esc(x.r.rack)) : (esc(String(x.r.location || '').replace(/^DEMO /, '')) || dash); } },
+      { h: 'درخواست جایگزینی', f: function (x) { return x.req ? link(rec('Ticket', x.req.ticket_id), chip('ثبت شده #' + fa(x.req.ticket_id), 'ok')) : chip('ثبت نشده', 'warn'); } }
+    ], M.mod, 2000) : '<div class="db-empty">هیچ دستگاه در حال استفاده‌ای تا ۱۲ ماه آینده به عمر مجاز نمی‌رسد' + (INV.some(function (r) { return r.in_service; }) ? '.' : ' (تاریخ شروع به کار در اطلاعات مالی دستگاه‌ها ثبت نشده است).') + '</div>';
+
+    // open requests
+    var demTbl = M.open.length ? table('db-fc-dem-tbl', [
+      { h: 'درخواست', f: function (d) { return link(rec('Ticket', d.ticket_id), '<b>' + esc(d.title) + '</b>') + '<div class="db-sub-t">#' + fa(d.ticket_id) + ' · ' + jdate(d.opened) + '</div>'; } },
+      { h: 'نوع', f: function (d) { return esc(RTYPE_FA[d.request_type] || d.request_type); } },
+      { h: 'منبع', f: function (d) { return esc(RCAT_FA[rcatOf(d)] || d.category); } },
+      { h: 'مقدار', num: true, f: function (d) { return '<b>' + q(d.quantity, rcatOf(d) === 'Storage' && d.request_type !== 'Modernization' ? 'Storage' : '') + '</b> <small>' + esc(d.unit === 'TB' ? 'TB' : (d.unit === 'device' ? 'دستگاه' : 'عدد')) + '</small>'; } },
+      { h: 'تیم', f: function (d) { return esc(d.team); } },
+      { h: 'پروژه', f: function (d) { return esc(d.project); } },
+      { h: 'تأیید', f: function (d) { return chip({ Approved: 'تأییدشده', Waiting: 'در انتظار', 'Not required': 'بدون نیاز به تأیید' }[d.approval] || d.approval || '—', d.approval === 'Approved' ? 'ok' : 'warn'); } },
+      { h: 'موعد', f: function (d) { return d.required_by ? jdate(d.required_by) : dash; } }
+    ], M.open.slice().sort(function (a, b) { return String(a.required_by || '9').localeCompare(String(b.required_by || '9')); }), 2000)
+      : '<div class="db-empty">' + (ok('demands') ? 'درخواست ظرفیت بازی وجود ندارد.' : esc(stateMsg('demands'))) + '</div>';
+
+    // warehouse stock that can be used
+    var groups = {};
+    M.stock.forEach(function (r) {
+      var k = r.kind + '|' + (r.model || '') + '|' + stKey(r.state);
+      var g = groups[k] || (groups[k] = { kind: r.kind, model: r.model || '—', state: r.state, n: 0, mb: 0 });
+      g.n++; g.mb += Number(r.disk_mb || 0);
+    });
+    var stockTbl = Object.keys(groups).length ? table('db-fc-stock-tbl', [
+      { h: 'نوع', f: function (g) { return link(query('assets', { ikind: g.kind, istate: stKey(g.state) }) + '#db-inv', esc(IKIND_FA[g.kind] || g.kind)); } },
+      { h: 'مدل', f: function (g) { return esc(g.model); } },
+      { h: 'وضعیت', f: function (g) { return stChip(g.state); } },
+      { h: 'تعداد', num: true, f: function (g) { return '<b>' + num(g.n) + '</b>' + (g.kind === 'Storage' && g.mb ? '<div class="db-sub-t">' + size(g.mb) + '</div>' : ''); } }
+    ], Object.keys(groups).map(function (k) { return groups[k]; }).sort(function (a, b) { return b.n - a.n; }), 500)
+      : '<div class="db-empty">تجهیز آماده‌ای در انبار (وضعیت «در انبار» یا «یدکی») نیست.</div>';
+
+    var sec = function (id, span, head, inner) { return '<section class="db-card s' + span + '" id="' + id + '"><div class="db-card-h">' + esc(head) + '</div><div class="db-card-b">' + inner + '</div></section>'; };
+    return title + '<div class="db-kpis db-kpis-6">' + kpis + '</div><div class="db-grid">'
+      + sec('fc-sum', 12, 'نیاز ۱۲ ماه آینده به تفکیک عامل', sumTbl)
+      + card(6, 'سهم هر عامل در نیاز هر منبع', chartHtml('c-fc-mix', 300))
+      + trendCard.replace('<section class="db-card s6"', '<section class="db-card s6" id="fc-trend"')
+      + sec('fc-vm', 12, 'کلاسترهای مجازی (VirOPS): ظرفیت و رشد', vmBody + vmNote)
+      + sec('fc-mod', 12, 'نوسازی: دستگاه‌هایی که تا ۱۲ ماه آینده به عمر مجاز می‌رسند', modTbl)
+      + sec('fc-dem', 12, 'درخواست‌های ظرفیت باز (تیم‌ها، پروژه‌های جدید و جایگزینی)', demTbl)
+      + sec('fc-stock', 12, 'موجودی آماده در انبار', stockTbl)
+      + '</div>';
+  }
+
+  var PAGES = { overview: renderOverview, requests: renderRequests, budget: renderBudget, assets: renderAssets, forecast: renderForecast };
 
   function render() {
     charts.forEach(function (c) { c.dispose(); });
@@ -886,7 +1144,7 @@
     syncAddress();
     pendingCharts = [];
 
-    ['db-req-tbl', 'db-inv-tbl', 'db-cab-tbl', 'db-rack-tbl', 'db-asset-tbl'].forEach(function (id) {
+    ['db-req-tbl', 'db-inv-tbl', 'db-cab-tbl', 'db-rack-tbl', 'db-asset-tbl', 'db-fc-mod-tbl', 'db-fc-dem-tbl', 'db-fc-vm-tbl', 'db-fc-stock-tbl'].forEach(function (id) {
       var t = document.getElementById(id);
       var b = t && t.closest('.db-card-b');
       if (t) { pager(t, b ? b.querySelector('.db-search') : null, 10); }

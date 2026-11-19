@@ -302,6 +302,7 @@ class PluginProjectreportsDemocommand extends AbstractCommand
         // capacity requests first, so the details below (people, equipment, installation) cover them too
         $this->createDemands($output, $projects, $teams);
         $this->createDetails($output);
+        $this->createForecast($output);
     }
 
     private function createBoqs(OutputInterface $output, array $projects, array &$alloc): void
@@ -965,6 +966,68 @@ class PluginProjectreportsDemocommand extends AbstractCommand
         $output->writeln(sprintf('Inventory: 4 statuses, warehouse, 4 servers in stock, SAN disks, %d spare parts, %d cables', $spares, $nb));
     }
 
+    /**
+     * Forecast samples: four vSphere clusters as VirOPS would report them, five years of iCare deliveries, and a few
+     * switches and one storage system old enough to be due for replacement within 12 months.
+     */
+    private function createForecast(OutputInterface $output): void
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        PluginProjectreportsForecast::ensureSchema();
+        $DB->delete(PluginProjectreportsForecast::CLUSTERS, ['source' => 'demo']);
+        $DB->delete(PluginProjectreportsForecast::ICARE, ['is_demo' => 1]);
+        $now = $this->now();
+        // cluster, hosts, VMs, CPU GHz cap/use/growth per month, RAM GB cap/use/growth, datastore TB cap/use/growth
+        foreach ([
+            ['DEMO CL-PROD-01', 16, 420, 1126, 640, 14.5, 16384, 11900, 310, 420, 318, 7.5],
+            ['DEMO CL-PROD-02', 12, 260, 845, 455, 9.0, 12288, 8200, 240, 300, 196, 5.2],
+            ['DEMO CL-VDI', 8, 610, 563, 395, 6.2, 8192, 6350, 120, 160, 121, 2.4],
+            ['DEMO CL-DMZ', 4, 58, 282, 70, 1.1, 3072, 1050, 22, 60, 21, 0.3],
+        ] as [$name, $hosts, $vms, $cc, $cu, $cg, $rc, $ru, $rg, $sc, $su, $sg]) {
+            $DB->insert(PluginProjectreportsForecast::CLUSTERS, ['cluster' => $name, 'parent' => 'DEMO vCenter', 'hosts' => $hosts, 'vms' => $vms,
+                'cpu_cap_ghz' => $cc, 'cpu_use_ghz' => $cu, 'cpu_growth_ghz' => $cg, 'ram_cap_gb' => $rc, 'ram_use_gb' => $ru, 'ram_growth_gb' => $rg,
+                'sto_cap_tb' => $sc, 'sto_use_tb' => $su, 'sto_growth_tb' => $sg, 'source' => 'demo', 'date_sync' => $now]);
+        }
+        // iCare deliveries per year (Gregorian), growing: servers, storage TB, GPUs, network devices
+        $year_now = (int) date('Y');
+        $plan = ['Compute' => [38, 46, 55, 64, 74], 'Storage' => [280, 360, 450, 545, 650], 'GPU' => [0, 4, 8, 16, 26], 'Network' => [16, 18, 21, 23, 26]];
+        $items = ['Compute' => 'Rack server 2U', 'Storage' => 'All-flash storage', 'GPU' => 'GPU server card', 'Network' => 'Data center switch'];
+        $types = ['New project', 'Expansion', 'Expansion', 'Modernization'];
+        $projects = ['Core banking', 'Data lake', 'CRM', 'Billing', 'AI platform', 'VDI', '5G core', 'Campus LAN'];
+        $nb = 0;
+        for ($k = 0; $k <= 5; $k++) {
+            $year = $year_now - 5 + $k;
+            foreach ($plan as $res => $per_year) {
+                // this year: the deliveries so far (until this month)
+                $total = $k < 5 ? $per_year[$k] : round(end($per_year) * 1.1 * ((int) date('n') - 1) / 12);
+                $left = $total;
+                $months = $k < 5 ? 12 : max(1, (int) date('n') - 1);
+                while ($left > 0) {
+                    $q = $res === 'Storage' ? min($left, mt_rand(2, 8) * 10) : min($left, mt_rand(1, 6));
+                    $left -= $q;
+                    $nb++;
+                    $DB->insert(PluginProjectreportsForecast::ICARE, ['request_no' => sprintf('DEMO-IC-%d-%04d', $year, $nb),
+                        'date' => sprintf('%d-%02d-%02d', $year, mt_rand(1, $months), mt_rand(1, 28)), 'year' => $year, 'resource' => $res,
+                        'quantity' => $q, 'request_type' => $types[$nb % 4], 'project' => $projects[$nb % 8], 'item' => $items[$res], 'is_demo' => 1]);
+                }
+            }
+        }
+        // a few network and storage devices near the end of their life
+        $old = 0;
+        $i = 0;
+        foreach ($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_networkequipments', 'WHERE' => ['name' => ['LIKE', 'DEMO-%']], 'ORDER' => 'id']) as $row) {
+            if ($i++ % 9 !== 0) {
+                continue;
+            }
+            // switches: 7 years -> these reach it within the next 12 months
+            $d = date('Y-m-d', strtotime('-' . mt_rand(76, 83) . ' month'));
+            $DB->update('glpi_infocoms', ['use_date' => $d, 'buy_date' => $d], ['itemtype' => 'NetworkEquipment', 'items_id' => (int) $row['id']]);
+            $old++;
+        }
+        $output->writeln(sprintf('Forecast samples: 4 VM clusters, %d iCare deliveries, %d devices near end of life', $nb, $old));
+    }
+
     private function remove(OutputInterface $output): void
     {
         /** @var DBmysql $DB */
@@ -993,6 +1056,9 @@ class PluginProjectreportsDemocommand extends AbstractCommand
         }
         $DB->delete('glpi_users', ['name' => array_keys(self::PEOPLE)]);
         $DB->delete('glpi_cables', ['name' => ['LIKE', 'DEMO-CBL-%']]);
+        PluginProjectreportsForecast::ensureSchema();
+        $DB->delete(PluginProjectreportsForecast::CLUSTERS, ['source' => 'demo']);
+        $DB->delete(PluginProjectreportsForecast::ICARE, ['is_demo' => 1]);
         foreach (['glpi_cabletypes', 'glpi_states', 'glpi_locations'] as $table) {
             $DB->delete($table, ['name' => ['LIKE', 'DEMO %']]);
         }
