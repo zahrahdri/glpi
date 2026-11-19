@@ -19,6 +19,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class PluginProjectreportsDemocommand extends AbstractCommand
 {
+    /** Servers delivered but not installed yet (status "In stock", central warehouse). */
+    private const STOCK_SERVERS = 20;
+
     private array $refs = [];
     private array $order_state = [];
     private int $tax_id = 0;
@@ -901,15 +904,15 @@ class PluginProjectreportsDemocommand extends AbstractCommand
         $model = (int) ($DB->request(['SELECT' => 'computermodels_id', 'FROM' => 'glpi_computers', 'WHERE' => ['id' => $servers ?: [0]], 'LIMIT' => 1])->current()['computermodels_id'] ?? 0);
 
         // servers delivered but not installed yet: in the warehouse
-        for ($i = 1; $i <= 4; $i++) {
+        for ($i = 1; $i <= self::STOCK_SERVERS; $i++) {
             $sid = $this->ins('glpi_computers', ['entities_id' => 0, 'name' => sprintf('DEMO-SRV-STK-%02d', $i), 'serial' => sprintf('DEMOSTK%04d', $i),
                 'computermodels_id' => $model, 'states_id' => $state['stock'], 'locations_id' => $loc['wh'], 'is_deleted' => 0, 'is_template' => 0,
                 'date_creation' => $now, 'date_mod' => $now]);
             for ($m = 0; $m < 8 && $mem; $m++) {
-                $this->ins('glpi_items_devicememories', ['items_id' => $sid, 'itemtype' => 'Computer', 'devicememories_id' => $mem, 'size' => 65536, 'serial' => "SM$i$m"]);
+                $this->ins('glpi_items_devicememories', ['items_id' => $sid, 'itemtype' => 'Computer', 'devicememories_id' => $mem, 'size' => 65536, 'serial' => "SM$i-$m"]);
             }
             for ($m = 0; $m < 4 && $disk; $m++) {
-                $this->ins('glpi_items_deviceharddrives', ['items_id' => $sid, 'itemtype' => 'Computer', 'deviceharddrives_id' => $disk, 'capacity' => 3932160, 'serial' => "SD$i$m"]);
+                $this->ins('glpi_items_deviceharddrives', ['items_id' => $sid, 'itemtype' => 'Computer', 'deviceharddrives_id' => $disk, 'capacity' => 3932160, 'serial' => "SD$i-$m"]);
             }
         }
         // the SAN storage arrays: their disks give the raw capacity
@@ -963,7 +966,7 @@ class PluginProjectreportsDemocommand extends AbstractCommand
                 }
             }
         }
-        $output->writeln(sprintf('Inventory: 4 statuses, warehouse, 4 servers in stock, SAN disks, %d spare parts, %d cables', $spares, $nb));
+        $output->writeln(sprintf('Inventory: 4 statuses, warehouse, %d servers in stock, SAN disks, %d spare parts, %d cables', self::STOCK_SERVERS, $spares, $nb));
     }
 
     /**
