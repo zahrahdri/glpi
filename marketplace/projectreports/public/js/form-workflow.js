@@ -157,7 +157,7 @@
     },
     modernization: {
       label: 'Modernization & swap',
-      intro: 'Replacement of an old or unsupported device, from your request to the delivery of the new device and the removal of the old one.',
+      intro: 'Replacement of an old or unsupported device, from your request to the delivery of the new device and the dismantling of the old one.',
       steps: [submit, approval, {
         id: 'review', role: 'pm', title: 'Project review', box: 'Project review',
         does: ['Confirms the device to replace (hostname) and the services running on it.',
@@ -178,10 +178,10 @@
         out: 'New hardware installed; services running on it',
         status: 'processing'
       }, delivery, {
-        id: 'decommission', role: 'delivery', title: 'Decommission the old device', box: 'Decommission',
-        does: ['After your confirmation of the delivery, the old device is switched off and removed.',
+        id: 'dismantle', role: 'delivery', title: 'Dismantle the old device', box: 'Dismantle old one',
+        does: ['After your confirmation of the delivery, the old device is switched off and dismantled from the rack.',
           'Its data is wiped and its status is updated in GLPI (warehouse, spare or disposal).'],
-        out: 'Old device removed; asset record updated',
+        out: 'Old device dismantled; asset record updated',
         status: 'solved'
       }]
     }
@@ -388,10 +388,8 @@
     row.appendChild(title);
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'prwf-btn';
-    btn.innerHTML = '<span class="prwf-btn-ic" aria-hidden="true"><i class="ti ti-route"></i></span>'
-      + '<span class="prwf-btn-tx"><b>Workflow</b><small>What happens after you submit</small></span>'
-      + '<i class="ti ti-chevron-right prwf-btn-go" aria-hidden="true"></i>';
+    btn.className = 'btn btn-primary prwf-btn';   // same style as GLPI's own buttons (e.g. "Continue")
+    btn.innerHTML = '<i class="ti ti-route" aria-hidden="true"></i><span>Workflow</span>';
     btn.setAttribute('aria-haspopup', 'dialog');
     btn.title = 'What happens after you submit this request';
     row.appendChild(btn);
