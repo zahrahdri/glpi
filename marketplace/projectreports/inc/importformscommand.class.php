@@ -73,6 +73,119 @@ class PluginProjectreportsImportformscommand extends AbstractCommand
                 }
             }
         }
+        return $n + self::syncNewItems();
+    }
+
+    /** questions renamed in extras/forms: old name => new name */
+    private const RENAMED = ['Sizing / calculation evidence' => 'Other sizing notes'];
+
+    /**
+     * Brings installed capacity request forms up to date with extras/forms: sections and questions that the file
+     * has and the form lacks (matched by name) are added, renamed questions take their new name/place, and the
+     * section order follows the file. Existing questions and answers are otherwise left alone.
+     */
+    private static function syncNewItems(): int
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $n = 0;
+        foreach (glob(__DIR__ . '/../extras/forms/capacity-request-*.json') ?: [] as $file) {
+            $json = json_decode((string) file_get_contents($file), true)['forms'][0] ?? null;
+            if (!$json) {
+                continue;
+            }
+            foreach ($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_forms_forms', 'WHERE' => ['name' => $json['name']]]) as $form) {
+                $n += self::syncForm((int) $form['id'], $json);
+            }
+        }
+        return $n;
+    }
+
+    private static function syncForm(int $form_id, array $json): int
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $n = 0;
+        $db_secs = [];   // name => row
+        foreach ($DB->request(['FROM' => 'glpi_forms_sections', 'WHERE' => ['forms_forms_id' => $form_id]]) as $s) {
+            $db_secs[$s['name']] = $s;
+        }
+        if (!$db_secs) {
+            return 0;
+        }
+        $db_qs = [];     // name => row
+        foreach ($DB->request(['FROM' => 'glpi_forms_questions', 'WHERE' => ['forms_sections_id' => array_column($db_secs, 'id')]]) as $q) {
+            $db_qs[$q['name']] = $q;
+        }
+        foreach (self::RENAMED as $old => $new) {
+            if (isset($db_qs[$old]) && !isset($db_qs[$new])) {
+                $db_qs[$new] = $db_qs[$old] + ['_rename' => true];
+                unset($db_qs[$old]);
+            }
+        }
+
+        // uuid of the file => uuid in this GLPI (existing items by name, new items get a fresh uuid)
+        $map = [];
+        $fresh = static function () use ($DB): string {
+            do {
+                $u = \Ramsey\Uuid\Uuid::uuid4()->toString();
+            } while (countElementsInTable('glpi_forms_questions', ['uuid' => $u]) || countElementsInTable('glpi_forms_sections', ['uuid' => $u]));
+            return $u;
+        };
+        $json_sec_name = [];
+        foreach ($json['sections'] as $s) {
+            $json_sec_name[$s['id']] = $s['name'];
+            $map[$s['uuid']] = isset($db_secs[$s['name']]) ? $db_secs[$s['name']]['uuid'] : $fresh();
+        }
+        foreach ($json['questions'] as $q) {
+            $map[$q['uuid']] = isset($db_qs[$q['name']]) ? $db_qs[$q['name']]['uuid'] : $fresh();
+        }
+        $conds = static function (array $list) use ($map): string {
+            $out = [];
+            foreach ($list as $c) {
+                $u = $map[$c['item_uuid']] ?? $c['item_uuid'];
+                $out[] = ['item' => $c['item_type'] . '-' . $u, 'item_uuid' => $u, 'item_type' => $c['item_type'],
+                    'value_operator' => $c['value_operator'], 'value' => $c['value'], 'logic_operator' => $c['logic_operator']];
+            }
+            return json_encode($out);
+        };
+
+        // sections: add the missing ones, follow the file's order
+        foreach ($json['sections'] as $s) {
+            if (isset($db_secs[$s['name']])) {
+                if ((int) $db_secs[$s['name']]['rank'] !== (int) $s['rank']) {
+                    $DB->update('glpi_forms_sections', ['rank' => (int) $s['rank']], ['id' => $db_secs[$s['name']]['id']]);
+                }
+                continue;
+            }
+            $DB->insert('glpi_forms_sections', ['uuid' => $map[$s['uuid']], 'forms_forms_id' => $form_id, 'name' => $s['name'],
+                'description' => $s['description'], 'rank' => (int) $s['rank'],
+                'visibility_strategy' => $s['visibility_strategy'], 'conditions' => $conds($s['conditions'] ?? [])]);
+            $db_secs[$s['name']] = ['id' => $DB->insertId(), 'uuid' => $map[$s['uuid']]];
+            $n++;
+        }
+        // questions: add the missing ones, move/rename the renamed ones
+        foreach ($json['questions'] as $q) {
+            $sec = $db_secs[$json_sec_name[$q['section_id']] ?? ''] ?? null;
+            if ($sec === null) {
+                continue;
+            }
+            $row = ['forms_sections_id' => (int) $sec['id'], 'forms_sections_uuid' => $sec['uuid'], 'name' => $q['name'],
+                'is_mandatory' => (int) $q['is_mandatory'], 'vertical_rank' => (int) $q['vertical_rank'],
+                'horizontal_rank' => $q['horizontal_rank'], 'description' => $q['description']];
+            if (isset($db_qs[$q['name']])) {
+                if (!empty($db_qs[$q['name']]['_rename'])) {
+                    $DB->update('glpi_forms_questions', $row, ['id' => $db_qs[$q['name']]['id']]);
+                    $n++;
+                }
+                continue;
+            }
+            $DB->insert('glpi_forms_questions', $row + ['uuid' => $map[$q['uuid']], 'type' => $q['type'],
+                'default_value' => $q['default_value'], 'extra_data' => $q['extra_data'] === null ? null : json_encode($q['extra_data']),
+                'visibility_strategy' => $q['visibility_strategy'], 'conditions' => $conds($q['conditions'] ?? []),
+                'validation_strategy' => $q['validation_strategy'] ?? 'no_validation', 'validation_conditions' => '[]']);
+            $n++;
+        }
         return $n;
     }
 

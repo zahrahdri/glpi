@@ -43,11 +43,29 @@
      "conditions": []
     },
     {
+     "id": 3020,
+     "uuid": "78c2433e-e7ee-4a6c-8533-9131a4129d3a",
+     "name": "Modernization sizing",
+     "description": "<p>Why the device is replaced and how loaded it is today.</p>",
+     "rank": 3,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
+     "id": 3021,
+     "uuid": "2fdee859-6074-4f06-93ff-e38079af6818",
+     "name": "Sizing basis",
+     "description": "<p>Where the numbers come from and how far ahead they look.</p>",
+     "rank": 4,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
      "id": 3014,
      "uuid": "7173a2ca-7a5e-476c-9afb-63a3060d7832",
      "name": "Justification & cost",
      "description": "<p>This is what the approving manager reads first. Be specific: numbers convince faster than adjectives.</p>",
-     "rank": 3,
+     "rank": 5,
      "visibility_strategy": "always_visible",
      "conditions": []
     },
@@ -56,7 +74,7 @@
      "uuid": "1a1d925e-565d-48bc-bbaf-4a6cbcb70bfc",
      "name": "Approval",
      "description": "<p>Choose who approves this request.</p>",
-     "rank": 4,
+     "rank": 6,
      "visibility_strategy": "always_visible",
      "conditions": []
     }
@@ -364,15 +382,15 @@
     {
      "id": 3137,
      "uuid": "ad30c5a6-b02b-48d1-9625-711be44ff50e",
-     "name": "Sizing / calculation evidence",
+     "name": "Other sizing notes",
      "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
-     "is_mandatory": true,
-     "vertical_rank": 1,
+     "is_mandatory": false,
+     "vertical_rank": 3,
      "horizontal_rank": null,
-     "description": "<p>How you sized it: users, transactions per second, data growth, current utilization.</p>",
+     "description": "<p>Anything the questions above do not cover.</p>",
      "default_value": "",
      "extra_data": null,
-     "section_id": 3014,
+     "section_id": 3021,
      "visibility_strategy": "always_visible",
      "validation_strategy": "no_validation",
      "conditions": [],
@@ -441,6 +459,298 @@
       ]
      },
      "section_id": 3015,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3150,
+     "uuid": "a17b6340-8a7a-4f5e-b2a5-6ce207e96bf9",
+     "name": "Modernization reason",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "mr1": "End of support / warranty",
+       "mr2": "Performance",
+       "mr3": "Capacity",
+       "mr4": "Recurring failures",
+       "mr5": "Consolidation"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 3020,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3151,
+     "uuid": "f3ec92ad-af9d-4257-8489-27806df300c3",
+     "name": "Replacement",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "rl1": "Like-for-like",
+       "rl2": "Upgrade (more capacity)",
+       "rl3": "Consolidate several devices"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 3020,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3152,
+     "uuid": "657fad3d-f3e8-4a74-ba90-96ce977342c4",
+     "name": "Workload profile",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "wp1": "Balanced",
+       "wp2": "CPU-heavy",
+       "wp3": "Memory-heavy",
+       "wp4": "Disk I/O-heavy"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 3020,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "ecc5056a-5be1-4209-b10f-c066f7f0d250",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "md1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 3153,
+     "uuid": "69361c0d-ec0d-4c4a-9924-227c1a55f53e",
+     "name": "Current peak CPU use (%)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 3020,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "ecc5056a-5be1-4209-b10f-c066f7f0d250",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "md1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 3154,
+     "uuid": "f13b3696-cda7-4db7-ad6a-52aa0faffaa0",
+     "name": "Current peak memory use (%)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 3020,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "ecc5056a-5be1-4209-b10f-c066f7f0d250",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "md1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 3155,
+     "uuid": "16517bb1-0821-47e6-96e5-bc56f261ede9",
+     "name": "Current used capacity (%)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 3020,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "ecc5056a-5be1-4209-b10f-c066f7f0d250",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "md2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 3156,
+     "uuid": "6c8c0d76-0843-4ff8-b6c4-77898a3b73b8",
+     "name": "Data growth per month (GB)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 3020,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "ecc5056a-5be1-4209-b10f-c066f7f0d250",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "md2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 3157,
+     "uuid": "dc8f7cab-cd40-4f2e-95ac-75e15cbc407e",
+     "name": "Sizing based on",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "sb1": "Measured current use",
+       "sb2": "Vendor sizing guide",
+       "sb3": "Load / performance test",
+       "sb4": "Similar existing system",
+       "sb5": "Estimate"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 3021,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3158,
+     "uuid": "282fd8ee-60e6-4a9c-9b8d-7af67a6ff60a",
+     "name": "Planning horizon",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "ph1": "1 year",
+       "ph2": "3 years",
+       "ph3": "5 years"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 3021,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3159,
+     "uuid": "7cbf9184-c415-4744-a51b-b5e10f95d28b",
+     "name": "Expected yearly growth (%)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 0,
+     "description": "<p>0 if no growth is expected.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 3021,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3160,
+     "uuid": "325162f4-98fd-4413-8a16-efb854bf6959",
+     "name": "Peak period",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "pk1": "Business hours",
+       "pk2": "Month-end / year-end",
+       "pk3": "Seasonal campaigns",
+       "pk4": "Flat, 24×7"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 3021,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 3161,
+     "uuid": "ae082a35-7765-4be1-b04a-4173d89631ee",
+     "name": "Sizing document",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeFile",
+     "is_mandatory": false,
+     "vertical_rank": 2,
+     "horizontal_rank": null,
+     "description": "<p>Vendor sizing, load test results or a calculation sheet, if you have one.</p>",
+     "default_value": null,
+     "extra_data": null,
+     "section_id": 3021,
      "visibility_strategy": "always_visible",
      "validation_strategy": "no_validation",
      "conditions": [],

@@ -94,11 +94,71 @@
      ]
     },
     {
+     "id": 2020,
+     "uuid": "2222db7a-58ca-4664-9424-8b27964f5623",
+     "name": "Compute sizing",
+     "description": "<p>How the size was worked out. Use <b>peak</b> values, not averages.</p>",
+     "rank": 6,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "0b954dc2-34a7-4136-b7d7-01d2ee7bf143",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "cat1"
+      }
+     ]
+    },
+    {
+     "id": 2021,
+     "uuid": "0c40e565-df47-4c31-9b3f-c87a84d5e46e",
+     "name": "Storage sizing",
+     "description": "<p>How much data there is now and how fast it grows.</p>",
+     "rank": 7,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "0b954dc2-34a7-4136-b7d7-01d2ee7bf143",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "cat2"
+      }
+     ]
+    },
+    {
+     "id": 2022,
+     "uuid": "2d68ff61-3b4e-4187-adec-82f1e346d68c",
+     "name": "GPU sizing",
+     "description": "<p>What the GPUs will run and how much load they carry.</p>",
+     "rank": 8,
+     "visibility_strategy": "visible_if",
+     "conditions": [
+      {
+       "item_uuid": "0b954dc2-34a7-4136-b7d7-01d2ee7bf143",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "cat3"
+      }
+     ]
+    },
+    {
+     "id": 2023,
+     "uuid": "ece229a9-26a3-48c8-93fb-9c4f9b0ab746",
+     "name": "Sizing basis",
+     "description": "<p>Where the numbers come from and how far ahead they look.</p>",
+     "rank": 9,
+     "visibility_strategy": "always_visible",
+     "conditions": []
+    },
+    {
      "id": 2014,
      "uuid": "1b6b2689-cb55-420b-8d70-c9061f7d5f2f",
      "name": "Justification & cost",
      "description": "<p>This is what the approving manager reads first. Be specific: numbers convince faster than adjectives.</p>",
-     "rank": 6,
+     "rank": 10,
      "visibility_strategy": "always_visible",
      "conditions": []
     },
@@ -107,7 +167,7 @@
      "uuid": "6928cc88-3369-4104-b90b-7e2aa7b35cd0",
      "name": "Approval",
      "description": "<p>Choose who approves this request.</p>",
-     "rank": 7,
+     "rank": 11,
      "visibility_strategy": "always_visible",
      "conditions": []
     }
@@ -1136,15 +1196,15 @@
     {
      "id": 2137,
      "uuid": "fc44af68-2e16-4c45-8830-8a1686719f18",
-     "name": "Sizing / calculation evidence",
+     "name": "Other sizing notes",
      "type": "Glpi\\Form\\QuestionType\\QuestionTypeLongText",
-     "is_mandatory": true,
-     "vertical_rank": 1,
+     "is_mandatory": false,
+     "vertical_rank": 3,
      "horizontal_rank": null,
-     "description": "<p>How you sized it: users, transactions per second, data growth, current utilization.</p>",
+     "description": "<p>Anything the questions above do not cover.</p>",
      "default_value": "",
      "extra_data": null,
-     "section_id": 2014,
+     "section_id": 2023,
      "visibility_strategy": "always_visible",
      "validation_strategy": "no_validation",
      "conditions": [],
@@ -1230,6 +1290,572 @@
       ]
      },
      "section_id": 2015,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2150,
+     "uuid": "b4504fda-42dc-435b-808b-bea25b12e783",
+     "name": "Expected concurrent users",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "<p>At the busiest time.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2020,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2151,
+     "uuid": "aba49f05-a7f3-4d9d-9f65-22ebb2a746c0",
+     "name": "Peak transactions per second",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": false,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "<p>Requests, transactions or messages per second, if known.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2020,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2152,
+     "uuid": "aef56867-d506-4583-982f-ab2178f3045a",
+     "name": "Workload profile",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "wp1": "Balanced",
+       "wp2": "CPU-heavy",
+       "wp3": "Memory-heavy",
+       "wp4": "Disk I/O-heavy"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2020,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2153,
+     "uuid": "f00a5e1b-ad70-4a4a-abb4-465e6888667e",
+     "name": "High availability",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "ha1": "None (single instance)",
+       "ha2": "Active-passive",
+       "ha3": "Active-active"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2020,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2154,
+     "uuid": "3ffcd9ce-0e9b-4fda-af02-33dfc9e2d4c3",
+     "name": "Current number of servers / VMs",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2020,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2155,
+     "uuid": "b53c183b-be4e-4f18-bf03-d8d2482c548f",
+     "name": "Current peak CPU use (%)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2020,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2156,
+     "uuid": "3081de31-ef1e-495a-be15-bfa26260ffca",
+     "name": "Current peak memory use (%)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2020,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2157,
+     "uuid": "edebeb46-1a44-4c39-831c-48b51c70ea80",
+     "name": "Current data size (TB)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2021,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2158,
+     "uuid": "2b47c08f-1809-475d-b116-76159b681bb6",
+     "name": "Current used capacity (%)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2021,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2159,
+     "uuid": "714ea569-4698-4ec9-b76c-398b4d242876",
+     "name": "Data growth per month (GB)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 2,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2021,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2160,
+     "uuid": "9b79fbb6-1424-4161-9e8a-b4d96f52db95",
+     "name": "Copies / replication",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "rp1": "None",
+       "rp2": "Local snapshots",
+       "rp3": "Async replica (DR site)",
+       "rp4": "Sync replica"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2021,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2161,
+     "uuid": "73228ff1-0d71-471c-b1c0-af06ecd30290",
+     "name": "Expected peak IOPS",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": false,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "<p>If known.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2021,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2162,
+     "uuid": "753c67d9-ded8-4f14-8980-84b17fd1ac50",
+     "name": "Expected throughput (MB/s)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": false,
+     "vertical_rank": 2,
+     "horizontal_rank": 1,
+     "description": "<p>If known.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2021,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "e2afcc87-8b9f-421b-969d-c3e96ecc8678",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "sp1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2163,
+     "uuid": "3ae52ffb-a3a1-4af5-8ef2-7e3e1f717d58",
+     "name": "Model size",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "ms1": "Under 7B parameters",
+       "ms2": "7B to 30B",
+       "ms3": "30B to 70B",
+       "ms4": "Over 70B",
+       "ms5": "Not an AI model"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2022,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "fbca3d7c-30a4-4cc9-9bdd-6ab95950e098",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "gw1"
+      },
+      {
+       "item_uuid": "fbca3d7c-30a4-4cc9-9bdd-6ab95950e098",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "or",
+       "value": "gw2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2164,
+     "uuid": "22635900-2add-48ae-aa11-275a2b9f097e",
+     "name": "Precision",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "pr1": "FP32",
+       "pr2": "FP16 / BF16",
+       "pr3": "INT8 / FP8"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2022,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "fbca3d7c-30a4-4cc9-9bdd-6ab95950e098",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "gw1"
+      },
+      {
+       "item_uuid": "fbca3d7c-30a4-4cc9-9bdd-6ab95950e098",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "or",
+       "value": "gw2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2165,
+     "uuid": "e71fcb2e-2127-4263-9655-99f193b47229",
+     "name": "Concurrent jobs / users",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2022,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2166,
+     "uuid": "903494ab-477a-48f6-b22a-27d826335ef8",
+     "name": "Current GPU use (%)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2022,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2167,
+     "uuid": "e25de937-0c50-41c2-a596-45b3c9e48385",
+     "name": "Training data size (TB)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 2,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2022,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "fbca3d7c-30a4-4cc9-9bdd-6ab95950e098",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "gw1"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2168,
+     "uuid": "fdddda83-e2f5-4720-9f35-a749b3d2fbe2",
+     "name": "Inference requests per second",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 3,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2022,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "fbca3d7c-30a4-4cc9-9bdd-6ab95950e098",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "gw2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2169,
+     "uuid": "7b432f66-83f5-4faa-a409-b58043af3e1f",
+     "name": "Latency target (ms)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": false,
+     "vertical_rank": 3,
+     "horizontal_rank": 1,
+     "description": "<p>Maximum response time per request.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2022,
+     "visibility_strategy": "visible_if",
+     "validation_strategy": "no_validation",
+     "conditions": [
+      {
+       "item_uuid": "fbca3d7c-30a4-4cc9-9bdd-6ab95950e098",
+       "item_type": "question",
+       "value_operator": "equals",
+       "logic_operator": "and",
+       "value": "gw2"
+      }
+     ],
+     "validation_conditions": []
+    },
+    {
+     "id": 2170,
+     "uuid": "1d453856-4127-4bf1-b6cf-fdadef27bdf9",
+     "name": "Sizing based on",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 0,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "sb1": "Measured current use",
+       "sb2": "Vendor sizing guide",
+       "sb3": "Load / performance test",
+       "sb4": "Similar existing system",
+       "sb5": "Estimate"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2023,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2171,
+     "uuid": "82e54147-49d2-4aea-b062-99e6699c2b20",
+     "name": "Planning horizon",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 0,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "ph1": "1 year",
+       "ph2": "3 years",
+       "ph3": "5 years"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2023,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2172,
+     "uuid": "afa632e8-9c9f-4646-908e-3b33d648d731",
+     "name": "Expected yearly growth (%)",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeNumber",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 0,
+     "description": "<p>0 if no growth is expected.</p>",
+     "default_value": "",
+     "extra_data": null,
+     "section_id": 2023,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2173,
+     "uuid": "9c0b6933-4216-4fb2-970b-3f6cfb2fc8b1",
+     "name": "Peak period",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeDropdown",
+     "is_mandatory": true,
+     "vertical_rank": 1,
+     "horizontal_rank": 1,
+     "description": "",
+     "default_value": "",
+     "extra_data": {
+      "options": {
+       "pk1": "Business hours",
+       "pk2": "Month-end / year-end",
+       "pk3": "Seasonal campaigns",
+       "pk4": "Flat, 24×7"
+      },
+      "is_multiple_dropdown": false
+     },
+     "section_id": 2023,
+     "visibility_strategy": "always_visible",
+     "validation_strategy": "no_validation",
+     "conditions": [],
+     "validation_conditions": []
+    },
+    {
+     "id": 2174,
+     "uuid": "6576b5d4-985a-44b1-ae50-11248bbdf8aa",
+     "name": "Sizing document",
+     "type": "Glpi\\Form\\QuestionType\\QuestionTypeFile",
+     "is_mandatory": false,
+     "vertical_rank": 2,
+     "horizontal_rank": null,
+     "description": "<p>Vendor sizing, load test results or a calculation sheet, if you have one.</p>",
+     "default_value": null,
+     "extra_data": null,
+     "section_id": 2023,
      "visibility_strategy": "always_visible",
      "validation_strategy": "no_validation",
      "conditions": [],
