@@ -1,87 +1,106 @@
 /**
- * "Workflow" for the capacity request forms (New project, Expansion, Modernization): what happens to a request
- * after it is submitted, step by step, who does what and what the requester sees in GLPI.
+ * Infrastructure Demand-to-Delivery (D2D) workflow for the capacity request forms (New project, Expansion,
+ * Modernization): what happens to a request after it is submitted, who does each step, the decision gates,
+ * what each step produces and what the requester sees on the ticket.
+ * (ITIL 4: service request management with capacity and supplier management; IT4IT: Request to Fulfill.)
  *
  *  - On a form page (/Form/Render/<id>) a "Workflow" button is added next to the form title; it opens the
  *    workflow of that form's request type in a dialog.
  *  - front/workflow.php shows the same workflows as a full page (to share or print).
- * The steps are plain data (WORKFLOWS below): edit the texts there.
+ * The steps are plain data (ROLES, GATES, WORKFLOWS below): edit the texts there.
  */
 (function () {
   'use strict';
 
+  var NAME = 'Infrastructure Demand-to-Delivery (D2D)';
+
+  // one swimlane per role, top to bottom
   var ROLES = {
-    requester: { label: 'You (requester)', color: '#2f6fde' },
-    manager: { label: 'Your approving manager', color: '#7a4fd6' },
-    pm: { label: 'Project manager', color: '#c98a00' },
-    planning: { label: 'Infrastructure planning', color: '#0d9488' },
-    procurement: { label: 'Procurement & finance', color: '#d9622b' },
-    delivery: { label: 'Infrastructure delivery', color: '#2e9e4f' }
+    requester: { label: 'You (requester)', short: 'Requester', color: '#2f6fde' },
+    manager: { label: 'Your approving manager', short: 'Approving manager', color: '#7a4fd6' },
+    pm: { label: 'Project manager', short: 'Project manager', color: '#b97f00' },
+    planning: { label: 'Infrastructure planning', short: 'Infra planning', color: '#0d9488' },
+    procurement: { label: 'Procurement & finance', short: 'Procurement & finance', color: '#d9622b' },
+    delivery: { label: 'Infrastructure delivery', short: 'Infra delivery', color: '#2e9e4f' }
+  };
+
+  // decision gates: points where a request can be stopped or sent back
+  var GATES = {
+    G1: 'Business approval',
+    G2: 'Design & BOQ sign-off',
+    G3: 'Budget approval',
+    G4: 'Acceptance'
   };
 
   // what the requester sees on the ticket at each step
   var STATUS = {
-    created: 'Ticket created (New)',
+    created: 'New',
     approval: 'Waiting for approval',
-    approved: 'Approved → assigned',
-    pending: 'Pending (waiting for information)',
     processing: 'Processing (assigned)',
     vendor: 'Pending (waiting for vendor)',
     solved: 'Solved → Closed'
   };
 
   var submit = {
-    id: 'submit', phase: 'Request', role: 'requester', title: 'Submit the request',
+    id: 'submit', role: 'requester', title: 'Submit the request', box: 'Submit request',
     does: ['Fill in this form: one request per resource type (compute, storage or GPU).',
       'Attach the sizing evidence and, for a new platform, the technical design.'],
+    out: 'A ticket with all the details',
     status: 'created', you: 'You get a ticket number. Every next step is visible in that ticket.'
   };
   var approval = {
-    id: 'approval', phase: 'Approval', role: 'manager', title: 'Manager approval',
+    id: 'approval', role: 'manager', title: 'Manager approval', box: 'Approve', gate: 'G1',
     does: ['The manager you chose in the form receives an approval request in GLPI.',
       'They approve or refuse it, with a comment.'],
+    out: 'Approved request',
     status: 'approval', you: 'If it is refused, the request is closed and the reason is shown in the ticket.'
   };
   var procurement = {
-    id: 'procurement', phase: 'Procurement', role: 'procurement', title: 'Procurement', optional: 'Only when the resources are not available',
+    id: 'procurement', role: 'procurement', title: 'Procurement', box: 'Procure', gate: 'G3', optional: 'Only when the resources are not available',
     does: ['Budget approval of the bill of quantities (BOQ).',
       'Purchase order (PO) to the vendor; the PO is linked to your request.',
       'Delivery to the warehouse and acceptance check of the equipment.'],
-    status: 'vendor', you: 'This is usually the longest step; the expected delivery date is noted in the ticket.'
+    out: 'Purchase order; equipment received in the warehouse',
+    status: 'vendor', you: 'Usually the longest step; the expected delivery date is noted in the ticket.'
   };
   var handover = {
-    id: 'handover', phase: 'Handover', role: 'requester', title: 'Handover & acceptance',
+    id: 'handover', role: 'requester', title: 'Handover & acceptance', box: 'Accept', gate: 'G4',
     does: ['You receive the handover details (names, addresses, access, capacity delivered).',
       'You check them and accept the solution, or reopen the ticket if something is not right.'],
+    out: 'Handover document; request closed',
     status: 'solved', you: 'After your acceptance the ticket is closed and you may get a short satisfaction survey.'
   };
   var decision = {
-    decision: true, question: 'Can it be delivered from what we already have?',
+    decision: true, id: 'decision', role: 'planning', question: 'Can it be delivered from what we already have?',
     yes: 'The resources are reserved for you and delivery starts; procurement is skipped.',
     no: 'The missing equipment is procured first.'
   };
+  var change = 'Work on production systems is done through a GLPI Change: planned, approved and scheduled, so you know when it happens.';
 
   var WORKFLOWS = {
     'new': {
       label: 'New project',
       intro: 'Infrastructure for a new business project, from your request to the handover of the delivered resources.',
       steps: [submit, approval, {
-        id: 'review', phase: 'Project review', role: 'pm', title: 'Project review',
+        id: 'review', role: 'pm', title: 'Project review', box: 'Review project',
         does: ['Checks that the request belongs to an approved business project.',
           'Creates the project in GLPI and links your request to it.',
           'Confirms priority and go-live date, and asks you if anything is missing.'],
+        out: 'Request linked to the project; priority and date confirmed',
         status: 'processing', you: 'If information is missing the ticket goes to Pending until you answer the follow-up.'
       }, {
-        id: 'planning', phase: 'Planning', role: 'planning', title: 'Design & capacity check',
+        id: 'planning', role: 'planning', title: 'Design & capacity check', box: 'Design & check', gate: 'G2',
         does: ['Reviews the sizing and the technical design.',
           'Checks available capacity: virtual clusters, warehouse stock, rack space and power.',
           'Prepares the bill of quantities (BOQ) and the cost estimate.'],
+        out: 'Approved design and BOQ with cost',
         status: 'processing'
       }, decision, procurement, {
-        id: 'delivery', phase: 'Delivery', role: 'delivery', title: 'Build & deliver',
+        id: 'delivery', role: 'delivery', title: 'Build & deliver', box: 'Build & deliver',
         does: ['Installation in the data center: racking, cabling, configuration.',
           'Or provisioning on an existing platform (virtual machines, storage).',
-          'The delivered equipment is recorded in GLPI and linked to your request.'],
+          'The delivered equipment is recorded in GLPI and linked to your request.', change],
+        out: 'Resources ready and recorded in GLPI',
         status: 'processing'
       }, handover]
     },
@@ -89,22 +108,24 @@
       label: 'Expansion',
       intro: 'More capacity for an existing project or platform, from your request to the handover of the added capacity.',
       steps: [submit, approval, {
-        id: 'review', phase: 'Project review', role: 'pm', title: 'Project review',
+        id: 'review', role: 'pm', title: 'Project review', box: 'Review project',
         does: ['Confirms the existing project and the current use of its resources.',
           'Checks the request against the project plan and priorities.',
           'Asks you if anything is missing.'],
+        out: 'Request confirmed against the project plan',
         status: 'processing', you: 'If information is missing the ticket goes to Pending until you answer the follow-up.'
       }, {
-        id: 'planning', phase: 'Planning', role: 'planning', title: 'Capacity check',
+        id: 'planning', role: 'planning', title: 'Capacity check', box: 'Capacity check', gate: 'G2',
         does: ['Checks the current use and growth of the platform (virtual clusters, storage).',
           'Decides how to expand: free capacity, extra hosts or disks, or new equipment.',
           'Prepares the BOQ and the cost estimate when equipment is needed.'],
+        out: 'Expansion plan and BOQ with cost',
         status: 'processing'
       }, decision, procurement, {
-        id: 'delivery', phase: 'Delivery', role: 'delivery', title: 'Expand the platform',
+        id: 'delivery', role: 'delivery', title: 'Expand the platform', box: 'Expand',
         does: ['Adds the capacity to the existing platform (hosts, disks, storage, quota).',
-          'Work that affects running services is done in an agreed maintenance window.',
-          'The added equipment is recorded in GLPI and linked to your request.'],
+          'The added equipment is recorded in GLPI and linked to your request.', change],
+        out: 'Capacity added and recorded in GLPI',
         status: 'processing'
       }, handover]
     },
@@ -112,76 +133,169 @@
       label: 'Modernization & swap',
       intro: 'Replacement of an old or unsupported device, from your request to the removal of the old device.',
       steps: [submit, approval, {
-        id: 'review', phase: 'Project review', role: 'pm', title: 'Project review',
+        id: 'review', role: 'pm', title: 'Project review', box: 'Review project',
         does: ['Confirms the device to replace (hostname) and the services running on it.',
           'Agrees the business impact and a migration window with you.'],
+        out: 'Device, impact and migration window agreed',
         status: 'processing', you: 'If information is missing the ticket goes to Pending until you answer the follow-up.'
       }, {
-        id: 'planning', phase: 'Planning', role: 'planning', title: 'Replacement plan',
+        id: 'planning', role: 'planning', title: 'Replacement plan', box: 'Replacement plan', gate: 'G2',
         does: ['Checks the device age and support status (DCIM).',
           'Chooses the replacement model and plans the migration (swap).',
           'Prepares the BOQ and the cost estimate.'],
+        out: 'Replacement design, migration plan and BOQ',
         status: 'processing'
       }, decision, procurement, {
-        id: 'delivery', phase: 'Delivery', role: 'delivery', title: 'Install & migrate',
+        id: 'delivery', role: 'delivery', title: 'Install & migrate', box: 'Install & migrate',
         does: ['Installs the new device and migrates the services in the agreed window.',
-          'Checks that everything runs on the new device; the old one stays ready for a rollback.'],
+          'Checks that everything runs on the new device; the old one stays ready for a rollback.', change],
+        out: 'Services running on the new device',
         status: 'processing'
       }, handover, {
-        id: 'decommission', phase: 'Decommission', role: 'delivery', title: 'Decommission the old device',
+        id: 'decommission', role: 'delivery', title: 'Decommission the old device', box: 'Decommission',
         does: ['After your acceptance the old device is switched off and removed.',
           'Its data is wiped and its status is updated in GLPI (warehouse, spare or disposal).'],
+        out: 'Old device removed; asset record updated',
         status: 'solved'
       }]
     }
   };
 
-  // ---------------------------------------------------------------- rendering
+  // ---------------------------------------------------------------- helpers
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
   }
+  function anchor(type, id) { return 'prwf-' + type + '-' + id; }
 
+  // ---------------------------------------------------------------- swimlane diagram (SVG)
+  function swimlane(type) {
+    var wf = WORKFLOWS[type];
+    var items = wf.steps;
+    var used = {};
+    items.forEach(function (s) { used[s.role] = true; });
+    var lanes = Object.keys(ROLES).filter(function (k) { return used[k]; });
+    var LABEL = 146, COL = 128, LANE = 62, TOP = 30, BW = 108, BH = 38;
+    var W = LABEL + items.length * COL + 12, H = TOP + lanes.length * LANE + 8;
+    var laneY = function (role) { return TOP + lanes.indexOf(role) * LANE + LANE / 2; };
+    var colX = function (i) { return LABEL + i * COL + COL / 2; };
+    var pos = items.map(function (s, i) { return { x: colX(i), y: laneY(s.role), s: s }; });
+    var idx = function (id) { for (var i = 0; i < items.length; i++) { if (items[i].id === id) { return i; } } return -1; };
+
+    var out = [];
+    out.push('<svg class="prwf-lanes" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(NAME + ': ' + wf.label) + ' swimlane diagram">');
+    out.push('<defs><marker id="prwf-arr-' + type + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
+      + '<path d="M0,0 L10,5 L0,10 z" class="prwf-arrhead"/></marker></defs>');
+    // lanes
+    lanes.forEach(function (r, i) {
+      var y = TOP + i * LANE;
+      out.push('<rect class="prwf-lane' + (i % 2 ? ' odd' : '') + '" x="0" y="' + y + '" width="' + W + '" height="' + LANE + '"/>');
+      out.push('<rect x="0" y="' + y + '" width="4" height="' + LANE + '" fill="' + ROLES[r].color + '"/>');
+      out.push('<text class="prwf-lane-t" x="12" y="' + (y + LANE / 2 + 4) + '">' + esc(ROLES[r].short) + '</text>');
+    });
+    out.push('<line class="prwf-lane-sep" x1="' + LABEL + '" y1="' + TOP + '" x2="' + LABEL + '" y2="' + (H - 8) + '"/>');
+    // gates along the top
+    pos.forEach(function (p) {
+      if (p.s.gate) {
+        out.push('<g class="prwf-gate-top"><rect x="' + (p.x - 15) + '" y="6" width="30" height="17" rx="8"/><text x="' + p.x + '" y="18.5">' + p.s.gate + '</text></g>');
+        out.push('<line class="prwf-gate-line" x1="' + p.x + '" y1="23" x2="' + p.x + '" y2="' + (p.y - BH / 2) + '"/>');
+      }
+    });
+    // arrows
+    var mk = 'marker-end="url(#prwf-arr-' + type + ')"';
+    var edge = function (a, b, cls, label, lx, ly) {
+      var A = pos[a], B = pos[b];
+      var x1 = A.x + (A.s.decision ? 17 : BW / 2), x2 = B.x - (B.s.decision ? 17 : BW / 2) - 2;
+      var d;
+      if (A.y === B.y) { d = 'M' + x1 + ',' + A.y + ' H' + x2; } else {
+        var mx = (x1 + x2) / 2;
+        d = 'M' + x1 + ',' + A.y + ' H' + mx + ' V' + B.y + ' H' + x2;
+      }
+      out.push('<path class="prwf-edge ' + (cls || '') + '" d="' + d + '" ' + mk + '/>');
+      if (label) { out.push('<text class="prwf-edge-t ' + cls + '" x="' + (lx || (x1 + 6)) + '" y="' + (ly || (A.y - 6)) + '">' + label + '</text>'); }
+    };
+    var iDec = idx('decision'), iProc = idx('procurement'), iDel = idx('delivery');
+    for (var i = 0; i < items.length - 1; i++) {
+      if (i === iDec) { continue; }
+      edge(i, i + 1);
+    }
+    if (iDec >= 0) {
+      // No -> procurement
+      edge(iDec, iProc, 'no', 'No', pos[iDec].x + 20, pos[iDec].y + 16);
+      // Yes -> delivery, along the planning lane above procurement, then down
+      var D = pos[iDec], E = pos[iDel];
+      var yy = D.y - 14;
+      out.push('<path class="prwf-edge yes" d="M' + D.x + ',' + (D.y - 17) + ' V' + yy + ' H' + E.x + ' V' + (E.y - BH / 2 - 2) + '" ' + mk + '/>');
+      out.push('<text class="prwf-edge-t yes" x="' + (D.x + 8) + '" y="' + (yy - 5) + '">Yes</text>');
+    }
+    // boxes
+    pos.forEach(function (p) {
+      var s = p.s, c = ROLES[s.role].color;
+      if (s.decision) {
+        out.push('<a href="#' + anchor(type, 'decision') + '" class="prwf-node"><polygon class="prwf-dia" points="' + p.x + ',' + (p.y - 17) + ' ' + (p.x + 17) + ',' + p.y + ' '
+          + p.x + ',' + (p.y + 17) + ' ' + (p.x - 17) + ',' + p.y + '" style="stroke:' + c + '"/><text class="prwf-dia-t" x="' + p.x + '" y="' + (p.y + 5) + '">?</text>'
+          + '<title>' + esc(s.question) + '</title></a>');
+        return;
+      }
+      out.push('<a href="#' + anchor(type, s.id) + '" class="prwf-node"><rect class="prwf-box' + (s.optional ? ' opt' : '') + '" x="' + (p.x - BW / 2) + '" y="' + (p.y - BH / 2)
+        + '" width="' + BW + '" height="' + BH + '" rx="8" style="stroke:' + c + ';fill:color-mix(in srgb,' + c + ' 12%, var(--prwf-surface))"/>'
+        + '<text class="prwf-box-t" x="' + p.x + '" y="' + (p.y + 4) + '">' + esc(s.box) + '</text><title>' + esc(s.title) + '</title></a>');
+    });
+    out.push('</svg>');
+    return '<div class="prwf-lanes-wrap" tabindex="0" aria-label="Diagram (scroll sideways on small screens)">' + out.join('') + '</div>';
+  }
+
+  // ---------------------------------------------------------------- step cards
   function render(type) {
     var wf = WORKFLOWS[type];
     if (!wf) { return ''; }
     var n = 0;
-    var steps = wf.steps.filter(function (s) { return !s.decision; });
-    var phases = '<ol class="prwf-phases" aria-label="Phases">' + steps.map(function (s, i) {
-      return '<li style="--c:' + ROLES[s.role].color + '"><span class="prwf-ph-n">' + (i + 1) + '</span><span class="prwf-ph-t">' + esc(s.phase) + '</span>'
-        + (s.optional ? '<span class="prwf-ph-o">if needed</span>' : '') + '</li>';
-    }).join('') + '</ol>';
-
     var body = wf.steps.map(function (s) {
       if (s.decision) {
-        return '<li class="prwf-decision"><div class="prwf-diamond" aria-hidden="true">?</div><div class="prwf-dec-b">'
+        return '<li class="prwf-decision" id="' + anchor(type, 'decision') + '"><div class="prwf-diamond" aria-hidden="true">?</div><div class="prwf-dec-b">'
           + '<div class="prwf-dec-q">' + esc(s.question) + '</div>'
           + '<div class="prwf-dec-paths"><div class="prwf-yes"><b>Yes</b> ' + esc(s.yes) + '</div>'
           + '<div class="prwf-no"><b>No</b> ' + esc(s.no) + '</div></div></div></li>';
       }
       n++;
       var role = ROLES[s.role];
-      return '<li class="prwf-step' + (s.optional ? ' is-optional' : '') + '" style="--c:' + role.color + '">'
+      return '<li class="prwf-step' + (s.optional ? ' is-optional' : '') + '" id="' + anchor(type, s.id) + '" style="--c:' + role.color + '">'
         + '<div class="prwf-num" aria-hidden="true">' + n + '</div>'
-        + '<div class="prwf-card"><div class="prwf-card-h"><h3>' + esc(s.title) + '</h3>'
+        + '<div class="prwf-card"><div class="prwf-card-h"><h3>' + esc(s.title)
+        + (s.gate ? ' <span class="prwf-gate" title="Decision gate: the request can be stopped or sent back here">' + s.gate + ' · ' + esc(GATES[s.gate]) + '</span>' : '') + '</h3>'
         + '<span class="prwf-role"><i></i>' + esc(role.label) + '</span></div>'
         + (s.optional ? '<div class="prwf-opt">' + esc(s.optional) + '</div>' : '')
-        + '<ul class="prwf-does">' + s.does.map(function (d) { return '<li>' + esc(d) + '</li>'; }).join('') + '</ul>'
-        + '<div class="prwf-foot"><span class="prwf-status" title="What you see on the ticket">' + esc(STATUS[s.status]) + '</span>'
+        + '<ul class="prwf-does">' + s.does.map(function (d) { return '<li' + (d === change ? ' class="prwf-change"' : '') + '>' + esc(d) + '</li>'; }).join('') + '</ul>'
+        + '<div class="prwf-foot"><span class="prwf-out"><em>Output</em>' + esc(s.out) + '</span>'
+        + '<span class="prwf-status" title="What you see on the ticket"><em>Ticket</em>' + esc(STATUS[s.status]) + '</span>'
         + (s.you ? '<span class="prwf-you">' + esc(s.you) + '</span>' : '') + '</div></div></li>';
     }).join('');
 
-    var used = {};
-    steps.forEach(function (s) { used[s.role] = true; });
-    var legend = '<div class="prwf-legend">' + Object.keys(ROLES).filter(function (k) { return used[k]; }).map(function (k) {
-      return '<span style="--c:' + ROLES[k].color + '"><i></i>' + esc(ROLES[k].label) + '</span>';
-    }).join('') + '</div>';
+    var gates = '<div class="prwf-gates">' + Object.keys(GATES).map(function (g) {
+      return '<span><b>' + g + '</b>' + esc(GATES[g]) + '</span>';
+    }).join('') + '<small>Decision gates: a request can be stopped or sent back at these points.</small></div>';
 
     return '<div class="prwf">'
-      + '<p class="prwf-intro">' + esc(wf.intro) + '</p>' + phases + legend
+      + '<p class="prwf-intro"><span class="prwf-kicker">' + esc(NAME) + '</span>' + esc(wf.intro) + '</p>'
+      + swimlane(type) + gates
       + '<ol class="prwf-steps">' + body + '</ol>'
       + '<div class="prwf-track"><b>Follow your request:</b> Assistance › Tickets (or "My tickets"). The ticket shows its status, '
-      + 'the approvals, and every follow-up; answer follow-ups there so the request does not stay pending.</div>'
+      + 'the approvals and every follow-up; answer follow-ups there so the request does not stay pending.</div>'
       + '</div>';
+  }
+
+  function bindJumps(root) {
+    root.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a.prwf-node');
+      if (!a) { return; }
+      var id = (a.getAttribute('href') || '').slice(1);
+      var t = id && document.getElementById(id);
+      if (t) {
+        e.preventDefault();
+        t.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        t.classList.add('prwf-flash');
+        setTimeout(function () { t.classList.remove('prwf-flash'); }, 1400);
+      }
+    });
   }
 
   function typeOfTitle(text) {
@@ -193,15 +307,9 @@
     return '';
   }
 
-  var BASE = (function () {
-    var s = document.currentScript && document.currentScript.src;
-    return s ? s.replace(/\/js\/form-workflow\.js.*$/, '') : '';
-  })();
-  var VERSION = (function () {
-    var s = document.currentScript && document.currentScript.src;
-    var m = s && s.match(/[?&]m=(\d+)/);
-    return m ? m[1] : '';
-  })();
+  var SRC = (document.currentScript && document.currentScript.src) || '';
+  var BASE = SRC.replace(/\/js\/form-workflow\.js.*$/, '');
+  var VERSION = (SRC.match(/[?&]m=(\d+)/) || [])[1] || '';
 
   function addCss() {
     if (document.getElementById('prwf-css') || !BASE) { return; }
@@ -233,7 +341,7 @@
     btn.title = 'What happens after you submit this request';
     row.appendChild(btn);
 
-    var page = BASE.replace(/\/plugins\/projectreports$/, '') + '/plugins/projectreports/front/workflow.php?type=' + type;
+    var page = BASE + '/front/workflow.php?type=' + type;
     var modal = document.createElement('div');
     modal.className = 'modal fade prwf-modal';
     modal.tabIndex = -1;
@@ -249,6 +357,7 @@
       + '<button type="button" class="btn btn-primary" data-bs-dismiss="modal">Back to the form</button></div>'
       + '</div></div>';
     document.body.appendChild(modal);
+    bindJumps(modal);
     btn.addEventListener('click', function () {
       if (window.bootstrap && window.bootstrap.Modal) {
         window.bootstrap.Modal.getOrCreateInstance(modal).show();
@@ -261,14 +370,16 @@
   // ---------------------------------------------------------------- full page (front/workflow.php)
   function initPage() {
     var root = document.getElementById('prwf-page');
-    if (!root) { return; }
+    if (!root || root.getAttribute('data-ready')) { return; }
+    root.setAttribute('data-ready', '1');
     var type = root.getAttribute('data-type');
     if (!WORKFLOWS[type]) { type = 'new'; }
     var tabs = root.querySelector('.prwf-tabs');
     var view = root.querySelector('.prwf-view');
+    var title = root.querySelector('.prwf-page-top h1');
+    if (title) { title.textContent = NAME; }
     var show = function (t) {
-      type = t;
-      view.innerHTML = '<h2 class="prwf-page-h">Workflow: ' + esc(WORKFLOWS[t].label) + ' request</h2>' + render(t);
+      view.innerHTML = '<h2 class="prwf-page-h">' + esc(WORKFLOWS[t].label) + ' request</h2>' + render(t);
       tabs.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-type') === t ? 'true' : 'false'); });
       try { window.history.replaceState(null, '', '?type=' + t); } catch (e) { /* not important */ }
     };
@@ -276,11 +387,12 @@
       return '<button type="button" role="tab" data-type="' + k + '">' + esc(WORKFLOWS[k].label) + '</button>';
     }).join('');
     tabs.addEventListener('click', function (e) { var b = e.target.closest('button[data-type]'); if (b) { show(b.getAttribute('data-type')); } });
+    bindJumps(view);
     show(type);
-    if (root.getAttribute('data-print') === '1') { setTimeout(function () { window.print(); }, 400); }
+    if (root.getAttribute('data-print') === '1') { setTimeout(function () { window.print(); }, 500); }
   }
 
-  window.PRWorkflow = { render: render, workflows: WORKFLOWS };
+  window.PRWorkflow = { name: NAME, render: render, workflows: WORKFLOWS };
 
   function boot() { initForm(); initPage(); }
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', boot); } else { boot(); }

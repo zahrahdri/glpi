@@ -21,6 +21,39 @@
 .prwf-modal .modal-body { background: var(--tblr-bg-surface-secondary, #f5f7fb); }
 
 .prwf-intro { color: var(--prwf-muted); margin: 0 0 14px; font-size: .95rem; }
+.prwf-kicker { display: block; font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--prwf-ink); margin-bottom: 2px; }
+
+/* swimlane diagram */
+.prwf-lanes-wrap { overflow-x: auto; background: var(--prwf-surface); border: 1px solid var(--prwf-line); border-radius: 12px; padding: 6px 6px 2px; margin-bottom: 10px; }
+.prwf-lanes { display: block; width: 100%; min-width: 760px; height: auto; font-family: inherit; }
+.prwf-lane { fill: var(--prwf-surface); }
+.prwf-lane.odd { fill: var(--prwf-soft); }
+.prwf-lane-t { font-size: 11.5px; font-weight: 700; fill: var(--prwf-ink); }
+.prwf-lane-sep { stroke: var(--prwf-line); stroke-width: 1; }
+.prwf-edge { fill: none; stroke: var(--prwf-muted); stroke-width: 1.6; }
+.prwf-edge.yes { stroke: #2e9e4f; }
+.prwf-edge.no { stroke: #d9622b; }
+.prwf-arrhead { fill: var(--prwf-muted); }
+.prwf-edge-t { font-size: 10.5px; font-weight: 800; fill: var(--prwf-muted); }
+.prwf-edge-t.yes { fill: #2e9e4f; }
+.prwf-edge-t.no { fill: #d9622b; }
+.prwf-box { stroke-width: 1.6; }
+.prwf-box.opt { stroke-dasharray: 5 3; }
+.prwf-box-t { font-size: 11.5px; font-weight: 700; fill: var(--prwf-ink); text-anchor: middle; }
+.prwf-dia { fill: var(--prwf-surface); stroke-width: 1.8; }
+.prwf-dia-t { font-size: 13px; font-weight: 800; fill: var(--prwf-ink); text-anchor: middle; }
+.prwf-node { cursor: pointer; }
+.prwf-node:hover .prwf-box, .prwf-node:focus .prwf-box { stroke-width: 2.6; }
+.prwf-gate-top rect { fill: var(--prwf-ink); }
+.prwf-gate-top text { font-size: 10px; font-weight: 800; fill: var(--prwf-surface); text-anchor: middle; }
+.prwf-gate-line { stroke: var(--prwf-ink); stroke-width: 1; stroke-dasharray: 2 3; opacity: .45; }
+
+/* gates legend */
+.prwf-gates { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0 0 18px; font-size: .82rem; }
+.prwf-gates span { display: inline-flex; align-items: center; gap: 6px; }
+.prwf-gates b, .prwf-gate { display: inline-block; padding: 1px 7px; border-radius: 999px; background: var(--prwf-ink); color: var(--prwf-surface); font-size: .72rem; font-weight: 800; }
+.prwf-gates small { color: var(--prwf-muted); flex-basis: 100%; }
+.prwf-gate { margin-left: 6px; vertical-align: 2px; font-weight: 700; }
 
 /* phase overview */
 .prwf-phases { list-style: none; display: flex; gap: 6px; padding: 0; margin: 0 0 12px; flex-wrap: wrap; counter-reset: none; }
@@ -50,8 +83,12 @@
 .prwf-does { margin: 8px 0 10px; padding-left: 18px; }
 .prwf-does li { margin: 2px 0; line-height: 1.5; }
 .prwf-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding-top: 8px; border-top: 1px dashed var(--prwf-line); font-size: .82rem; }
-.prwf-status { font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--prwf-soft); border: 1px solid var(--prwf-line); white-space: nowrap; }
-.prwf-status::before { content: "In GLPI: "; font-weight: 500; color: var(--prwf-muted); }
+.prwf-status, .prwf-out { font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--prwf-soft); border: 1px solid var(--prwf-line); }
+.prwf-status { white-space: nowrap; }
+.prwf-status em, .prwf-out em { font-style: normal; font-weight: 500; color: var(--prwf-muted); margin-right: 5px; }
+.prwf-change { list-style: none; margin-left: -18px !important; margin-top: 6px !important; padding: 6px 10px; border-radius: 8px; background: var(--prwf-soft); font-size: .86rem; }
+.prwf-change::before { content: "⚙ Change management · "; font-weight: 700; }
+.prwf-flash .prwf-card, .prwf-flash .prwf-dec-b { box-shadow: 0 0 0 3px color-mix(in srgb, var(--c, #888) 45%, transparent); transition: box-shadow .3s; }
 .prwf-you { color: var(--prwf-muted); flex: 1 1 260px; }
 
 /* decision between planning and procurement / delivery */
