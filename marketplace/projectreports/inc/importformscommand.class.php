@@ -41,6 +41,38 @@ class PluginProjectreportsImportformscommand extends AbstractCommand
             ['name' => 'Capacity request: New project',
                 'header' => '<p>Request infrastructure for a <b>new project</b> that does not exist in GLPI yet. Submit one request per resource type (compute, storage or GPU).</p>']);
         $n += $DB->affectedRows();
+
+        // capacity request forms (not Release): no "Estimated cost (Rial)" question; new "What happens next" text
+        $forms = [];
+        foreach ($DB->request(['SELECT' => ['id', 'name'], 'FROM' => 'glpi_forms_forms', 'WHERE' => ['name' => ['LIKE', 'Capacity request: %']]]) as $f) {
+            $forms[(int) $f['id']] = $f['name'];
+        }
+        if ($forms) {
+            $sections = array_column(iterator_to_array($DB->request(['SELECT' => ['id', 'forms_forms_id'], 'FROM' => 'glpi_forms_sections',
+                'WHERE' => ['forms_forms_id' => array_keys($forms)]]), false), 'forms_forms_id', 'id');
+            if ($sections) {
+                foreach ($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_forms_questions',
+                    'WHERE' => ['name' => 'Estimated cost (Rial)', 'forms_sections_id' => array_keys($sections)]]) as $q) {
+                    // the answers already given stay in the tickets; the question is no longer asked
+                    if ((new Glpi\Form\Question())->delete(['id' => (int) $q['id']], true)) {
+                        $n++;
+                    }
+                }
+                $old = '<li>Resources are delivered and the ticket is solved. You follow every step in the ticket.</li></ol>';
+                foreach ($DB->request(['SELECT' => ['id', 'forms_sections_id', 'description'], 'FROM' => 'glpi_forms_comments',
+                    'WHERE' => ['name' => 'What happens next', 'forms_sections_id' => array_keys($sections)]]) as $c) {
+                    if (!str_contains((string) $c['description'], $old)) {
+                        continue;
+                    }
+                    $form = $forms[(int) $sections[(int) $c['forms_sections_id']]] ?? '';
+                    $plo = stripos($form, 'Expansion') !== false ? 'Hardware Expansion' : 'New Infrastructure';
+                    $DB->update('glpi_forms_comments', ['description' => str_replace($old,
+                        '<li>Resources are prepared and the ticket is solved.</li><li>You can raise "' . $plo . '" PLO in iCare for the delivery.</li></ol>',
+                        (string) $c['description'])], ['id' => (int) $c['id']]);
+                    $n += $DB->affectedRows();
+                }
+            }
+        }
         return $n;
     }
 

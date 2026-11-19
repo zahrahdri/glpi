@@ -659,7 +659,6 @@ class PluginProjectreportsDemocommand extends AbstractCommand
                 $modernize && $cat ? $answer('Device type', ['Compute' => 'Server', 'Storage' => 'Storage', 'GPU' => 'Server', 'Network' => 'Network device'][$cat] ?? 'Server') : null,
                 $modernize ? $answer('What should change?', $title) : null,
                 $answer('Site', ['T1', 'T2', 'Karaj', 'Esfahan', 'Shiraz'][$n % 5]),
-                $estimate ? $answer('Estimated cost (Rial)', (string) $estimate) : null,
             ]);
             $tid = $this->ins('glpi_tickets', ['entities_id' => 0, 'name' => '[DEMO] ' . $title, 'content' => '<p>' . htmlspecialchars($title) . '</p>',
                 'date' => $opened, 'date_creation' => $opened, 'date_mod' => $now, 'status' => $appr === 'Refused' ? 6 : 2, 'type' => 2,

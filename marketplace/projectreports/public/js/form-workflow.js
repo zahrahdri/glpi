@@ -95,6 +95,13 @@
     out: 'Delivery confirmed; request closed',
     status: 'solved', you: 'After your confirmation the ticket is closed and you may get a short satisfaction survey.'
   };
+  // the Delivery step with the iCare PLO the requester raises for it
+  function deliveryWith(plo) {
+    var d = {};
+    Object.keys(delivery).forEach(function (k) { d[k] = delivery[k]; });
+    d.does = delivery.does.concat(['You can raise the "' + plo + '" PLO in iCare for the delivery.']);
+    return d;
+  }
   var decision = {
     decision: true, id: 'decision', role: 'planning', question: 'Resource available?',
     hint: 'Can the request be delivered from what we already have: warehouse stock and free capacity on the platforms?',
@@ -158,7 +165,7 @@
           'The installed equipment is recorded in GLPI and linked to your request.', change],
         out: 'Hardware installed, configured and recorded in GLPI',
         status: 'processing', detail: INSTALL_DETAIL
-      }, delivery]
+      }, deliveryWith('New Infrastructure')]
     },
     expansion: {
       label: 'Expansion',
@@ -183,7 +190,7 @@
           'The installed equipment is recorded in GLPI and linked to your request.', change],
         out: 'Capacity installed and recorded in GLPI',
         status: 'processing', detail: INSTALL_DETAIL
-      }, delivery]
+      }, deliveryWith('Hardware Expansion')]
     },
     modernization: {
       label: 'Modernization & swap',
@@ -207,7 +214,7 @@
           'Checks that everything runs on the new device; the old one stays ready for a rollback.', change],
         out: 'New hardware installed; services running on it',
         status: 'processing', detail: INSTALL_DETAIL.concat([MIGRATION])
-      }, delivery, {
+      }, deliveryWith('New Infrastructure'), {
         id: 'dismantle', role: 'delivery', title: 'Dismantle the old device', box: 'Dismantle old one',
         does: ['After your confirmation of the delivery, the old device is switched off and dismantled from the rack.',
           'Its data is wiped and its status is updated in GLPI (warehouse, spare or disposal).'],
