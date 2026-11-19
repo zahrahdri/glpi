@@ -21,8 +21,6 @@ class PluginProjectreportsDemocommand extends AbstractCommand
 {
     /** Servers delivered but not installed yet (status "In stock", central warehouse). */
     private const STOCK_SERVERS = 20;
-    /** Servers already delivered to the data center site, not installed yet (status "In stock", data hall). */
-    private const SITE_SERVERS = 8;
 
     private array $refs = [];
     private array $order_state = [];
@@ -917,15 +915,6 @@ class PluginProjectreportsDemocommand extends AbstractCommand
                 $this->ins('glpi_items_deviceharddrives', ['items_id' => $sid, 'itemtype' => 'Computer', 'deviceharddrives_id' => $disk, 'capacity' => 3932160, 'serial' => "SD$i-$m"]);
             }
         }
-        // servers already at the site (data center hall), waiting to be installed
-        for ($i = 1; $i <= self::SITE_SERVERS; $i++) {
-            $sid = $this->ins('glpi_computers', ['entities_id' => 0, 'name' => sprintf('DEMO-SRV-SITE-%02d', $i), 'serial' => sprintf('DEMOSITE%04d', $i),
-                'computermodels_id' => $model, 'states_id' => $state['stock'], 'locations_id' => $loc['dc'], 'is_deleted' => 0, 'is_template' => 0,
-                'date_creation' => $now, 'date_mod' => $now]);
-            for ($m = 0; $m < 8 && $mem; $m++) {
-                $this->ins('glpi_items_devicememories', ['items_id' => $sid, 'itemtype' => 'Computer', 'devicememories_id' => $mem, 'size' => 65536, 'serial' => "SS$i-$m"]);
-            }
-        }
         // the SAN storage arrays: their disks give the raw capacity
         foreach ($ids('glpi_networkequipments', 'DEMO-SAN-%') as $n => $sid) {
             for ($m = 0; $m < 24 && $disk; $m++) {
@@ -977,7 +966,7 @@ class PluginProjectreportsDemocommand extends AbstractCommand
                 }
             }
         }
-        $output->writeln(sprintf('Inventory: 4 statuses, warehouse, %d servers in stock (+%d at the site), SAN disks, %d spare parts, %d cables', self::STOCK_SERVERS, self::SITE_SERVERS, $spares, $nb));
+        $output->writeln(sprintf('Inventory: 4 statuses, warehouse, %d servers in stock, SAN disks, %d spare parts, %d cables', self::STOCK_SERVERS, $spares, $nb));
     }
 
     /**

@@ -885,19 +885,11 @@
   var AGE_KIND = { Server: 'Server', Storage: 'Storage', Switch: 'Network', 'Core switch': 'Network' };
   var KIND_RES = { Server: 'Compute', Storage: 'StorageDev', Switch: 'Network', 'Core switch': 'Network' };
 
-  // a stock item is "at a site" when it sits in a rack or its location is not a warehouse
-  function isSite(r) {
-    if (r.rack) { return true; }
-    var l = String(r.location || '').toLowerCase();
-    return l !== '' && !/warehouse|انبار|store|depot|stock/.test(l);
-  }
-  function siteName(r) { return String(r.rack ? r.datacenter || r.location : r.location || '').replace(/^DEMO /, '').split(' > ').pop(); }
-
   function fcModel() {
     var H = 12;   // months
     var end = new Date(TODAY.getTime()); end.setMonth(end.getMonth() + H);
     var m = {};
-    FC_RES.forEach(function (r) { m[r] = { dem: 0, mod: 0, vm: 0, vmRaw: 0, trend: 0, trendProj: null, stock: 0, stockWh: 0, stockSite: 0, total: 0, net: 0, cost: null }; });
+    FC_RES.forEach(function (r) { m[r] = { dem: 0, mod: 0, vm: 0, vmRaw: 0, trend: 0, trendProj: null, stock: 0, total: 0, net: 0, cost: null }; });
 
     // 1. open capacity requests (teams, new projects, swaps)
     var open = DEM.filter(function (d) { return d.status_id < 5 && !d.refused && d.request_type !== 'Release old resources'; });
@@ -982,13 +974,10 @@
       return 'تا ' + jdate(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-15').slice(0, 7);
     });
 
-    // 5. stock ready to use (status in stock or spare): in the central warehouse, or already at a site (data center)
+    // 5. warehouse: in stock or spare, ready to use
     var stock = INV.filter(function (r) { var k = stKey(r.state); return (k === 'stock' || k === 'spare') && KIND_RES[r.kind]; });
-    stock.forEach(function (r) { r.atSite = isSite(r); m[KIND_RES[r.kind]][r.atSite ? 'stockSite' : 'stockWh'] += 1; });
-    var stoTb = function (site) { return sum(stock.filter(function (r) { return r.kind === 'Storage' && r.atSite === site; }), function (r) { return tb(r.disk_mb); }); };
-    m.Storage.stockWh = stoTb(false);
-    m.Storage.stockSite = stoTb(true);
-    FC_RES.forEach(function (r) { m[r].stock = m[r].stockWh + m[r].stockSite; });
+    stock.forEach(function (r) { m[KIND_RES[r.kind]].stock += 1; });
+    m.Storage.stock = sum(stock.filter(function (r) { return r.kind === 'Storage'; }), function (r) { return tb(r.disk_mb); });
 
     // average cost of one unit, from the priced requests
     var unitCost = function (r) {
@@ -1015,7 +1004,7 @@
     var dash = '<span class="db-dash">—</span>';
     var cost = sum(FC_RES, function (r) { return m[r].cost || 0; });
 
-    var kpis = kpi('سرور موردنیاز', num(Math.round(m.Compute.net)), { plain: true, txt: 'پس از کسر ' + num(m.Compute.stockWh) + ' سرور انبار و ' + num(m.Compute.stockSite) + ' سرور سایت' }, 'gold', '#fc-sum')
+    var kpis = kpi('سرور موردنیاز', num(Math.round(m.Compute.net)), { plain: true, txt: 'پس از کسر ' + num(m.Compute.stock) + ' سرور انبار' }, 'gold', '#fc-sum')
       + kpi('فضای ذخیره‌سازی', decimal(m.Storage.net, 0) + ' TB', { plain: true, txt: num(Math.round(m.StorageDev.net)) + ' دستگاه برای نوسازی' }, 'blue', '#fc-sum')
       + kpi('GPU', num(Math.round(m.GPU.net)), { plain: true, txt: 'درخواست‌ها و روند' }, 'violet', '#fc-sum')
       + kpi('تجهیز شبکه', num(Math.round(m.Network.net)), { plain: true, txt: num(m.Network.mod) + ' مورد پایان عمر' }, 'green', '#fc-sum')
@@ -1031,15 +1020,14 @@
         + '<td class="num">' + cell(x.vm, r, '#fc-vm') + (x.vmRaw > x.vm + 0.01 ? '<div class="db-sub-t">کمبود ' + q(x.vmRaw, r) + '</div>' : '') + '</td>'
         + '<td class="num">' + cell(x.trend, r, '#fc-trend') + (x.trendProj !== null ? '<div class="db-sub-t">روند: ' + q(x.trendProj, r) + '</div>' : '') + '</td>'
         + '<td class="num"><b>' + q(x.total, r) + '</b></td>'
-        + '<td class="num">' + (x.stockWh > 0.0001 ? link('#fc-stock', '− ' + q(x.stockWh, r)) : dash) + '</td>'
-        + '<td class="num">' + (x.stockSite > 0.0001 ? link('#fc-stock', '− ' + q(x.stockSite, r)) : dash) + '</td>'
+        + '<td class="num">' + (x.stock > 0.0001 ? link('#fc-stock', '− ' + q(x.stock, r)) : dash) + '</td>'
         + '<td class="num"><b class="db-fc-net">' + q(x.net, r) + '</b></td>'
         + '<td class="num">' + (x.cost ? compact(x.cost) : dash) + '</td></tr>';
     }).join('');
     var sumTbl = '<div class="db-tbl-wrap"><table class="db-tbl db-compare" id="db-fc-sum"><thead><tr><th>منبع</th>'
       + FC_SRC.map(function (s) { return '<th class="num"><i class="db-dot" style="background:' + s[2] + '"></i>' + esc(s[1]) + '</th>'; }).join('')
-      + '<th class="num">جمع نیاز</th><th class="num">موجودی انبار</th><th class="num">موجودی در سایت</th><th class="num">نیاز خالص</th><th class="num">هزینه برآوردی</th></tr></thead><tbody>'
-      + (rows || '<tr><td colspan="10" class="db-empty">نیازی پیش‌بینی نشد.</td></tr>') + '</tbody></table></div>'
+      + '<th class="num">جمع نیاز</th><th class="num">موجودی انبار</th><th class="num">نیاز خالص</th><th class="num">هزینه برآوردی</th></tr></thead><tbody>'
+      + (rows || '<tr><td colspan="9" class="db-empty">نیازی پیش‌بینی نشد.</td></tr>') + '</tbody></table></div>'
       + '<div class="db-note">درخواست‌های باز: درخواست‌های ظرفیت تأییدنشده یا در جریان (به‌جز ردشده و آزادسازی). نوسازی: دستگاه‌های در حال استفاده (فهرست DCIM) که تا پایان دوره به عمر مجاز نوع خود می‌رسند (سرور '
       + fa((FC.ages || {}).Server || 0) + '، ذخیره‌سازی ' + fa((FC.ages || {}).Storage || 0) + '، شبکه ' + fa((FC.ages || {}).Network || 0) + ' سال)، مگر درخواست جایگزینی آن ثبت شده باشد. '
       + 'توسعه VM: کمبود کلاسترها (فایل VirOPS) با رشد ماهانه و سقف بهره‌برداری ' + fa(Math.round(M.target * 100)) + '٪، منهای درخواست‌های توسعه باز. '
@@ -1140,24 +1128,20 @@
     ], M.open.slice().sort(function (a, b) { return String(a.required_by || '9').localeCompare(String(b.required_by || '9')); }), 2000)
       : '<div class="db-empty">' + (ok('demands') ? 'درخواست ظرفیت بازی وجود ندارد.' : esc(stateMsg('demands'))) + '</div>';
 
-    // stock that can be used: central warehouse and sites
+    // warehouse stock that can be used
     var groups = {};
     M.stock.forEach(function (r) {
-      var place = r.atSite ? siteName(r) : 'انبار مرکزی';
-      var k = (r.atSite ? 1 : 0) + '|' + place + '|' + r.kind + '|' + (r.model || '') + '|' + stKey(r.state);
-      var g = groups[k] || (groups[k] = { site: r.atSite, place: place, kind: r.kind, model: r.model || '—', state: r.state, n: 0, mb: 0 });
+      var k = r.kind + '|' + (r.model || '') + '|' + stKey(r.state);
+      var g = groups[k] || (groups[k] = { kind: r.kind, model: r.model || '—', state: r.state, n: 0, mb: 0 });
       g.n++; g.mb += Number(r.disk_mb || 0);
     });
     var stockTbl = Object.keys(groups).length ? table('db-fc-stock-tbl', [
-      { h: 'محل نگهداری', f: function (g) { return (g.site ? chip('سایت', 'info') : chip('انبار', 'ok')) + ' ' + esc(g.place || '—'); } },
       { h: 'نوع', f: function (g) { return link(query('assets', { ikind: g.kind, istate: stKey(g.state) }) + '#db-inv', esc(IKIND_FA[g.kind] || g.kind)); } },
       { h: 'مدل', f: function (g) { return esc(g.model); } },
       { h: 'وضعیت', f: function (g) { return stChip(g.state); } },
       { h: 'تعداد', num: true, f: function (g) { return '<b>' + num(g.n) + '</b>' + (g.kind === 'Storage' && g.mb ? '<div class="db-sub-t">' + size(g.mb) + '</div>' : ''); } }
-    ], Object.keys(groups).map(function (k) { return groups[k]; }).sort(function (a, b) { return (a.site - b.site) || (b.n - a.n); }), 500)
-      + '<div class="db-note">تجهیزات با وضعیت «در انبار» یا «یدکی». «سایت»: در رک یا در محلی غیر از انبار (مثلاً سالن دیتاسنتر) نگهداری می‌شود و هنوز نصب/استفاده نشده است. هر دو از نیاز کم می‌شوند.</div>'
-      : '<div class="db-empty">تجهیز آماده‌ای در انبار یا سایت (وضعیت «در انبار» یا «یدکی») نیست.</div>';
-    var stockHead = 'موجودی آماده: انبار ' + num(sum(FC_RES, function (r) { return r === 'Storage' ? 0 : m[r].stockWh; })) + ' و سایت ' + num(sum(FC_RES, function (r) { return r === 'Storage' ? 0 : m[r].stockSite; })) + ' دستگاه';
+    ], Object.keys(groups).map(function (k) { return groups[k]; }).sort(function (a, b) { return b.n - a.n; }), 500)
+      : '<div class="db-empty">تجهیز آماده‌ای در انبار (وضعیت «در انبار» یا «یدکی») نیست.</div>';
 
     var sec = function (id, span, head, inner) { return '<section class="db-card s' + span + '" id="' + id + '"><div class="db-card-h">' + esc(head) + '</div><div class="db-card-b">' + inner + '</div></section>'; };
     return title + '<div class="db-kpis db-kpis-6">' + kpis + '</div><div class="db-grid">'
@@ -1167,7 +1151,7 @@
       + sec('fc-vm', 12, 'کلاسترهای مجازی (VirOPS): ظرفیت و رشد', vmBody + vmNote)
       + sec('fc-mod', 12, 'نوسازی: دستگاه‌هایی که تا ۱۲ ماه آینده به عمر مجاز می‌رسند', modTbl + dcimNote)
       + sec('fc-dem', 12, 'درخواست‌های ظرفیت باز (تیم‌ها، پروژه‌های جدید و جایگزینی)', demTbl)
-      + sec('fc-stock', 12, stockHead, stockTbl)
+      + sec('fc-stock', 12, 'موجودی آماده در انبار', stockTbl)
       + '</div>';
   }
 
