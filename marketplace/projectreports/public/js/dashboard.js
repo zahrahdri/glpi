@@ -1086,11 +1086,11 @@
     var pct = function (u, c) { return c ? Math.round(u / c * 100) : 0; };
     var meter = function (u, c, p) {
       var a = pct(u, c), b = pct(p, c);
-      return '<div class="db-meter ' + (b >= M.target * 100 ? 'over' : '') + '"><i style="width:' + Math.min(100, a) + '%"></i></div>' + fa(a) + '٪ → ' + fa(b) + '٪';
+      return '<div class="db-meter ' + (b >= M.target * 100 ? 'over' : '') + '"><i style="width:' + Math.min(100, a) + '%"></i></div>' + fa(a) + '٪ ← ' + fa(b) + '٪';
     };
     var vmBody = M.CL.length ? table('db-fc-vm-tbl', [
       { h: 'کلاستر', f: function (x) { return '<b>' + esc(x.c.cluster) + '</b><div class="db-sub-t">' + num(x.c.hosts) + ' هاست · ' + num(x.c.vms) + ' VM</div>'; } },
-      { h: 'CPU (اکنون → ۱۲ ماه)', f: function (x) { return meter(x.c.cpu_use_ghz, x.c.cpu_cap_ghz, x.cpuP); } },
+      { h: 'CPU (اکنون ← ۱۲ ماه)', f: function (x) { return meter(x.c.cpu_use_ghz, x.c.cpu_cap_ghz, x.cpuP); } },
       { h: 'RAM', f: function (x) { return meter(x.c.ram_use_gb, x.c.ram_cap_gb, x.ramP); } },
       { h: 'فضای دیتااستور', f: function (x) { return meter(x.c.sto_use_tb, x.c.sto_cap_tb, x.stoP); } },
       { h: 'رسیدن به سقف', f: function (x) { return x.full === 0 ? chip('اکنون', 'bad') : (x.full === Infinity ? dash : (x.full <= 12 ? chip(fa(Math.ceil(x.full)) + ' ماه', 'warn') : fa(Math.ceil(x.full)) + ' ماه')); } },
