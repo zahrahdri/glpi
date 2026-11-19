@@ -283,6 +283,9 @@ class PluginProjectreportsDemocommand extends AbstractCommand
             $close = $status === 6 && $solve !== null ? (clone $solve)->modify('+1 day') : null;
             $ttr = (clone $opened)->modify('+' . [1 => 30, 2 => 15, 3 => 7, 4 => 3, 5 => 1, 6 => 1][$priority] . ' day');
             $name = '[DEMO] ' . strtr($title, ['{n}' => (string) [4, 8, 16, 20][mt_rand(0, 3)], '{p}' => str_replace('DEMO ', '', $p['name'])]);
+            if (!str_contains($title, '{p}')) {
+                $name .= ' (' . str_replace('DEMO ', '', $p['name']) . ')';   // the project the request is for, in its title too
+            }
             $tid = $this->ins('glpi_tickets', ['entities_id' => 0, 'name' => $name, 'content' => '<p>' . htmlspecialchars($name) . '</p>',
                 'date' => $opened->format('Y-m-d H:i:s'), 'date_creation' => $opened->format('Y-m-d H:i:s'), 'date_mod' => $now,
                 'solvedate' => $solve?->format('Y-m-d H:i:s'), 'closedate' => $close?->format('Y-m-d H:i:s'),
@@ -620,13 +623,25 @@ class PluginProjectreportsDemocommand extends AbstractCommand
         $nb = $nb_boq = 0;
         foreach (($demands ?? self::DEMANDS) as $n => [$rtype, $cat, $restype, $qty, $proj, $estimate, $appr, $title]) {
             $opened = (new DateTime())->modify('-' . (3 + $n * 4) . ' day')->format('Y-m-d H:i:s');
-            $p = str_starts_with($proj, 'new:') ? null : ($by_name[$proj] ?? null);
+            $new_name = str_starts_with($proj, 'new:') ? substr($proj, 4) : '';
+            if ($new_name !== '' && !str_starts_with($new_name, 'DEMO ')) {
+                $new_name = 'DEMO ' . $new_name;   // demo data is always named DEMO, so --remove finds it
+            }
+            if ($new_name !== '' && !isset($by_name[$new_name])) {
+                // a new-project request: the project is created for it (as after approval), so the request has its project
+                $pid = $this->ins('glpi_projects', ['entities_id' => 0, 'is_recursive' => 1, 'name' => $new_name,
+                    'code' => str_replace(['DEMO ', ' '], ['PRJ-', '-'], strtoupper($new_name)), 'content' => '<p>' . htmlspecialchars($title) . '</p>',
+                    'plan_start_date' => substr($opened, 0, 10) . ' 00:00:00', 'percent_done' => 0,
+                    'date' => $opened, 'date_creation' => $opened, 'date_mod' => $now]);
+                $by_name[$new_name] = ['id' => $pid, 'name' => $new_name, 'budget' => 0];
+            }
+            $p = $by_name[$new_name !== '' ? $new_name : $proj] ?? null;
             [$form_id, $questions] = $forms[$rtype] ?? reset($forms);
             $index[$form_id] ??= (int) ($DB->request(['SELECT' => ['MAX' => '`index` AS m'], 'FROM' => 'glpi_forms_answerssets', 'WHERE' => ['forms_forms_id' => $form_id]])->current()['m'] ?? 0);
             $modernize = !isset($questions['Resource category']) && isset($questions['Device type']);
             $ans = array_filter([
                 $answer('Request type', $rtype),
-                $p ? $answer('Project', ['itemtype' => 'Project', 'items_id' => (string) $p['id']]) : $answer('New project name', substr($proj, 4)),
+                $new_name !== '' ? $answer('New project name', $new_name) : ($p ? $answer('Project', ['itemtype' => 'Project', 'items_id' => (string) $p['id']]) : null),
                 $answer('Required by (go-live date)', (new DateTime())->modify('+' . (2 + $n % 6) . ' month')->format('Y-m-15')),
                 $cat ? $answer('Resource category', $cat) : null,
                 $cat === 'Compute' ? $answer('Resource type', $restype) : null,
