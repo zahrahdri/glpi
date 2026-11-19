@@ -4,10 +4,10 @@
  * Infrastructure forecast (Tools > Reporting dashboard > پیش‌بینی): what the next 12 months need, from
  *   1. open capacity requests (teams and swaps),
  *   2. device age (DCIM): devices that reach their type's age limit within the period,
- *   3. VirOPS: VM growth per cluster (live API, see PluginProjectreportsVirops),
+ *   3. VirOPS: capacity, use and monthly growth per VM cluster (Excel / CSV export, imported here),
  *   4. the delivery trend of past years (iCare export, imported here),
  *   5. the warehouse stock, taken off the need.
- * Settings and the iCare history are kept by this class; the tables are created on first use, so updating the plugin
+ * Settings, the VirOPS figures and the iCare history are kept by this class; the tables are created on first use, so updating the plugin
  * files is enough (no new plugin version to install).
  */
 class PluginProjectreportsForecast
@@ -20,10 +20,11 @@ class PluginProjectreportsForecast
     public const DEFAULTS = [
         'fc_age_server' => 5, 'fc_age_storage' => 6, 'fc_age_network' => 7,   // years before a device is due for replacement
         'fc_target_util' => 80,                                                // % of a cluster's capacity we plan to use at most
-        'virops_url' => '', 'virops_user' => '', 'virops_password' => '', 'virops_authsource' => 'Local Users',
-        'virops_verify_ssl' => 1, 'virops_last_sync' => '', 'virops_last_error' => '',
+        'virops_imported' => '', 'virops_file' => '',
         'icare_imported' => '', 'icare_file' => '',
     ];
+    /** Settings of the former live VirOPS link, removed on install. */
+    public const OLD_KEYS = ['virops_url', 'virops_user', 'virops_password', 'virops_authsource', 'virops_verify_ssl', 'virops_last_sync', 'virops_last_error'];
 
     public static function ensureSchema(): void
     {
@@ -78,28 +79,17 @@ class PluginProjectreportsForecast
         global $DB;
         $DB->dropTable(self::CLUSTERS, true);
         $DB->dropTable(self::ICARE, true);
-        Config::deleteConfigurationValues(self::CONTEXT, array_keys(self::DEFAULTS));
+        Config::deleteConfigurationValues(self::CONTEXT, array_merge(array_keys(self::DEFAULTS), self::OLD_KEYS));
     }
 
-    /** Settings; the VirOPS password stays encrypted unless $with_secret. */
-    public static function config(bool $with_secret = false): array
+    public static function config(): array
     {
-        $cfg = Config::getConfigurationValues(self::CONTEXT, array_keys(self::DEFAULTS)) + self::DEFAULTS;
-        if ($with_secret) {
-            $cfg['virops_password'] = (string) ((new GLPIKey())->decrypt((string) $cfg['virops_password']) ?? '');
-        } else {
-            $cfg['virops_password'] = $cfg['virops_password'] !== '' ? '********' : '';
-        }
-        return $cfg;
+        return Config::getConfigurationValues(self::CONTEXT, array_keys(self::DEFAULTS)) + self::DEFAULTS;
     }
 
     public static function setConfig(array $values): void
     {
-        $keep = array_intersect_key($values, self::DEFAULTS);
-        if (array_key_exists('virops_password', $keep)) {
-            $keep['virops_password'] = $keep['virops_password'] === '' ? '' : (new GLPIKey())->encrypt((string) $keep['virops_password']);
-        }
-        Config::setConfigurationValues(self::CONTEXT, $keep);
+        Config::setConfigurationValues(self::CONTEXT, array_intersect_key($values, self::DEFAULTS));
     }
 
     public static function canConfigure(): bool
@@ -129,32 +119,12 @@ class PluginProjectreportsForecast
      */
     public static function readIcare(string $path, string $name): array
     {
-        $table = [];
-        if (preg_match('/\.xlsx?$/i', $name)) {
-            $reader = PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($path);
-            $reader->setReadDataOnly(true);
-            $sheet = $reader->load($path)->getActiveSheet();
-            foreach ($sheet->toArray(null, true, false, false) as $r) {
-                $table[] = array_map(fn($v) => is_float($v) || is_int($v) ? $v : trim((string) $v), $r);
-            }
-        } else {
-            $raw = (string) file_get_contents($path);
-            $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw);
-            $first = strtok($raw, "\n");
-            $delim = substr_count((string) $first, ';') > substr_count((string) $first, ',') ? ';' : (substr_count((string) $first, "\t") > substr_count((string) $first, ',') ? "\t" : ',');
-            $fh = fopen('php://temp', 'r+');
-            fwrite($fh, $raw);
-            rewind($fh);
-            while (($r = fgetcsv($fh, 0, $delim, '"', '')) !== false) {
-                $table[] = array_map(fn($v) => trim((string) $v), $r);
-            }
-            fclose($fh);
-        }
+        $table = self::readTable($path, $name);
         // header = the first row that names at least a date or year column and a quantity column
         $map = [];
         $start = 0;
         foreach ($table as $i => $r) {
-            $found = self::matchColumns($r);
+            $found = self::matchColumns($r, self::COLUMNS);
             if ((isset($found['date']) || isset($found['year'])) && isset($found['quantity'])) {
                 $map = $found;
                 $start = $i + 1;
@@ -189,6 +159,133 @@ class PluginProjectreportsForecast
         return ['rows' => $rows, 'skipped' => $skipped, 'columns' => array_keys($map)];
     }
 
+    /** Rows of the first sheet of an Excel file, or of a CSV file (comma, semicolon or tab). */
+    private static function readTable(string $path, string $name): array
+    {
+        $table = [];
+        if (preg_match('/\.xlsx?$/i', $name)) {
+            $reader = PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($path);
+            $reader->setReadDataOnly(true);
+            $sheet = $reader->load($path)->getSheet(0);
+            foreach ($sheet->toArray(null, true, false, false) as $r) {
+                $table[] = array_map(fn($v) => is_float($v) || is_int($v) ? $v : trim((string) $v), $r);
+            }
+            return $table;
+        }
+        $raw = (string) file_get_contents($path);
+        $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw);
+        $first = (string) strtok($raw, "\n");
+        $delim = substr_count($first, ';') > substr_count($first, ',') ? ';' : (substr_count($first, "\t") > substr_count($first, ',') ? "\t" : ',');
+        $fh = fopen('php://temp', 'r+');
+        fwrite($fh, $raw);
+        rewind($fh);
+        while (($r = fgetcsv($fh, 0, $delim, '"', '')) !== false) {
+            $table[] = array_map(fn($v) => trim((string) $v), $r);
+        }
+        fclose($fh);
+        return $table;
+    }
+
+    // ---------------------------------------------------------------- VirOPS cluster export import
+
+    /** Header words of the VirOPS cluster export (capacity and use now; growth per month, optional). */
+    private const CLUSTER_COLUMNS = [
+        'cluster' => ['کلاستر', 'cluster', 'name'],
+        'hosts' => ['تعداد هاست', 'هاست', 'hosts', 'host'],
+        'vms' => ['تعداد vm', 'ماشین مجازی', 'vms', 'vm'],
+        'cpu_growth_ghz' => ['رشد cpu', 'cpu growth'],
+        'cpu_use_ghz' => ['مصرف cpu', 'cpu used', 'cpu use', 'cpu demand'],
+        'cpu_cap_ghz' => ['ظرفیت cpu', 'cpu capacity', 'cpu total'],
+        'ram_growth_gb' => ['رشد ram', 'رشد حافظه', 'ram growth', 'memory growth'],
+        'ram_use_gb' => ['مصرف ram', 'مصرف حافظه', 'ram used', 'ram use', 'memory used', 'memory consumed'],
+        'ram_cap_gb' => ['ظرفیت ram', 'ظرفیت حافظه', 'ram capacity', 'memory capacity', 'ram total', 'memory total'],
+        'sto_growth_tb' => ['رشد فضا', 'رشد ذخیره', 'storage growth', 'disk growth', 'datastore growth'],
+        'sto_use_tb' => ['مصرف فضا', 'فضای مصرفی', 'مصرف ذخیره', 'storage used', 'disk used', 'datastore used'],
+        'sto_cap_tb' => ['ظرفیت فضا', 'ظرفیت ذخیره', 'storage capacity', 'disk capacity', 'datastore capacity', 'storage total'],
+    ];
+
+    /**
+     * Reads the VirOPS export: one row per cluster. CPU in GHz (MHz when the header says MHz), RAM in GB (TB when it
+     * says TB), storage in TB (GB when it says GB); growth = how much use grows per month.
+     * @return array{rows: array, skipped: int, columns: array}
+     */
+    public static function readClusters(string $path, string $name): array
+    {
+        $table = self::readTable($path, $name);
+        $map = [];
+        $start = 0;
+        foreach ($table as $i => $r) {
+            $found = self::matchColumns($r, self::CLUSTER_COLUMNS);
+            if (isset($found['cluster']) && (isset($found['cpu_cap_ghz']) || isset($found['ram_cap_gb']) || isset($found['sto_cap_tb']))) {
+                $map = $found;
+                $start = $i + 1;
+                $header = $r;
+                break;
+            }
+            if ($i > 10) {
+                break;
+            }
+        }
+        if (!$map) {
+            throw new RuntimeException('ستون‌ها شناخته نشد: فایل باید ستون «کلاستر» و دست‌کم یکی از ستون‌های ظرفیت (CPU، RAM یا فضا) را داشته باشد. نمونه فایل را ببینید.');
+        }
+        // unit of each column from its header
+        $factor = [];
+        foreach ($map as $key => $col) {
+            $h = mb_strtolower((string) ($header[$col] ?? ''));
+            $factor[$key] = match (true) {
+                str_starts_with($key, 'cpu') && str_contains($h, 'mhz') => 0.001,
+                str_starts_with($key, 'ram') && str_contains($h, 'tb') => 1024,
+                str_starts_with($key, 'ram') && str_contains($h, 'mb') => 1 / 1024,
+                str_starts_with($key, 'sto') && preg_match('/\bgb\b|گیگ/u', $h) => 0.001,
+                default => 1,
+            };
+        }
+        $rows = [];
+        $skipped = 0;
+        foreach (array_slice($table, $start) as $r) {
+            $name_v = trim((string) ($r[$map['cluster']] ?? ''));
+            if ($name_v === '') {
+                $skipped++;
+                continue;
+            }
+            $row = ['cluster' => mb_substr($name_v, 0, 255)];
+            foreach (array_keys(self::CLUSTER_COLUMNS) as $key) {
+                if ($key === 'cluster') {
+                    continue;
+                }
+                $v = isset($map[$key]) ? self::number($r[$map[$key]] ?? '') : null;
+                $row[$key] = $v === null ? 0 : ($key === 'hosts' || $key === 'vms' ? (int) round($v) : round($v * $factor[$key], 5));
+            }
+            $rows[] = $row;
+        }
+        return ['rows' => $rows, 'skipped' => $skipped, 'columns' => array_keys($map)];
+    }
+
+    /** Replaces the imported clusters (the sample clusters stay apart). */
+    public static function saveClusters(array $rows, string $file): int
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        self::ensureSchema();
+        $DB->delete(self::CLUSTERS, ['NOT' => ['source' => 'demo']]);
+        $now = date('Y-m-d H:i:s');
+        foreach ($rows as $r) {
+            $DB->insert(self::CLUSTERS, $r + ['source' => 'excel', 'date_sync' => $now]);
+        }
+        self::setConfig(['virops_imported' => date('Y-m-d H:i'), 'virops_file' => $file]);
+        return count($rows);
+    }
+
+    public static function deleteClusters(): void
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        self::ensureSchema();
+        $DB->delete(self::CLUSTERS, ['NOT' => ['source' => 'demo']]);
+        self::setConfig(['virops_imported' => '', 'virops_file' => '']);
+    }
+
     /** Replaces the imported iCare history (the sample history stays apart). */
     public static function saveIcare(array $rows, string $file): int
     {
@@ -212,11 +309,11 @@ class PluginProjectreportsForecast
         self::setConfig(['icare_imported' => '', 'icare_file' => '']);
     }
 
-    private static function matchColumns(array $header): array
+    private static function matchColumns(array $header, array $columns): array
     {
         $found = [];
         $norm = fn($s) => mb_strtolower(trim(str_replace(["\u{200c}", '_', '-'], [' ', ' ', ' '], (string) $s)));
-        foreach (self::COLUMNS as $key => $words) {
+        foreach ($columns as $key => $words) {
             foreach ($words as $w) {     // the longest, most precise words first
                 foreach ($header as $i => $h) {
                     if (in_array($i, $found, true)) {
@@ -324,8 +421,11 @@ class PluginProjectreportsForecast
         global $CFG_GLPI, $DB;
         self::ensureSchema();
         $cfg = self::config();
+        // once a real file is imported, the DEMO sample of the same kind is left out
+        $real_clusters = $DB->request(['COUNT' => 'c', 'FROM' => self::CLUSTERS, 'WHERE' => ['NOT' => ['source' => 'demo']]])->current()['c'] > 0;
+        $real_icare = $DB->request(['COUNT' => 'c', 'FROM' => self::ICARE, 'WHERE' => ['is_demo' => 0]])->current()['c'] > 0;
         $clusters = [];
-        foreach ($DB->request(['FROM' => self::CLUSTERS, 'ORDER' => 'cluster']) as $c) {
+        foreach ($DB->request(['FROM' => self::CLUSTERS, 'WHERE' => $real_clusters ? ['NOT' => ['source' => 'demo']] : [], 'ORDER' => 'cluster']) as $c) {
             foreach ($c as $k => $v) {
                 if (!in_array($k, ['cluster', 'parent', 'source', 'date_sync'], true) && $v !== null) {
                     $c[$k] = (float) $v;
@@ -334,15 +434,17 @@ class PluginProjectreportsForecast
             $clusters[] = $c;
         }
         $trend = [];
-        foreach ($DB->request(['SELECT' => ['year', 'resource', 'SUM' => 'quantity AS qty', 'COUNT' => 'id AS n'], 'FROM' => self::ICARE,
-            'GROUPBY' => ['year', 'resource'], 'ORDER' => 'year']) as $r) {
-            $trend[] = ['year' => (int) $r['year'], 'resource' => $r['resource'], 'qty' => (float) $r['qty'], 'n' => (int) $r['n']];
+        // deliveries per month (rows with only a year count in its middle); the dashboard sums them into 12-month periods
+        $res = $DB->doQuery("SELECT DATE_FORMAT(COALESCE(`date`, MAKEDATE(`year`, 182)), '%Y-%m') AS ym, resource, SUM(quantity) AS qty, COUNT(*) AS n
+            FROM `" . self::ICARE . "`" . ($real_icare ? ' WHERE is_demo = 0' : '') . ' GROUP BY ym, resource ORDER BY ym');
+        while ($r = $res->fetch_assoc()) {
+            $trend[] = ['ym' => $r['ym'], 'resource' => $r['resource'], 'qty' => (float) $r['qty'], 'n' => (int) $r['n']];
         }
-        $demo = (int) $DB->request(['COUNT' => 'c', 'FROM' => self::ICARE, 'WHERE' => ['is_demo' => 1]])->current()['c'];
+        $demo = $real_icare ? 0 : (int) $DB->request(['COUNT' => 'c', 'FROM' => self::ICARE, 'WHERE' => ['is_demo' => 1]])->current()['c'];
         return [
             'ages' => ['Server' => (float) $cfg['fc_age_server'], 'Storage' => (float) $cfg['fc_age_storage'], 'Network' => (float) $cfg['fc_age_network']],
             'target_util' => (float) $cfg['fc_target_util'],
-            'virops' => ['configured' => $cfg['virops_url'] !== '', 'last_sync' => $cfg['virops_last_sync'], 'last_error' => $cfg['virops_last_error'],
+            'virops' => ['imported' => $cfg['virops_imported'], 'file' => $cfg['virops_file'],
                 'clusters' => $clusters, 'demo' => (bool) array_filter($clusters, fn($c) => $c['source'] === 'demo')],
             'icare' => ['imported' => $cfg['icare_imported'], 'file' => $cfg['icare_file'], 'trend' => $trend, 'demo' => $demo > 0],
             'settings_url' => self::canConfigure() ? $CFG_GLPI['root_doc'] . '/plugins/projectreports/front/forecast.php' : '',

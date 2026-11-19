@@ -967,7 +967,7 @@ class PluginProjectreportsDemocommand extends AbstractCommand
     }
 
     /**
-     * Forecast samples: four vSphere clusters as VirOPS would report them, five years of iCare deliveries, and a few
+     * Forecast samples: four vSphere clusters as in a VirOPS export, five years of iCare deliveries, and a few
      * switches and one storage system old enough to be due for replacement within 12 months.
      */
     private function createForecast(OutputInterface $output): void
@@ -989,27 +989,24 @@ class PluginProjectreportsDemocommand extends AbstractCommand
                 'cpu_cap_ghz' => $cc, 'cpu_use_ghz' => $cu, 'cpu_growth_ghz' => $cg, 'ram_cap_gb' => $rc, 'ram_use_gb' => $ru, 'ram_growth_gb' => $rg,
                 'sto_cap_tb' => $sc, 'sto_use_tb' => $su, 'sto_growth_tb' => $sg, 'source' => 'demo', 'date_sync' => $now]);
         }
-        // iCare deliveries per year (Gregorian), growing: servers, storage TB, GPUs, network devices
-        $year_now = (int) date('Y');
+        // iCare deliveries over the last five years, growing (one block of 12 months at a time, the last one ending this month)
         $plan = ['Compute' => [38, 46, 55, 64, 74], 'Storage' => [280, 360, 450, 545, 650], 'GPU' => [0, 4, 8, 16, 26], 'Network' => [16, 18, 21, 23, 26]];
         $items = ['Compute' => 'Rack server 2U', 'Storage' => 'All-flash storage', 'GPU' => 'GPU server card', 'Network' => 'Data center switch'];
         $types = ['New project', 'Expansion', 'Expansion', 'Modernization'];
         $projects = ['Core banking', 'Data lake', 'CRM', 'Billing', 'AI platform', 'VDI', '5G core', 'Campus LAN'];
         $nb = 0;
-        for ($k = 0; $k <= 5; $k++) {
-            $year = $year_now - 5 + $k;
-            foreach ($plan as $res => $per_year) {
-                // this year: the deliveries so far (until this month)
-                $total = $k < 5 ? $per_year[$k] : round(end($per_year) * 1.1 * ((int) date('n') - 1) / 12);
-                $left = $total;
-                $months = $k < 5 ? 12 : max(1, (int) date('n') - 1);
+        for ($k = 0; $k < 5; $k++) {
+            foreach ($plan as $res => $per_period) {
+                $left = $per_period[$k];
                 while ($left > 0) {
                     $q = $res === 'Storage' ? min($left, mt_rand(2, 8) * 10) : min($left, mt_rand(1, 6));
                     $left -= $q;
                     $nb++;
-                    $DB->insert(PluginProjectreportsForecast::ICARE, ['request_no' => sprintf('DEMO-IC-%d-%04d', $year, $nb),
-                        'date' => sprintf('%d-%02d-%02d', $year, mt_rand(1, $months), mt_rand(1, 28)), 'year' => $year, 'resource' => $res,
-                        'quantity' => $q, 'request_type' => $types[$nb % 4], 'project' => $projects[$nb % 8], 'item' => $items[$res], 'is_demo' => 1]);
+                    $months_ago = (4 - $k) * 12 + mt_rand(0, 11);
+                    $d = date('Y-m', strtotime(date('Y-m-01') . ' -' . $months_ago . ' month')) . sprintf('-%02d', mt_rand(1, 28));
+                    $DB->insert(PluginProjectreportsForecast::ICARE, ['request_no' => sprintf('DEMO-IC-%04d', $nb), 'date' => $d,
+                        'year' => (int) substr($d, 0, 4), 'resource' => $res, 'quantity' => $q, 'request_type' => $types[$nb % 4],
+                        'project' => $projects[$nb % 8], 'item' => $items[$res], 'is_demo' => 1]);
                 }
             }
         }

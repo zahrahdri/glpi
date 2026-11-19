@@ -932,27 +932,36 @@
     // open expansion requests are already counted above: only what they do not cover is added
     ['Compute', 'Storage'].forEach(function (r) { m[r].vm = Math.max(0, m[r].vmRaw - (openExp[r] || 0)); });
 
-    // 4. iCare: deliveries per year; a straight line through the past full years gives the next 12 months
+    // 4. iCare: deliveries per 12-month period ending this month (works for Jalali and Gregorian files alike);
+    //    a straight line through the past full periods gives the next 12 months
     var trend = (FC.icare || {}).trend || [];
-    var yNow = TODAY.getFullYear();
-    var years = uniq(trend.map(function (t) { return t.year; })).map(Number).sort();
+    var nowM = TODAY.getFullYear() * 12 + TODAY.getMonth();
+    var ago = function (ym) { var p = String(ym).split('-'); return nowM - (Number(p[0]) * 12 + Number(p[1]) - 1); };
+    var periodOf = function (t) { return Math.floor(ago(t.ym) / 12); };   // 0 = the last 12 months, 1 = the 12 before ...
+    var past = trend.filter(function (t) { return ago(t.ym) >= 0; });
+    var oldest = past.length ? Math.max.apply(null, past.map(function (t) { return ago(t.ym); })) : -1;
+    // the oldest period counts only if the data covers it (almost) entirely
+    var nP = oldest < 0 ? 0 : (oldest % 12 >= 10 ? Math.floor(oldest / 12) + 1 : Math.floor(oldest / 12));
+    var periods = [];
+    for (var pi = Math.min(nP, 8) - 1; pi >= 0; pi--) { periods.push(pi); }
     var series = {};
     ['Compute', 'Storage', 'GPU', 'Network'].forEach(function (r) {
-      var pts = years.filter(function (y) { return y < yNow; }).map(function (y) {
-        return [y + 0.5, sum(trend.filter(function (t) { return t.year === y && t.resource === r; }), function (t) { return t.qty; })];
-      });
-      series[r] = years.map(function (y) { return sum(trend.filter(function (t) { return t.year === y && t.resource === r; }), function (t) { return t.qty; }); });
+      series[r] = periods.map(function (pi) { return sum(past.filter(function (t) { return t.resource === r && periodOf(t) === pi; }), function (t) { return t.qty; }); });
+      var pts = periods.map(function (pi, i) { return [-pi, series[r][i]]; });
       if (!pts.length || !pts.some(function (p) { return p[1] > 0; })) { return; }
-      var x0 = yNow + (TODAY.getMonth() + TODAY.getDate() / 31) / 12 + 0.5;
       var proj;
       if (pts.length < 2) { proj = pts[0][1]; } else {
         var mx = sum(pts, function (p) { return p[0]; }) / pts.length, my = sum(pts, function (p) { return p[1]; }) / pts.length;
         var nu = sum(pts, function (p) { return (p[0] - mx) * (p[1] - my); }), de = sum(pts, function (p) { return (p[0] - mx) * (p[0] - mx); });
-        proj = Math.max(0, my + (de ? nu / de : 0) * (x0 - mx));
+        proj = Math.max(0, my + (de ? nu / de : 0) * (1 - mx));
       }
       m[r].trendProj = proj;
-      var known = m[r].dem + m[r].mod + m[r].vm;
-      m[r].trend = Math.max(0, proj - known);
+      m[r].trend = Math.max(0, proj - (m[r].dem + m[r].mod + m[r].vm));
+    });
+    // label of each period: the Jalali month it ends with
+    var years = periods.map(function (pi) {
+      var d = new Date(TODAY.getFullYear(), TODAY.getMonth() - 12 * pi, 15);
+      return 'تا ' + jdate(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-15').slice(0, 7);
     });
 
     // 5. warehouse: in stock or spare, ready to use
@@ -980,7 +989,7 @@
     var title = '<div class="db-section-h">پیش‌بینی زیرساخت موردنیاز برای ۱۲ ماه آینده (تا ' + jdate(new Date(TODAY.getTime() + 365 * 864e5).toISOString().slice(0, 10)) + ')</div>';
     if (!ok('forecast')) { return title + need(['forecast']); }
     var M = fcModel(), m = M.m;
-    var settings = FC.settings_url ? link(FC.settings_url, 'تنظیمات پیش‌بینی', 'عمر مجاز، اتصال VirOPS و ورود سوابق iCare') : '';
+    var settings = FC.settings_url ? link(FC.settings_url, 'تنظیمات پیش‌بینی', 'عمر مجاز و ورود فایل‌های VirOPS و iCare') : '';
     var q = function (v, r) { return r === 'Storage' ? decimal(v, v >= 100 ? 0 : 1) : num(Math.round(v)); };
     var dash = '<span class="db-dash">—</span>';
     var cost = sum(FC_RES, function (r) { return m[r].cost || 0; });
@@ -1011,8 +1020,8 @@
       + (rows || '<tr><td colspan="9" class="db-empty">نیازی پیش‌بینی نشد.</td></tr>') + '</tbody></table></div>'
       + '<div class="db-note">درخواست‌های باز: درخواست‌های ظرفیت تأییدنشده یا در جریان (به‌جز ردشده و آزادسازی). نوسازی: دستگاه‌های در حال استفاده که تا پایان دوره به عمر مجاز نوع خود می‌رسند (سرور '
       + fa((FC.ages || {}).Server || 0) + '، ذخیره‌سازی ' + fa((FC.ages || {}).Storage || 0) + '، شبکه ' + fa((FC.ages || {}).Network || 0) + ' سال)، مگر درخواست جایگزینی آن ثبت شده باشد. '
-      + 'توسعه VM: کمبود کلاسترها با رشد ۹۰ روز اخیر و سقف بهره‌برداری ' + fa(Math.round(M.target * 100)) + '٪، منهای درخواست‌های توسعه باز. '
-      + 'روند iCare: آنچه روند تحویل سال‌های گذشته بیش از موارد شناخته‌شده پیش‌بینی می‌کند. ' + (settings ? settings : '') + '</div>';
+      + 'توسعه VM: کمبود کلاسترها (فایل VirOPS) با رشد ماهانه و سقف بهره‌برداری ' + fa(Math.round(M.target * 100)) + '٪، منهای درخواست‌های توسعه باز. '
+      + 'روند iCare: آنچه روند تحویل دوره‌های ۱۲ماهه گذشته بیش از موارد شناخته‌شده پیش‌بینی می‌کند. ' + (settings ? settings : '') + '</div>';
 
     // share of each factor per resource (units differ, so the bars show shares; the tooltip shows the amounts)
     var shown = FC_RES.filter(function (r) { return m[r].total > 0; });
@@ -1039,7 +1048,7 @@
     var trendCard;
     var ic = FC.icare || {};
     if (M.years.length) {
-      var labels = M.years.map(function (y) { return fa(y - 621); }).concat(['۱۲ ماه آینده']);
+      var labels = M.years.concat(['۱۲ ماه آینده']);
       var line = function (r, color, axis) {
         return { name: RCAT_FA[r] + (r === 'Storage' ? ' (TB)' : ''), type: 'line', yAxisIndex: axis, smooth: true, symbolSize: 7, itemStyle: { color: color }, lineStyle: { width: 2.5 },
           data: M.series[r].map(function (v) { return Math.round(v * 10) / 10; }).concat([m[r].trendProj === null ? null : Math.round(m[r].trendProj * 10) / 10]) };
@@ -1054,8 +1063,8 @@
           { type: 'value', name: 'TB', axisLabel: { color: COL.muted }, splitLine: { show: false } }],
         series: [line('Compute', RCAT_COL.Compute, 0), line('GPU', RCAT_COL.GPU, 0), line('Network', RCAT_COL.Network, 0), line('Storage', RCAT_COL.Storage, 1)]
       });
-      trendCard = card(6, 'روند تحویل سالانه (iCare) و پیش‌بینی', chartHtml('c-fc-trend', 300)
-        + '<div class="db-note">' + (ic.demo ? chip('داده نمونه', 'warn') + ' ' : '') + (ic.file ? 'فایل: ' + esc(ic.file) + ' · ' : '') + 'سال‌ها شمسی؛ نقطه آخر، خط روند سال‌های کامل گذشته است.</div>');
+      trendCard = card(6, 'روند تحویل ۱۲ماهه (iCare) و پیش‌بینی', chartHtml('c-fc-trend', 300)
+        + '<div class="db-note">' + (ic.demo ? chip('داده نمونه', 'warn') + ' ' : '') + (ic.file ? 'فایل: ' + esc(ic.file) + ' · ' : '') + 'هر نقطه جمع تحویل ۱۲ ماه منتهی به آن ماه است؛ نقطه آخر، ادامه خط روند برای ۱۲ ماه آینده است.</div>');
     } else {
       trendCard = card(6, 'روند تحویل سالانه (iCare)', '<div class="db-empty">سوابق iCare وارد نشده است. ' + (settings ? 'از ' + settings + ' فایل Excel یا CSV خروجی iCare را وارد کنید.' : 'از مدیر سیستم بخواهید خروجی iCare را وارد کند.') + '</div>');
     }
@@ -1075,10 +1084,9 @@
       { h: 'رسیدن به سقف', f: function (x) { return x.full === 0 ? chip('اکنون', 'bad') : (x.full === Infinity ? dash : (x.full <= 12 ? chip(fa(Math.ceil(x.full)) + ' ماه', 'warn') : fa(Math.ceil(x.full)) + ' ماه')); } },
       { h: 'هاست موردنیاز', num: true, f: function (x) { return x.hosts ? '<b>' + num(x.hosts) + '</b>' : dash; } },
       { h: 'فضای موردنیاز', num: true, f: function (x) { return x.tb > 0.05 ? decimal(x.tb, 1) + ' TB' : dash; } }
-    ], M.CL, 500) : '<div class="db-empty">' + (vo.configured ? 'هنوز داده‌ای از VirOPS خوانده نشده است.' : 'VirOPS متصل نشده است.') + (settings ? ' ' + settings : '') + '</div>';
-    var vmNote = '<div class="db-note">' + (vo.demo ? chip('داده نمونه', 'warn') + ' ' : '') + (vo.last_sync ? 'آخرین همگام‌سازی VirOPS: ' + esc(vo.last_sync) + '. ' : '')
-      + (vo.last_error ? '<span class="db-fc-err">خطای آخر: ' + esc(vo.last_error) + '</span> ' : '')
-      + 'نوار: بهره‌برداری فعلی؛ عدد دوم: پیش‌بینی ۱۲ ماه بعد با رشد ۹۰ روز اخیر.</div>';
+    ], M.CL, 500) : '<div class="db-empty">' + 'فایل کلاسترهای VirOPS وارد نشده است.' + (settings ? ' ' + settings : '') + '</div>';
+    var vmNote = '<div class="db-note">' + (vo.demo ? chip('داده نمونه', 'warn') + ' ' : '') + (vo.file ? 'فایل VirOPS: ' + esc(vo.file) + (vo.imported ? ' (' + esc(vo.imported) + ')' : '') + '. ' : '')
+      + 'نوار: بهره‌برداری فعلی؛ عدد دوم: پیش‌بینی ۱۲ ماه بعد با رشد ماهانه فایل.</div>';
 
     // devices reaching their age limit
     var modTbl = M.mod.length ? table('db-fc-mod-tbl', [

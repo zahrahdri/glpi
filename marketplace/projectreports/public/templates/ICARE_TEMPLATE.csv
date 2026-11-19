@@ -1,5 +1,0 @@
-﻿شماره درخواست,تاریخ تحویل,نوع منبع,تعداد,واحد,نوع درخواست,پروژه,شرح
-IC-1402-0158,1402/03/14,Compute,6,server,New project,Core banking DR,Rack server 2U
-IC-1402-0201,1402/07/02,Storage,120,TB,Expansion,Data lake,All-flash storage expansion
-IC-1403-0044,1403/02/20,Network,4,device,Modernization,Campus LAN,Core switch replacement
-IC-1403-0112,1403/09/11,GPU,8,GPU,New project,AI platform,GPU server
