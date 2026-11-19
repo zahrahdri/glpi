@@ -26,6 +26,8 @@ function plugin_init_projectreports()
 
     // Ticket › Price check tab (capacity requests only, users who may create orders)
     Plugin::registerClass('PluginProjectreportsPricecheck', ['addtabon' => ['Ticket']]);
+    // Home page tab: Reporting dashboard next to GLPI's own Dashboard
+    Plugin::registerClass('PluginProjectreportsCentral', ['addtabon' => ['Central']]);
     // Orders › order › Add from LOP tab
     if (class_exists('PluginOrderOrder')) {
         Plugin::registerClass('PluginProjectreportsOrderlop', ['addtabon' => ['PluginOrderOrder']]);

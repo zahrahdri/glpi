@@ -13,7 +13,14 @@ if (!PluginProjectreportsDashboardmenu::canView()) {
     Html::displayRightError();
 }
 
-Html::header('Reporting dashboard', $_SERVER['PHP_SELF'], 'tools', 'PluginProjectreportsDashboardmenu');
+// ?embed=1: shown inside the Home page tab (no GLPI menu; see PluginProjectreportsCentral)
+$embed = !empty($_GET['embed']);
+if ($embed) {
+    Html::popHeader('Reporting dashboard', $_SERVER['PHP_SELF'], false, 'tools', 'PluginProjectreportsDashboardmenu');
+    echo '<script>window.PR_EMBED = true;</script>';
+} else {
+    Html::header('Reporting dashboard', $_SERVER['PHP_SELF'], 'tools', 'PluginProjectreportsDashboardmenu');
+}
 
 $data = PluginProjectreportsData::all();
 $data['root'] = $CFG_GLPI['root_doc'];
@@ -74,4 +81,4 @@ echo json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_Q
 echo '<script src="' . htmlescape($plugin_root . '/lib/echarts.min.js?v=5.6.0') . '"></script>';
 echo '<script src="' . htmlescape($plugin_root . '/js/dashboard.js' . $ver_of('js/dashboard.js')) . '"></script>';
 
-Html::footer();
+$embed ? Html::popFooter() : Html::footer();

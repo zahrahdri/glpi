@@ -201,6 +201,28 @@
   }
 
   // ---------- links: to a filtered page of the dashboard, or to the GLPI record itself ----------
+  // shown inside the Home page tab: links to GLPI records open in the main window, the frame follows the page height
+  var EMBED = !!window.PR_EMBED;
+  if (EMBED) {
+    document.documentElement.classList.add('pr-embed');
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a[href]');
+      if (!a) { return; }
+      var h = a.getAttribute('href') || '';
+      if (h.charAt(0) === '#' || h.charAt(0) === '?' || h.indexOf('/plugins/projectreports/front/dashboard.php') >= 0 || a.target === '_blank') { return; }
+      a.target = '_top';
+    }, true);
+    var lastH = 0;
+    var postHeight = function () {
+      var h = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+      if (Math.abs(h - lastH) > 4) { lastH = h; try { window.parent.postMessage({ type: 'pr-dashboard-height', height: h }, window.location.origin); } catch (e) { /* not in a frame */ } }
+    };
+    if (window.ResizeObserver) { new ResizeObserver(postHeight).observe(document.body); }
+    window.addEventListener('load', postHeight);
+    setInterval(postHeight, 1500);
+  }
+  function openRecord(u) { if (EMBED) { window.top.location.href = u; } else { window.location.href = u; } }
+
   function query(page, changes) {
     var q = new URLSearchParams();
     q.set('page', page);
@@ -209,6 +231,7 @@
     Object.keys(X).forEach(function (k) { all[k] = X[k]; });
     Object.keys(changes || {}).forEach(function (k) { all[k] = changes[k]; });
     Object.keys(all).forEach(function (k) { if (all[k] && !(k === 'time' && all[k] === 'all')) { q.set(k, all[k]); } });
+    if (EMBED) { q.set('embed', '1'); }
     return '?' + q.toString();
   }
   function go(page, changes) { window.location.href = query(page, changes); }
@@ -649,7 +672,7 @@
     chart('c-bud', vbarOpt(labels, [
       { name: 'بودجه', data: Fn.map(function (f) { return Number(f.budget); }), color: COL.grey },
       { name: 'تخصیص‌یافته', data: Fn.map(function (f) { return Number(f.allocated); }), color: COL.blue }
-    ]), function (e) { var u = rec('Project', Fn[e.dataIndex].project_id); if (u) { window.location.href = u; } });
+    ]), function (e) { var u = rec('Project', Fn[e.dataIndex].project_id); if (u) { openRecord(u); } });
 
     var RUNS = { 'lasts to end': 'تا پایان دوره کافی است', 'no BOQ spend yet': 'هنوز هزینه‌ای ثبت نشده', 'already exceeded': 'از بودجه گذشته' };
     var tbl = table('db-bud-tbl', [
