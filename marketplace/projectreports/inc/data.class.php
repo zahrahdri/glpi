@@ -10,6 +10,8 @@ class PluginProjectreportsData
         'requests' => ['glpi_tickets', 'glpi_itils_projects', 'glpi_projects', 'glpi_itilcategories', 'glpi_groups_tickets', 'glpi_groups'],
         'money'    => ['glpi_budgets', 'glpi_projects', 'glpi_projecttypes', 'glpi_projectcosts', 'glpi_infocoms', 'glpi_plugin_order_orders', 'glpi_plugin_order_orders_items', 'glpi_plugin_order_configs', 'glpi_plugin_order_orderstates', 'glpi_suppliers'],
         'demands'  => ['glpi_tickets', 'glpi_forms_answerssets', 'glpi_forms_destinations_answerssets_formdestinationitems', 'glpi_forms_questions', 'glpi_items_tickets', 'glpi_plugin_order_orders', 'glpi_plugin_order_orders_items', 'glpi_plugin_order_configs'],
+        'inventory' => ['glpi_computers', 'glpi_networkequipments', 'glpi_passivedcequipments', 'glpi_items_devicememories', 'glpi_items_deviceharddrives',
+            'glpi_devicememories', 'glpi_deviceharddrives', 'glpi_states', 'glpi_locations', 'glpi_cables', 'glpi_items_racks', 'glpi_racks'],
         'racks'    => ['glpi_racks', 'glpi_items_racks', 'glpi_dcrooms', 'glpi_datacenters', 'glpi_infocoms', 'glpi_items_projects', 'glpi_computers', 'glpi_networkequipments', 'glpi_passivedcequipments', 'glpi_assets_assets'],
     ];
 
@@ -531,6 +533,141 @@ PRSQL;
 
     /** Everything the page needs, for the sections this user may see. */
     /**
+     * Current inventory: every server, storage, switch and patch panel (racked or not) with its status, location,
+     * rack, project, RAM and disks (installed components). Storage = network equipment whose type says SAN / NAS /
+     * storage, or a custom asset type whose name says storage; its raw capacity = the disks attached to it.
+     */
+    public static function inventory(): array
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $part = function (string $itemtype, string $table, string $model_table, string $model_fk, string $kind_sql, string $extra_join = '', string $where = '1=1') {
+            $it = "'" . addslashes($itemtype) . "'";
+            return "SELECT $it AS itemtype, i.id AS item_id, i.name, i.serial, $kind_sql AS kind,
+                  m.name AS model, mf.name AS manufacturer, COALESCE(st.name, '') AS state, COALESCE(l.completename, '') AS location,
+                  COALESCE(dc.name, '') AS datacenter, COALESCE(r.name, '') AS rack, r.id AS rack_id, ir.position,
+                  COALESCE((SELECT GROUP_CONCAT(DISTINCT p.name SEPARATOR ', ') FROM glpi_items_projects ip JOIN glpi_projects p ON p.id = ip.projects_id
+                            WHERE ip.itemtype = $it AND ip.items_id = i.id), '') AS project,
+                  (SELECT COUNT(*) FROM glpi_items_devicememories d WHERE d.itemtype = $it AND d.items_id = i.id AND d.is_deleted = 0) AS ram_modules,
+                  (SELECT COALESCE(SUM(d.size), 0) FROM glpi_items_devicememories d WHERE d.itemtype = $it AND d.items_id = i.id AND d.is_deleted = 0) AS ram_mb,
+                  (SELECT COUNT(*) FROM glpi_items_deviceharddrives d WHERE d.itemtype = $it AND d.items_id = i.id AND d.is_deleted = 0) AS disks,
+                  (SELECT COALESCE(SUM(d.capacity), 0) FROM glpi_items_deviceharddrives d WHERE d.itemtype = $it AND d.items_id = i.id AND d.is_deleted = 0) AS disk_mb
+                FROM $table i
+                $extra_join
+                LEFT JOIN $model_table m ON m.id = i.$model_fk
+                LEFT JOIN glpi_manufacturers mf ON mf.id = i.manufacturers_id
+                LEFT JOIN glpi_states st ON st.id = i.states_id
+                LEFT JOIN glpi_locations l ON l.id = i.locations_id
+                LEFT JOIN glpi_items_racks ir ON ir.itemtype = $it AND ir.items_id = i.id
+                LEFT JOIN glpi_racks r ON r.id = ir.racks_id
+                LEFT JOIN glpi_dcrooms rm ON rm.id = r.dcrooms_id
+                LEFT JOIN glpi_datacenters dc ON dc.id = rm.datacenters_id
+                WHERE i.is_deleted = 0 AND i.is_template = 0 AND $where";
+        };
+        $storage_re = "'(^|[^a-z])(san|nas)([^a-z]|\$)|storage|ذخیره'";
+        $parts = [
+            $part('Computer', 'glpi_computers', 'glpi_computermodels', 'computermodels_id', "'Server'"),
+            $part('NetworkEquipment', 'glpi_networkequipments', 'glpi_networkequipmentmodels', 'networkequipmentmodels_id',
+                "CASE WHEN LOWER(COALESCE(t.name, '')) REGEXP $storage_re THEN 'Storage' WHEN t.name LIKE '%Core%' THEN 'Core switch' ELSE 'Switch' END",
+                'LEFT JOIN glpi_networkequipmenttypes t ON t.id = i.networkequipmenttypes_id'),
+            $part('PassiveDCEquipment', 'glpi_passivedcequipments', 'glpi_passivedcequipmentmodels', 'passivedcequipmentmodels_id', "'Patch panel'"),
+        ];
+        $rows = [];
+        foreach ($parts as $sql) {
+            $res = $DB->doQuery($sql);
+            while ($r = $res->fetch_assoc()) {
+                $rows[] = $r;
+            }
+        }
+        // storage recorded as a custom asset type (GLPI 11 Setup > Asset definitions) whose name says storage
+        if ($DB->tableExists('glpi_assets_assetdefinitions')) {
+            foreach ($DB->request(['FROM' => 'glpi_assets_assetdefinitions', 'WHERE' => ['is_active' => 1]]) as $def) {
+                if (!preg_match('/storage|san|nas|ذخیره/i', $def['system_name'] . ' ' . $def['label'])) {
+                    continue;
+                }
+                $res = $DB->doQuery($part('Glpi\\CustomAsset\\' . $def['system_name'] . 'Asset', 'glpi_assets_assets', 'glpi_assets_assetmodels',
+                    'assets_assetmodels_id', "'Storage'", '', 'i.assets_assetdefinitions_id = ' . (int) $def['id']));
+                while ($r = $res->fetch_assoc()) {
+                    $rows[] = $r;
+                }
+            }
+        }
+        foreach ($rows as &$r) {
+            $r['url'] = ($item = getItemForItemtype($r['itemtype'])) ? $item::getFormURLWithID((int) $r['item_id']) : '';
+            $r['rack_url'] = $r['rack_id'] ? Rack::getFormURLWithID((int) $r['rack_id']) : '';
+            foreach (['ram_modules', 'ram_mb', 'disks', 'disk_mb', 'item_id', 'rack_id', 'position'] as $k) {
+                $r[$k] = $r[$k] === null ? null : (float) $r[$k];
+            }
+        }
+        return $rows;
+    }
+
+    /** Spare RAM and disks: components recorded without a device (in stock), by model, size, status and location. */
+    public static function spares(): array
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $out = [];
+        foreach ([['RAM', 'glpi_items_devicememories', 'glpi_devicememories', 'devicememories_id', 'size'],
+                  ['Disk', 'glpi_items_deviceharddrives', 'glpi_deviceharddrives', 'deviceharddrives_id', 'capacity']] as [$kind, $t, $dt, $fk, $size]) {
+            $res = $DB->doQuery("SELECT '$kind' AS kind, dv.id AS device_id, dv.designation AS model, d.$size AS size_mb,
+                    COALESCE(st.name, '') AS state, COALESCE(l.completename, '') AS location, COUNT(*) AS n
+                FROM $t d JOIN $dt dv ON dv.id = d.$fk
+                LEFT JOIN glpi_states st ON st.id = d.states_id
+                LEFT JOIN glpi_locations l ON l.id = d.locations_id
+                WHERE d.is_deleted = 0 AND (d.items_id = 0 OR d.items_id IS NULL OR d.itemtype IS NULL OR d.itemtype = '')
+                GROUP BY dv.id, dv.designation, d.$size, st.name, l.completename");
+            while ($r = $res->fetch_assoc()) {
+                $r['n'] = (int) $r['n'];
+                $r['size_mb'] = (float) $r['size_mb'];
+                $r['url'] = ($dt === 'glpi_devicememories' ? DeviceMemory::getFormURLWithID((int) $r['device_id']) : DeviceHardDrive::getFormURLWithID((int) $r['device_id']));
+                $out[] = $r;
+            }
+        }
+        return $out;
+    }
+
+    /** Cables with their type, colour, status and both ends (device names), and whether an end is free. */
+    public static function cables(): array
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $out = [];
+        $names = [];
+        $res = $DB->doQuery("SELECT c.id, c.name, c.color, COALESCE(ct.name, '') AS type, COALESCE(st.name, '') AS state,
+                c.itemtype_endpoint_a AS a_type, c.items_id_endpoint_a AS a_id, c.itemtype_endpoint_b AS b_type, c.items_id_endpoint_b AS b_id
+            FROM glpi_cables c LEFT JOIN glpi_cabletypes ct ON ct.id = c.cabletypes_id LEFT JOIN glpi_states st ON st.id = c.states_id
+            WHERE c.is_deleted = 0 AND c.is_template = 0 ORDER BY c.name");
+        $rows = [];
+        while ($r = $res->fetch_assoc()) {
+            foreach (['a', 'b'] as $e) {
+                if ($r[$e . '_type'] && (int) $r[$e . '_id'] > 0) {
+                    $names[$r[$e . '_type']][(int) $r[$e . '_id']] = '';
+                }
+            }
+            $rows[] = $r;
+        }
+        foreach ($names as $type => $ids) {
+            $item = getItemForItemtype($type);
+            if (!$item || !$DB->fieldExists($item->getTable(), 'name')) {
+                continue;
+            }
+            foreach ($DB->request(['SELECT' => ['id', 'name'], 'FROM' => $item->getTable(), 'WHERE' => ['id' => array_keys($ids)]]) as $i) {
+                $names[$type][(int) $i['id']] = ['name' => $i['name'], 'url' => $item::getFormURLWithID((int) $i['id'])];
+            }
+        }
+        foreach ($rows as $r) {
+            $end = function ($e) use ($r, $names) {
+                $x = $names[$r[$e . '_type']][(int) $r[$e . '_id']] ?? '';
+                return is_array($x) ? $x : null;
+            };
+            $out[] = ['id' => (int) $r['id'], 'name' => $r['name'], 'type' => $r['type'], 'color' => $r['color'], 'state' => $r['state'],
+                'a' => $end('a'), 'b' => $end('b'), 'url' => Cable::getFormURLWithID((int) $r['id'])];
+        }
+        return $out;
+    }
+
+    /**
      * Per request (ticket id): requester, follow-up person, equipment, PO numbers, purchase cost, warehouse arrival
      * (delivery date on the order), data center and installation date (first planned task). Read from the users and
      * items linked to the ticket and the Orders plugin orders linked to it (Ticket > Items). Money only with $money.
@@ -671,6 +808,7 @@ PRSQL;
             'requests' => [PluginProjectreportsMenu::canSeeRequests(), ['requests', 'details']],
             'money'    => [PluginProjectreportsMenu::canSeeMoney(), ['finance', 'orders', 'timeline', 'assets']],
             'racks'    => [PluginProjectreportsMenu::canSeeRacks(), ['racks', 'rack_items', 'reserved']],
+            'inventory' => [PluginProjectreportsMenu::canSeeInventory(), ['inventory', 'spares', 'cables']],
             'demands'  => [PluginProjectreportsMenu::canSeeRequests() && PluginProjectreportsMenu::canSeeMoney(), ['demands']],
         ];
         foreach ($sections as $section => [$allowed, $queries]) {
@@ -688,6 +826,9 @@ PRSQL;
                     $data[$q] = match ($q) {
                         'demands' => self::demands(),
                         'details' => self::details(PluginProjectreportsMenu::canSeeMoney()),
+                        'inventory' => self::inventory(),
+                        'spares' => self::spares(),
+                        'cables' => self::cables(),
                         default   => self::rows($q),
                     };
                 }

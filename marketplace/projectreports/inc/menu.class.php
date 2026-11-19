@@ -35,6 +35,12 @@ class PluginProjectreportsMenu extends CommonGLPI
             && Session::haveRight(Budget::$rightname, READ);
     }
 
+    /** Servers, storage, switches, components and cables: any of the asset rights. */
+    public static function canSeeInventory(): bool
+    {
+        return Computer::canView() || NetworkEquipment::canView() || Cable::canView();
+    }
+
     public static function canSeeRacks(): bool
     {
         return Datacenter::canView();

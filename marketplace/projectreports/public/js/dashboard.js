@@ -27,7 +27,7 @@
   var F = { time: 'all', team: '', project: '', status: '', category: '', supplier: '' };
   var TIMES = [['all', 'همه زمان‌ها'], ['30', '۳۰ روز اخیر'], ['90', '۹۰ روز اخیر'], ['365', '۱۲ ماه اخیر']];
   // drill-down filters set by clicking a chart or a card (not in the filter panel)
-  var X = { group: '', age: '', sla: '', open: '', atype: '', rtype: '', rcat: '' };
+  var X = { group: '', age: '', sla: '', open: '', atype: '', rtype: '', rcat: '', ikind: '', istate: '', cfree: '' };
   var U = D.urls || {};
   (function readAddress() {
     var q = new URLSearchParams(window.location.search);
@@ -227,7 +227,7 @@
     // page tabs keep the filter panel's choices (the drill-down filters belong to the page they were set on)
     document.querySelectorAll('.db-nav a').forEach(function (a) {
       var k = new URLSearchParams((a.getAttribute('href') || '').split('?')[1] || '').get('page');
-      if (k) { a.setAttribute('href', query(k, { group: '', age: '', sla: '', open: '', atype: '', rtype: '', rcat: '' })); }
+      if (k) { a.setAttribute('href', query(k, { group: '', age: '', sla: '', open: '', atype: '', rtype: '', rcat: '', ikind: '', istate: '', cfree: '' })); }
     });
   }
   // the drill-down filters in force, each removable
@@ -239,7 +239,10 @@
       open: function (v) { return v === '1' ? 'فقط باز' : 'بسته'; },
       atype: function (v) { return 'نوع دارایی: ' + (ASSET_FA[v] || v); },
       rtype: function (v) { return 'نوع درخواست: ' + (RTYPE_FA[v] || v); },
-      rcat: function (v) { return 'منبع: ' + (RCAT_FA[v] || v); }
+      rcat: function (v) { return 'منبع: ' + (RCAT_FA[v] || v); },
+      ikind: function (v) { return 'تجهیز: ' + (IKIND_FA[v] || v); },
+      istate: function (v) { return 'وضعیت: ' + stLabel(v); },
+      cfree: function () { return 'کابل‌های با سر آزاد'; }
     };
     var on = Object.keys(X).filter(function (k) { return X[k]; });
     if (!on.length) { return ''; }
@@ -306,7 +309,8 @@
     var tag = href ? 'a' : 'div';
     return '<' + tag + ' class="db-kpi tone-' + tone + (href ? ' db-kpi-link' : '') + '"' + (href ? ' href="' + esc(href) + '" title="نمایش جزئیات"' : '') + '><div class="db-kpi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + icon + '</svg></div>'
       + '<div class="db-kpi-v">' + value + '</div><div class="db-kpi-l">' + esc(label) + '</div>'
-      + (delta ? '<div class="db-delta ' + (delta.up ? 'up' : 'down') + '">' + (delta.up ? '▲ ' : '▼ ') + esc(delta.txt) + '</div>' : '')
+      + (delta && delta.plain ? '<div class="db-kpi-s">' + esc(delta.txt) + '</div>'
+        : (delta ? '<div class="db-delta ' + (delta.up ? 'up' : 'down') + '">' + (delta.up ? '▲ ' : '▼ ') + esc(delta.txt) + '</div>' : ''))
       + '</' + tag + '>';
   }
   function chip(text, cls) { return '<span class="db-chip ' + (cls || '') + '">' + esc(text) + '</span>'; }
@@ -673,8 +677,164 @@
   }
 
   function renderAssets() {
-    var miss = need(['money']);
-    if (miss) { return miss; }
+    return (ok('money') ? renderAssetMoney() : '') + inventorySection();
+  }
+
+  // ---------- current inventory (servers, storage, switches, racks, cables, spare RAM and disks) ----------
+  var INV = D.inventory || [];
+  var SPARES = D.spares || [];
+  var CABLES = D.cables || [];
+  var IKINDS = ['Server', 'Storage', 'Switch', 'Core switch', 'Patch panel'];
+  var IKIND_FA = { Server: 'سرور', Storage: 'فضای ذخیره‌سازی', Switch: 'سوئیچ', 'Core switch': 'سوئیچ هسته', 'Patch panel': 'پچ‌پنل', Cable: 'کابل', RAM: 'رم یدکی', Disk: 'دیسک یدکی' };
+  var ST_ORDER = ['use', 'stock', 'spare', 'broken'];
+  var ST_FA = { use: 'در حال استفاده', stock: 'در انبار', spare: 'یدکی', broken: 'خراب / تعمیر', none: 'بدون وضعیت' };
+  var ST_CLS = { use: 'ok', stock: 'info', spare: 'warn', broken: 'bad', none: '' };
+  // a GLPI status name -> in use / in stock / spare / broken (by its words), else the name itself
+  function stKey(name) {
+    var n = String(name || '').toLowerCase();
+    if (!n) { return 'none'; }
+    if (/broken|repair|faulty|خراب|تعمیر|معیوب/.test(n)) { return 'broken'; }
+    if (/spare|یدک/.test(n)) { return 'spare'; }
+    if (/stock|warehouse|store|انبار/.test(n)) { return 'stock'; }
+    if (/use|production|active|operational|استفاده|فعال|عملیاتی/.test(n)) { return 'use'; }
+    return 'x:' + name;
+  }
+  function stLabel(k) { return ST_FA[k] || String(k).replace(/^x:/, '').replace(/^DEMO /, ''); }
+  function stChip(name) { var k = stKey(name); return chip(stLabel(k), ST_CLS[k] || ''); }
+  function gb(mb) { return Number(mb || 0) / 1024; }
+  function tb(mb) { return Number(mb || 0) / 1048576; }
+  function size(mb) { var t = tb(mb); return t >= 1 ? decimal(t, t >= 10 ? 0 : 1) + ' TB' : num(Math.round(gb(mb))) + ' GB'; }
+  function invRows() {
+    return INV.filter(function (r) {
+      return (!F.project || String(r.project || '').split(', ').indexOf(F.project) >= 0)
+        && (!X.ikind || r.kind === X.ikind) && (!X.istate || stKey(r.state) === X.istate);
+    });
+  }
+
+  function inventorySection() {
+    var title = '<div class="db-section-h">موجودی فعلی: سرور، ذخیره‌سازی، رک، کابل، دیسک و رم</div>';
+    if (!ok('inventory')) { return title + need(['inventory']); }
+    var all = INV.filter(function (r) { return !F.project || String(r.project || '').split(', ').indexOf(F.project) >= 0; });
+    var srv = all.filter(function (r) { return r.kind === 'Server'; });
+    var sto = all.filter(function (r) { return r.kind === 'Storage'; });
+    var nUse = srv.filter(function (r) { return stKey(r.state) === 'use'; }).length;
+    var freeCab = CABLES.filter(function (c) { return !c.a || !c.b; });
+    var nSpare = sum(SPARES, function (x) { return x.n; });
+    var kpis = kpi('سرورها', num(srv.length), { plain: true, txt: num(nUse) + ' در حال استفاده' }, 'gold', query('assets', { ikind: 'Server', istate: '' }) + '#db-inv')
+      + kpi('فضای ذخیره‌سازی (خام)', size(sum(sto, function (r) { return r.disk_mb; })), { plain: true, txt: num(sto.length) + ' دستگاه' }, 'blue', query('assets', { ikind: 'Storage', istate: '' }) + '#db-inv')
+      + kpi('رم نصب‌شده', size(sum(srv, function (r) { return r.ram_mb; })), { plain: true, txt: num(sum(srv, function (r) { return r.ram_modules; })) + ' ماژول' }, 'violet', query('assets', { ikind: 'Server', istate: '' }) + '#db-inv')
+      + kpi('دیسک سرورها', size(sum(srv, function (r) { return r.disk_mb; })), { plain: true, txt: num(sum(srv, function (r) { return r.disks; })) + ' دیسک' }, 'green', query('assets', { ikind: 'Server', istate: '' }) + '#db-inv')
+      + kpi('کابل‌ها', num(CABLES.length), { plain: true, txt: num(freeCab.length) + ' با سر آزاد' }, 'gold', query('assets', { cfree: '' }) + '#db-cab')
+      + kpi('قطعات یدکی', num(nSpare), { plain: true, txt: 'رم و دیسک در انبار' }, 'red', query('assets', {}) + '#db-spare');
+
+    // 1. how many of each kind, by status (every count opens the list below)
+    var states = ST_ORDER.slice();
+    var extra = uniq(all.map(function (r) { return stKey(r.state); }).concat(CABLES.map(function (c) { return stKey(c.state); }), SPARES.map(function (x) { return stKey(x.state); })))
+      .filter(function (k) { return states.indexOf(k) < 0 && k !== 'none'; });
+    states = states.concat(extra, ['none']).filter(function (k) {
+      return all.some(function (r) { return stKey(r.state) === k; }) || CABLES.some(function (c) { return stKey(c.state) === k; }) || SPARES.some(function (x) { return stKey(x.state) === k; });
+    });
+    var countRow = function (label, items, stateOf, hrefOf, nOf) {
+      var n = function (list) { return nOf ? sum(list, nOf) : list.length; };
+      return '<tr><td><b>' + esc(label) + '</b></td>' + states.map(function (k) {
+        var v = n(items.filter(function (x) { return stKey(stateOf(x)) === k; }));
+        return '<td class="num">' + (v ? link(hrefOf(k), num(v)) : '<span class="db-dash">—</span>') + '</td>';
+      }).join('') + '<td class="num"><b>' + link(hrefOf(''), num(n(items))) + '</b></td></tr>';
+    };
+    var kindRows = IKINDS.filter(function (k) { return all.some(function (r) { return r.kind === k; }); }).map(function (k) {
+      return countRow(IKIND_FA[k], all.filter(function (r) { return r.kind === k; }), function (r) { return r.state; },
+        function (st) { return query('assets', { ikind: k, istate: st }) + '#db-inv'; });
+    }).join('')
+      + (CABLES.length ? countRow('کابل', CABLES, function (c) { return c.state; }, function () { return query('assets', {}) + '#db-cab'; }) : '')
+      + ['RAM', 'Disk'].filter(function (k) { return SPARES.some(function (x) { return x.kind === k; }); }).map(function (k) {
+          return countRow(IKIND_FA[k], SPARES.filter(function (x) { return x.kind === k; }), function (x) { return x.state; },
+            function () { return query('assets', {}) + '#db-spare'; }, function (x) { return x.n; });
+        }).join('');
+    var byState = '<div class="db-tbl-wrap"><table class="db-tbl db-compare"><thead><tr><th>نوع</th>'
+      + states.map(function (k) { return '<th class="num">' + esc(stLabel(k)) + '</th>'; }).join('') + '<th class="num">جمع</th></tr></thead><tbody>'
+      + kindRows + '</tbody></table></div>';
+
+    // 2. the equipment list (servers, storage, switches, patch panels), with RAM and disks
+    var R = invRows().sort(function (a, b) { return (IKINDS.indexOf(a.kind) - IKINDS.indexOf(b.kind)) || (b.ram_mb - a.ram_mb) || (b.disk_mb - a.disk_mb) || String(a.name).localeCompare(String(b.name)); });
+    var invTbl = table('db-inv-tbl', [
+      { h: 'تجهیز', f: function (r) { return link(r.url, '<b>' + esc(r.name) + '</b>', 'باز کردن در GLPI') + (r.serial ? '<div class="db-sub-t">' + esc(r.serial) + '</div>' : ''); } },
+      { h: 'نوع', f: function (r) { return filterLink({ ikind: r.kind }, esc(IKIND_FA[r.kind] || r.kind)); } },
+      { h: 'مدل', f: function (r) { return esc(r.model || '') + (r.manufacturer ? '<div class="db-sub-t">' + esc(r.manufacturer) + '</div>' : ''); } },
+      { h: 'وضعیت', f: function (r) { return filterLink({ istate: stKey(r.state) }, stChip(r.state)); } },
+      { h: 'محل', f: function (r) {
+          return r.rack ? link(r.rack_url, esc(r.datacenter) + ' / رک ' + esc(r.rack)) + (r.position ? '<div class="db-sub-t">U' + fa(r.position) + '</div>' : '')
+            : esc(String(r.location || '').replace(/^DEMO /, '')) || '<span class="db-dash">—</span>';
+        } },
+      { h: 'پروژه', f: function (r) { return r.project ? esc(r.project) : '<span class="db-dash">—</span>'; } },
+      { h: 'رم', num: true, f: function (r) { return r.ram_mb ? num(Math.round(gb(r.ram_mb))) + ' GB<div class="db-sub-t">' + num(r.ram_modules) + ' ماژول</div>' : '<span class="db-dash">—</span>'; } },
+      { h: 'دیسک', num: true, f: function (r) { return r.disk_mb ? size(r.disk_mb) + '<div class="db-sub-t">' + num(r.disks) + ' دیسک</div>' : '<span class="db-dash">—</span>'; } }
+    ], R, 2000);
+
+    // 3. racks: units, power and weight used against each rack's limits, fullest first
+    var rackCard = '';
+    if (ok('racks')) {
+      var used = {};
+      (D.rack_items || []).forEach(function (x) {
+        var u = used[x.rack_id] || (used[x.rack_id] = { u: 0, w: 0, kg: 0, n: 0 });
+        u.u += Number(x.units || 0); u.w += Number(x.power_w || 0); u.kg += Number(x.weight_kg || 0); u.n++;
+      });
+      var meter = function (v, max, unit) {
+        if (!max) { return '<span class="db-dash">—</span>'; }
+        var pc = Math.round(v / max * 100);
+        return '<div class="db-meter ' + (pc >= 85 ? 'over' : '') + '"><i style="width:' + Math.min(100, pc) + '%"></i></div>' + num(Math.round(v)) + ' از ' + num(max) + ' ' + unit;
+      };
+      var racks = (D.racks || []).map(function (r) {
+        var u = used[r.rack_id] || { u: 0, w: 0, kg: 0, n: 0 };
+        var ratio = function (v, max) { return Number(max) ? v / Number(max) : 0; };
+        // fullest = the limit (units, power or weight) closest to being reached
+        return { r: r, u: u.u + Number(r.reserved || 0), w: u.w, kg: u.kg, n: u.n,
+          pc: Math.max(ratio(u.u + Number(r.reserved || 0), r.rack_units), ratio(u.w, r.max_power), ratio(u.kg, r.max_weight)) };
+      }).sort(function (a, b) { return b.pc - a.pc; });
+      var rackTbl = table('db-rack-tbl', [
+        { h: 'رک', f: function (x) { return link(rec('Rack', x.r.rack_id) || '', '<b>' + esc(x.r.rack) + '</b>') + '<div class="db-sub-t">' + esc(x.r.datacenter) + ' / ' + esc(x.r.room) + '</div>'; } },
+        { h: 'تجهیزات', num: true, f: function (x) { return num(x.n); } },
+        { h: 'یونیت (U)', f: function (x) { return meter(x.u, Number(x.r.rack_units), 'U'); } },
+        { h: 'برق', f: function (x) { return meter(x.w, Number(x.r.max_power), 'W'); } },
+        { h: 'وزن', f: function (x) { return meter(x.kg, Number(x.r.max_weight), 'kg'); } }
+      ], racks, 500);
+      rackCard = card(12, 'ظرفیت رک‌ها (نزدیک‌ترین به سقف یونیت، برق یا وزن اول)', rackTbl);
+    }
+
+    // 4. spare RAM and disks in stock
+    var spareTbl = table('db-spare-tbl', [
+      { h: 'قطعه', f: function (x) { return link(x.url, esc(x.model)) + '<div class="db-sub-t">' + esc(x.kind === 'RAM' ? 'رم' : 'دیسک') + ' · ' + size(x.size_mb) + '</div>'; } },
+      { h: 'وضعیت', f: function (x) { return stChip(x.state); } },
+      { h: 'محل', f: function (x) { return esc(String(x.location || '').replace(/^DEMO /, '')) || '<span class="db-dash">—</span>'; } },
+      { h: 'تعداد', num: true, f: function (x) { return '<b>' + num(x.n) + '</b>'; } }
+    ], SPARES.slice().sort(function (a, b) { return b.n - a.n; }), 200);
+
+    // 5. cables, with both ends
+    var C = CABLES.filter(function (c) { return !X.cfree || !c.a || !c.b; });
+    var ctypes = countBy(CABLES, function (c) { return c.type || 'بدون نوع'; });
+    var end = function (e) { return e ? link(e.url, esc(e.name)) : chip('آزاد', 'warn'); };
+    var cabTbl = '<div class="db-cab-types">' + Object.keys(ctypes).map(function (t) { return chip(String(t).replace(/^DEMO /, '') + ': ' + num(ctypes[t]), 'info'); }).join(' ')
+      + ' ' + (freeCab.length ? filterLink({ cfree: X.cfree ? '' : '1' }, chip((X.cfree ? 'همه کابل‌ها' : 'فقط سر آزاد') + ' (' + num(freeCab.length) + ')', 'warn')) : '') + '</div>'
+      + table('db-cab-tbl', [
+        { h: 'کابل', f: function (c) { return link(c.url, '<b>' + esc(c.name) + '</b>') + (c.color ? ' <i class="db-swatch" style="background:' + esc(c.color) + '"></i>' : ''); } },
+        { h: 'نوع', f: function (c) { return esc(String(c.type || '').replace(/^DEMO /, '')); } },
+        { h: 'سر A', f: function (c) { return end(c.a); } },
+        { h: 'سر B', f: function (c) { return end(c.b); } },
+        { h: 'وضعیت', f: function (c) { return stChip(c.state); } }
+      ], C, 5000);
+
+    return title + '<div class="db-kpis db-kpis-6">' + kpis + '</div><div class="db-grid">'
+      + card(12, 'موجودی بر اساس نوع و وضعیت', byState + '<div class="db-note">روی هر عدد کلیک کنید تا فهرست همان تجهیزات را ببینید. وضعیت‌ها از فیلد «وضعیت» GLPI خوانده می‌شوند.</div>')
+      + '<section class="db-card s12" id="db-inv"><div class="db-card-h">فهرست تجهیزات (سرور، ذخیره‌سازی، سوئیچ، پچ‌پنل)</div><div class="db-card-b">'
+      + '<input type="search" class="db-search" placeholder="جستجو: نام، مدل، رک، پروژه...">' + invTbl + '</div></section>'
+      + rackCard
+      + '<section class="db-card s12" id="db-spare"><div class="db-card-h">قطعات یدکی در انبار (رم و دیسک)</div><div class="db-card-b">'
+      + (SPARES.length ? spareTbl : '<div class="db-empty">قطعه‌ای بدون دستگاه (در انبار) ثبت نشده است.</div>') + '</div></section>'
+      + '<section class="db-card s12" id="db-cab"><div class="db-card-h">کابل‌ها</div><div class="db-card-b">'
+      + (CABLES.length ? '<input type="search" class="db-search" placeholder="جستجو: کابل، دستگاه...">' + cabTbl : '<div class="db-empty">کابلی ثبت نشده است (Assets › Cables).</div>') + '</div></section>'
+      + '</div>';
+  }
+
+  function renderAssetMoney() {
     var A = asts().sort(function (a, b) { return String(a.asset_type).localeCompare(String(b.asset_type)); });
     var value = sum(A, function (a) { return a.asset_value; });
     var renew = sum(A, function (a) { return a.renew_next_24m; });
@@ -726,8 +886,11 @@
     syncAddress();
     pendingCharts = [];
 
-    var reqTbl = document.getElementById('db-req-tbl');
-    if (reqTbl) { pager(reqTbl, document.querySelector('.db-search'), 10); }
+    ['db-req-tbl', 'db-inv-tbl', 'db-cab-tbl', 'db-rack-tbl'].forEach(function (id) {
+      var t = document.getElementById(id);
+      if (t) { pager(t, t.closest('.db-card-b').querySelector('.db-search'), 10); }
+    });
+    if (window.location.hash) { var target = document.querySelector(window.location.hash); if (target) { target.scrollIntoView(); } }
   }
 
   // Shows a table PER rows at a time, with previous / next buttons; the search box filters before paging.

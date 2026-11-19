@@ -250,6 +250,7 @@ class PluginProjectreportsDemocommand extends AbstractCommand
 
         $this->createBoqs($output, $projects, $alloc);
         $this->createRacks($output, $projects, $servers, $alloc);
+        $this->createInventory($output);
 
         // budget value = allocated / target share, rounded to 10,000
         foreach ($projects as $p) {
@@ -866,6 +867,107 @@ class PluginProjectreportsDemocommand extends AbstractCommand
         $output->writeln(sprintf('People: %d; requests with an order, equipment and an installation date: %d', count($users), $linked));
     }
 
+    /**
+     * Inventory details: statuses (in use / in stock / spare / broken), a warehouse, servers in stock, the disks of the
+     * SAN storage, spare RAM and disks (components without a device) and cables between servers and switches.
+     */
+    private function createInventory(OutputInterface $output): void
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $now = $this->now();
+        $state = [];
+        foreach (['use' => 'DEMO In use', 'stock' => 'DEMO In stock', 'spare' => 'DEMO Spare', 'broken' => 'DEMO Broken'] as $k => $name) {
+            $state[$k] = $this->ins('glpi_states', ['name' => $name, 'completename' => $name, 'entities_id' => 0, 'is_recursive' => 1, 'level' => 1,
+                'date_creation' => $now, 'date_mod' => $now]);
+        }
+        $loc = [];
+        foreach (['dc' => 'DEMO DC-1 data hall', 'wh' => 'DEMO Central warehouse'] as $k => $name) {
+            $loc[$k] = $this->ins('glpi_locations', ['name' => $name, 'completename' => $name, 'entities_id' => 0, 'is_recursive' => 1, 'level' => 1,
+                'date_creation' => $now, 'date_mod' => $now]);
+        }
+        $ids = fn(string $table, string $like) => array_map('intval', array_column(iterator_to_array($DB->request(['SELECT' => 'id', 'FROM' => $table,
+            'WHERE' => ['name' => ['LIKE', $like]], 'ORDER' => 'id'])), 'id'));
+        $servers = $ids('glpi_computers', 'DEMO-SRV-%');
+        foreach ($servers as $n => $id) {
+            $DB->update('glpi_computers', ['states_id' => $n % 17 === 9 ? $state['broken'] : $state['use'], 'locations_id' => $loc['dc']], ['id' => $id]);
+        }
+        foreach (['glpi_networkequipments' => 'DEMO-%', 'glpi_passivedcequipments' => 'DEMO-%'] as $table => $like) {
+            $DB->update($table, ['states_id' => $state['use'], 'locations_id' => $loc['dc']], ['name' => ['LIKE', $like]]);
+        }
+        $mem = (int) ($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_devicememories', 'WHERE' => ['designation' => ['LIKE', 'DEMO %']], 'LIMIT' => 1])->current()['id'] ?? 0);
+        $disk = (int) ($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_deviceharddrives', 'WHERE' => ['designation' => ['LIKE', 'DEMO %']], 'LIMIT' => 1])->current()['id'] ?? 0);
+        $model = (int) ($DB->request(['SELECT' => 'computermodels_id', 'FROM' => 'glpi_computers', 'WHERE' => ['id' => $servers ?: [0]], 'LIMIT' => 1])->current()['computermodels_id'] ?? 0);
+
+        // servers delivered but not installed yet: in the warehouse
+        for ($i = 1; $i <= 4; $i++) {
+            $sid = $this->ins('glpi_computers', ['entities_id' => 0, 'name' => sprintf('DEMO-SRV-STK-%02d', $i), 'serial' => sprintf('DEMOSTK%04d', $i),
+                'computermodels_id' => $model, 'states_id' => $state['stock'], 'locations_id' => $loc['wh'], 'is_deleted' => 0, 'is_template' => 0,
+                'date_creation' => $now, 'date_mod' => $now]);
+            for ($m = 0; $m < 8 && $mem; $m++) {
+                $this->ins('glpi_items_devicememories', ['items_id' => $sid, 'itemtype' => 'Computer', 'devicememories_id' => $mem, 'size' => 65536, 'serial' => "SM$i$m"]);
+            }
+            for ($m = 0; $m < 4 && $disk; $m++) {
+                $this->ins('glpi_items_deviceharddrives', ['items_id' => $sid, 'itemtype' => 'Computer', 'deviceharddrives_id' => $disk, 'capacity' => 3932160, 'serial' => "SD$i$m"]);
+            }
+        }
+        // the SAN storage arrays: their disks give the raw capacity
+        foreach ($ids('glpi_networkequipments', 'DEMO-SAN-%') as $n => $sid) {
+            for ($m = 0; $m < 24 && $disk; $m++) {
+                $this->ins('glpi_items_deviceharddrives', ['items_id' => $sid, 'itemtype' => 'NetworkEquipment', 'deviceharddrives_id' => $disk,
+                    'capacity' => 3932160, 'serial' => "SAN$n-$m"]);
+            }
+        }
+        // spare parts: components without a device, in the warehouse
+        $spares = 0;
+        foreach ([[$mem, 'glpi_items_devicememories', 'devicememories_id', 'size', 65536, 16, 'stock'],
+                  [$disk, 'glpi_items_deviceharddrives', 'deviceharddrives_id', 'capacity', 3932160, 10, 'spare'],
+                  [$disk, 'glpi_items_deviceharddrives', 'deviceharddrives_id', 'capacity', 3932160, 3, 'broken']] as [$dev, $table, $fk, $size, $val, $count, $st]) {
+            for ($m = 0; $m < $count && $dev; $m++) {
+                $this->ins($table, ['items_id' => 0, 'itemtype' => '', $fk => $dev, $size => $val, 'serial' => sprintf('DEMO-SP-%s-%02d', strtoupper($st), $m),
+                    'states_id' => $state[$st], 'locations_id' => $loc['wh'], 'is_deleted' => 0]);
+                $spares++;
+            }
+        }
+        // cables: each server to the top-of-rack switch of its rack (DAC), top-of-rack to core (fiber), management copper
+        $types = [];
+        foreach (['dac' => 'DEMO DAC 25G', 'fiber' => 'DEMO OM4 fiber', 'cat6' => 'DEMO Cat6'] as $k => $name) {
+            $types[$k] = $this->ins('glpi_cabletypes', ['name' => $name, 'date_creation' => $now, 'date_mod' => $now]);
+        }
+        $in_rack = [];   // rack id => [itemtype => [ids]]
+        foreach ($DB->request(['SELECT' => ['racks_id', 'itemtype', 'items_id'], 'FROM' => 'glpi_items_racks', 'WHERE' => ['itemtype' => ['Computer', 'NetworkEquipment']]]) as $r) {
+            $in_rack[(int) $r['racks_id']][$r['itemtype']][] = (int) $r['items_id'];
+        }
+        $tor = array_flip($ids('glpi_networkequipments', 'DEMO-SW-%'));
+        $core = $ids('glpi_networkequipments', 'DEMO-CORE-%');
+        $nb = 0;
+        $cable = function (string $type, string $color, string $at, int $a, string $bt, int $b) use (&$nb, $types, $state, $now) {
+            $nb++;
+            $this->ins('glpi_cables', ['name' => sprintf('DEMO-CBL-%04d', $nb), 'entities_id' => 0, 'is_recursive' => 1,
+                'itemtype_endpoint_a' => $at, 'items_id_endpoint_a' => $a, 'itemtype_endpoint_b' => $b ? $bt : '', 'items_id_endpoint_b' => $b,
+                'cabletypes_id' => $types[$type], 'color' => $color, 'states_id' => $b ? $state['use'] : $state['spare'],
+                'is_deleted' => 0, 'is_template' => 0, 'date_creation' => $now, 'date_mod' => $now]);
+        };
+        foreach ($in_rack as $rack => $by) {
+            $switches = array_values(array_filter($by['NetworkEquipment'] ?? [], fn($id) => isset($tor[$id])));
+            foreach ($by['Computer'] ?? [] as $i => $srv) {
+                if ($switches) {
+                    $cable('dac', '#2f7de1', 'Computer', $srv, 'NetworkEquipment', $switches[0]);
+                    $cable('cat6', '#f5b800', 'Computer', $srv, 'NetworkEquipment', $switches[count($switches) - 1]);
+                }
+            }
+            foreach ($switches as $j => $sw) {
+                if ($core) {
+                    $cable('fiber', '#16a34a', 'NetworkEquipment', $sw, 'NetworkEquipment', $core[$j % count($core)]);
+                }
+            }
+        }
+        for ($i = 0; $i < 6; $i++) {   // patched on one side only, waiting for the other end
+            $cable($i % 2 ? 'fiber' : 'dac', '#94a3b8', 'NetworkEquipment', $core[$i % max(1, count($core))] ?? 0, '', 0);
+        }
+        $output->writeln(sprintf('Inventory: 4 statuses, warehouse, 4 servers in stock, SAN disks, %d spare parts, %d cables', $spares, $nb));
+    }
+
     private function remove(OutputInterface $output): void
     {
         /** @var DBmysql $DB */
@@ -893,6 +995,10 @@ class PluginProjectreportsDemocommand extends AbstractCommand
             $DB->delete('glpi_tickets', ['id' => $tickets]);
         }
         $DB->delete('glpi_users', ['name' => array_keys(self::PEOPLE)]);
+        $DB->delete('glpi_cables', ['name' => ['LIKE', 'DEMO-CBL-%']]);
+        foreach (['glpi_cabletypes', 'glpi_states', 'glpi_locations'] as $table) {
+            $DB->delete($table, ['name' => ['LIKE', 'DEMO %']]);
+        }
         // data center, racks and the items in them
         $rooms = $ids('glpi_dcrooms', 'name', 'DEMO %');
         $racks = $rooms ? array_column(iterator_to_array($DB->request(['SELECT' => 'id', 'FROM' => 'glpi_racks', 'WHERE' => ['dcrooms_id' => $rooms]])), 'id') : [];

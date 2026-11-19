@@ -19,7 +19,7 @@ $data = PluginProjectreportsData::all();
 $data['root'] = $CFG_GLPI['root_doc'];
 // form address of each kind of record the dashboard links to (Ticket, Project, ...; asset types as found in the data)
 $data['urls'] = [];
-$types = ['Ticket', 'Project', 'Group', 'User', 'Supplier', 'Budget', 'Datacenter', 'ITILCategory'];
+$types = ['Ticket', 'Project', 'Group', 'User', 'Supplier', 'Budget', 'Datacenter', 'ITILCategory', 'Rack', 'Cable'];
 foreach ($data['assets'] ?? [] as $a) {
     $types[] = (string) ($a['itemtype'] ?? '');
 }
