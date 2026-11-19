@@ -1022,7 +1022,42 @@ class PluginProjectreportsDemocommand extends AbstractCommand
             $DB->update('glpi_infocoms', ['use_date' => $d, 'buy_date' => $d], ['itemtype' => 'NetworkEquipment', 'items_id' => (int) $row['id']]);
             $old++;
         }
-        $output->writeln(sprintf('Forecast samples: 4 VM clusters, %d iCare deliveries, %d devices near end of life', $nb, $old));
+        // DCIM device list: the demo servers, storage and switches with their in-service dates, as a DCIM export would list them
+        $DB->delete(PluginProjectreportsForecast::DCIM, ['is_demo' => 1]);
+        $nd = 0;
+        foreach ([
+            ['glpi_computers', 'Computer', 'glpi_computermodels', 'computermodels_id', null],
+            ['glpi_networkequipments', 'NetworkEquipment', 'glpi_networkequipmentmodels', 'networkequipmentmodels_id', 'glpi_networkequipmenttypes'],
+        ] as [$table, $itemtype, $mtable, $mfk, $ttable]) {
+            $res = $DB->doQuery("SELECT i.name, i.serial, m.name AS model, COALESCE(mf.name, '') AS manufacturer, COALESCE(st.name, '') AS state,
+                    COALESCE(ic.use_date, ic.buy_date) AS d, COALESCE(r.name, '') AS rack, COALESCE(dc.name, l.name, '') AS location"
+                . ($ttable ? ", COALESCE(t.name, '') AS tname" : ", 'Server' AS tname") . "
+                FROM `$table` i
+                JOIN glpi_infocoms ic ON ic.itemtype = '$itemtype' AND ic.items_id = i.id
+                LEFT JOIN `$mtable` m ON m.id = i.$mfk
+                LEFT JOIN glpi_manufacturers mf ON mf.id = i.manufacturers_id
+                LEFT JOIN glpi_states st ON st.id = i.states_id
+                LEFT JOIN glpi_locations l ON l.id = i.locations_id
+                LEFT JOIN glpi_items_racks ir ON ir.itemtype = '$itemtype' AND ir.items_id = i.id
+                LEFT JOIN glpi_racks r ON r.id = ir.racks_id
+                LEFT JOIN glpi_dcrooms rm ON rm.id = r.dcrooms_id
+                LEFT JOIN glpi_datacenters dc ON dc.id = rm.datacenters_id"
+                . ($ttable ? " LEFT JOIN `$ttable` t ON t.id = i.networkequipmenttypes_id" : '') . "
+                WHERE i.name LIKE 'DEMO-%' AND i.is_deleted = 0 AND COALESCE(ic.use_date, ic.buy_date) IS NOT NULL");
+            while ($r = $res->fetch_assoc()) {
+                $kind = PluginProjectreportsForecast::deviceKind($r['tname'] . ' ' . $r['model']);
+                if ($kind === 'Other') {
+                    continue;
+                }
+                $status = preg_replace('/^DEMO /', '', (string) $r['state']);
+                $DB->insert(PluginProjectreportsForecast::DCIM, ['hostname' => $r['name'], 'kind' => $kind, 'type' => $r['tname'],
+                    'model' => (string) $r['model'], 'manufacturer' => $r['manufacturer'], 'serial' => (string) $r['serial'], 'in_service' => $r['d'],
+                    'location' => $r['location'], 'rack' => $r['rack'], 'status' => $status,
+                    'in_use' => preg_match('/stock|spare|broken/i', $status) ? 0 : 1, 'is_demo' => 1]);
+                $nd++;
+            }
+        }
+        $output->writeln(sprintf('Forecast samples: 4 VM clusters, %d iCare deliveries, %d DCIM devices (%d switches near end of life)', $nb, $nd, $old));
     }
 
     private function remove(OutputInterface $output): void
@@ -1054,6 +1089,7 @@ class PluginProjectreportsDemocommand extends AbstractCommand
         $DB->delete('glpi_users', ['name' => array_keys(self::PEOPLE)]);
         $DB->delete('glpi_cables', ['name' => ['LIKE', 'DEMO-CBL-%']]);
         PluginProjectreportsForecast::ensureSchema();
+        $DB->delete(PluginProjectreportsForecast::DCIM, ['is_demo' => 1]);
         $DB->delete(PluginProjectreportsForecast::CLUSTERS, ['source' => 'demo']);
         $DB->delete(PluginProjectreportsForecast::ICARE, ['is_demo' => 1]);
         foreach (['glpi_cabletypes', 'glpi_states', 'glpi_locations'] as $table) {

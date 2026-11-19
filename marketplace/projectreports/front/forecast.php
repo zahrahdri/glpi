@@ -3,6 +3,7 @@
 /**
  * Tools > Reporting dashboard > پیش‌بینی > تنظیمات پیش‌بینی (administrators: Setup > General UPDATE):
  *   - age limit per device type and the target use of the VM clusters,
+ *   - DCIM device list (in-service dates for the age check): import an Excel / CSV export, or delete it,
  *   - VirOPS clusters: import an Excel / CSV export, or delete it,
  *   - the iCare history: import an Excel / CSV export, or delete it.
  * Both imports have a template filled with sample figures (public/templates).
@@ -34,9 +35,9 @@ if ($action === 'save') {
     $note('تنظیمات ذخیره شد.');
     Html::redirect($self);
 }
-if ($action === 'import' || $action === 'virops_import') {
-    $field = $action === 'import' ? 'icare' : 'virops';
-    $label = $action === 'import' ? 'iCare' : 'VirOPS';
+if ($action === 'import' || $action === 'virops_import' || $action === 'dcim_import') {
+    $field = ['import' => 'icare', 'virops_import' => 'virops', 'dcim_import' => 'dcim'][$action];
+    $label = ['icare' => 'iCare', 'virops' => 'VirOPS', 'dcim' => 'DCIM'][$field];
     if (empty($_FILES[$field]['tmp_name']) || !is_uploaded_file($_FILES[$field]['tmp_name'])) {
         $note('فایلی انتخاب نشده است.', false);
         Html::redirect($self);
@@ -50,6 +51,13 @@ if ($action === 'import' || $action === 'virops_import') {
             }
             $n = PluginProjectreportsForecast::saveIcare($read['rows'], $name);
             $what = 'ردیف';
+        } elseif ($field === 'dcim') {
+            $read = PluginProjectreportsForecast::readDcim($_FILES[$field]['tmp_name'], $name);
+            if (!$read['rows']) {
+                throw new RuntimeException('هیچ دستگاهی با نام و تاریخ بهره‌برداری در فایل نبود.');
+            }
+            $n = PluginProjectreportsForecast::saveDcim($read['rows'], $name);
+            $what = 'دستگاه';
         } else {
             $read = PluginProjectreportsForecast::readClusters($_FILES[$field]['tmp_name'], $name);
             if (!$read['rows']) {
@@ -70,6 +78,11 @@ if ($action === 'icare_delete') {
     $note('سوابق واردشده iCare حذف شد.');
     Html::redirect($self);
 }
+if ($action === 'dcim_delete') {
+    PluginProjectreportsForecast::deleteDcim();
+    $note('فهرست واردشده DCIM حذف شد.');
+    Html::redirect($self);
+}
 if ($action === 'virops_delete') {
     PluginProjectreportsForecast::deleteClusters();
     $note('کلاسترهای واردشده VirOPS حذف شد.');
@@ -82,6 +95,10 @@ $cfg = PluginProjectreportsForecast::config();
 $years = iterator_to_array($DB->request(['SELECT' => ['year', 'is_demo', 'COUNT' => 'id AS n', 'SUM' => 'quantity AS qty'],
     'FROM' => PluginProjectreportsForecast::ICARE, 'GROUPBY' => ['year', 'is_demo'], 'ORDER' => 'year']), false);
 $clusters = iterator_to_array($DB->request(['FROM' => PluginProjectreportsForecast::CLUSTERS, 'ORDER' => 'cluster']), false);
+$dcim = iterator_to_array($DB->request(['SELECT' => ['kind', 'is_demo', 'in_use', 'COUNT' => 'id AS n', 'MIN' => 'in_service AS oldest'],
+    'FROM' => PluginProjectreportsForecast::DCIM, 'GROUPBY' => ['kind', 'is_demo', 'in_use'], 'ORDER' => ['is_demo', 'kind']]), false);
+$imported_dcim = array_filter($dcim, fn($d) => !$d['is_demo']);
+$kind_fa = ['Server' => 'سرور', 'Storage' => 'فضای ذخیره‌سازی', 'Network' => 'تجهیز شبکه', 'Other' => 'سایر (در محاسبه نیست)'];
 $imported_clusters = array_filter($clusters, fn($c) => $c['source'] !== 'demo');
 $imported_years = array_filter($years, fn($y) => !$y['is_demo']);
 
@@ -99,7 +116,7 @@ $src = fn($demo) => $demo ? 'نمونه (DEMO)' : 'فایل واردشده';
     <input type="hidden" name="action" value="save">
     <section class="db-card">
       <h3>عمر مجاز تجهیزات (سال)</h3>
-      <p class="fc-help">دستگاهی که عمرش (از تاریخ شروع به کار، یا تاریخ تحویل/خرید در اطلاعات مالی) تا ۱۲ ماه آینده به این حد برسد، نیازمند نوسازی شمرده می‌شود.</p>
+      <p class="fc-help">دستگاهی که عمرش (از تاریخ بهره‌برداری در فایل DCIM پایین همین صفحه) تا ۱۲ ماه آینده به این حد برسد، نیازمند نوسازی شمرده می‌شود.</p>
       <div class="fc-grid">
         <?php echo $field('سرور', $num('fc_age_server')) . $field('فضای ذخیره‌سازی', $num('fc_age_storage')) . $field('تجهیزات شبکه', $num('fc_age_network')); ?>
       </div>
@@ -110,6 +127,34 @@ $src = fn($demo) => $demo ? 'نمونه (DEMO)' : 'فایل واردشده';
       <p><button class="btn btn-primary" type="submit">ذخیره تنظیمات</button></p>
     </section>
   <?php Html::closeForm(); ?>
+
+  <section class="db-card">
+    <h3>DCIM: فهرست دستگاه‌ها برای محاسبه عمر (فایل Excel)</h3>
+    <p class="fc-help">خروجی دستگاه‌های DCIM را وارد کنید؛ برای هر دستگاه یک ردیف: نام دستگاه، نوع (سرور، ذخیره‌سازی، سوئیچ/روتر/فایروال)، تاریخ بهره‌برداری
+      (شمسی یا میلادی؛ یا به‌جای آن ستون «عمر» به سال) و در صورت وجود مدل، سازنده، سریال، دیتاسنتر، رک و وضعیت.
+      دستگاه‌هایی که وضعیتشان انبار، یدکی یا خارج از سرویس است در محاسبه نوسازی شمرده نمی‌شوند. وقتی این فایل وارد شده باشد، عمر دستگاه‌ها از آن خوانده می‌شود
+      (وگرنه از اطلاعات مالی دارایی‌های GLPI). هر بار وارد کردن، فهرست قبلی را جایگزین می‌کند.
+      <a href="<?php echo $h($template('DCIM_TEMPLATE.xlsx')); ?>">دانلود نمونه فایل (با داده نمونه)</a></p>
+    <p class="fc-help">فایل فعلی: <b><?php echo $h($cfg['dcim_file'] ?: '—'); ?></b> <?php echo $cfg['dcim_imported'] ? '(' . $h($cfg['dcim_imported']) . ')' : ''; ?></p>
+    <form method="post" enctype="multipart/form-data" action="<?php echo $h($self); ?>" class="fc-inline">
+      <input type="hidden" name="action" value="dcim_import">
+      <input class="form-control" type="file" name="dcim" accept=".xlsx,.xls,.csv,.txt" required>
+      <button class="btn btn-primary" type="submit">وارد کردن</button>
+    <?php Html::closeForm(); ?>
+    <?php if ($dcim) { ?>
+      <table class="db-tbl"><thead><tr><th>نوع</th><th>وضعیت</th><th>تعداد</th><th>قدیمی‌ترین تاریخ بهره‌برداری</th><th>منبع</th></tr></thead><tbody>
+      <?php foreach ($dcim as $d) {
+          echo '<tr><td>' . $h($kind_fa[$d['kind']] ?? $d['kind']) . '</td><td>' . ($d['in_use'] ? 'در حال استفاده' : 'انبار / خارج از سرویس') . '</td><td>' . (int) $d['n']
+            . '</td><td>' . $h($d['oldest']) . '</td><td>' . $src((bool) $d['is_demo']) . '</td></tr>';
+      } ?>
+      </tbody></table>
+    <?php } else { echo '<p class="fc-help">هنوز فهرستی وارد نشده است؛ عمر دستگاه‌ها از دارایی‌های GLPI خوانده می‌شود.</p>'; } ?>
+    <?php if ($imported_dcim) { ?>
+      <form method="post" action="<?php echo $h($self); ?>" onsubmit="return confirm('فهرست واردشده DCIM حذف شود؟');">
+        <button class="btn btn-outline-danger" name="action" value="dcim_delete" type="submit">حذف فهرست واردشده</button>
+      <?php Html::closeForm(); ?>
+    <?php } ?>
+  </section>
 
   <section class="db-card">
     <h3>VirOPS: کلاسترهای مجازی (فایل Excel)</h3>

@@ -3,7 +3,7 @@
 /**
  * Infrastructure forecast (Tools > Reporting dashboard > پیش‌بینی): what the next 12 months need, from
  *   1. open capacity requests (teams and swaps),
- *   2. device age (DCIM): devices that reach their type's age limit within the period,
+ *   2. device age (DCIM Excel export, else GLPI's assets): devices that reach their type's age limit within the period,
  *   3. VirOPS: capacity, use and monthly growth per VM cluster (Excel / CSV export, imported here),
  *   4. the delivery trend of past years (iCare export, imported here),
  *   5. the warehouse stock, taken off the need.
@@ -14,6 +14,7 @@ class PluginProjectreportsForecast
 {
     public const CLUSTERS = 'glpi_plugin_projectreports_viropsclusters';
     public const ICARE = 'glpi_plugin_projectreports_icare';
+    public const DCIM = 'glpi_plugin_projectreports_dcim';
     private const CONTEXT = 'plugin:projectreports';
 
     /** Settings with their defaults. */
@@ -22,6 +23,7 @@ class PluginProjectreportsForecast
         'fc_target_util' => 80,                                                // % of a cluster's capacity we plan to use at most
         'virops_imported' => '', 'virops_file' => '',
         'icare_imported' => '', 'icare_file' => '',
+        'dcim_imported' => '', 'dcim_file' => '',
     ];
     /** Settings of the former live VirOPS link, removed on install. */
     public const OLD_KEYS = ['virops_url', 'virops_user', 'virops_password', 'virops_authsource', 'virops_verify_ssl', 'virops_last_sync', 'virops_last_error'];
@@ -55,6 +57,25 @@ class PluginProjectreportsForecast
                 PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation} ROW_FORMAT=DYNAMIC");
         }
+        if (!$DB->tableExists(self::DCIM, false)) {
+            $DB->doQuery("CREATE TABLE `" . self::DCIM . "` (
+                `id` int {$sign} NOT NULL AUTO_INCREMENT,
+                `hostname` varchar(255) NOT NULL DEFAULT '',
+                `kind` varchar(20) NOT NULL DEFAULT 'Other',
+                `type` varchar(100) NOT NULL DEFAULT '',
+                `model` varchar(255) NOT NULL DEFAULT '',
+                `manufacturer` varchar(255) NOT NULL DEFAULT '',
+                `serial` varchar(255) NOT NULL DEFAULT '',
+                `in_service` date DEFAULT NULL,
+                `location` varchar(255) NOT NULL DEFAULT '',
+                `rack` varchar(100) NOT NULL DEFAULT '',
+                `status` varchar(100) NOT NULL DEFAULT '',
+                `in_use` tinyint NOT NULL DEFAULT '1',
+                `is_demo` tinyint NOT NULL DEFAULT '0',
+                PRIMARY KEY (`id`),
+                KEY `hostname` (`hostname`)
+            ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation} ROW_FORMAT=DYNAMIC");
+        }
         if (!$DB->tableExists(self::ICARE, false)) {
             $DB->doQuery("CREATE TABLE `" . self::ICARE . "` (
                 `id` int {$sign} NOT NULL AUTO_INCREMENT,
@@ -79,6 +100,7 @@ class PluginProjectreportsForecast
         global $DB;
         $DB->dropTable(self::CLUSTERS, true);
         $DB->dropTable(self::ICARE, true);
+        $DB->dropTable(self::DCIM, true);
         Config::deleteConfigurationValues(self::CONTEXT, array_merge(array_keys(self::DEFAULTS), self::OLD_KEYS));
     }
 
@@ -277,6 +299,110 @@ class PluginProjectreportsForecast
         return count($rows);
     }
 
+    // ---------------------------------------------------------------- DCIM device list import
+
+    /** Header words of the DCIM device export. */
+    private const DCIM_COLUMNS = [
+        'in_service' => ['تاریخ بهره‌برداری', 'تاریخ بهره برداری', 'تاریخ نصب', 'تاریخ راه‌اندازی', 'تاریخ راه اندازی', 'تاریخ شروع', 'تاریخ خرید', 'تاریخ',
+            'in service', 'commission', 'install date', 'installed', 'go live', 'purchase date', 'date'],
+        'age' => ['عمر', 'age'],
+        'hostname' => ['نام دستگاه', 'نام میزبان', 'hostname', 'host name', 'device name', 'نام', 'name', 'device'],
+        'type' => ['نوع دستگاه', 'نوع تجهیز', 'نوع', 'device type', 'category', 'class', 'type'],
+        'model' => ['مدل', 'model'],
+        'manufacturer' => ['سازنده', 'برند', 'manufacturer', 'vendor', 'make'],
+        'serial' => ['سریال', 'serial'],
+        'rack' => ['رک', 'rack', 'cabinet'],
+        'location' => ['دیتاسنتر', 'سایت', 'محل', 'location', 'site', 'data center', 'datacenter', 'room'],
+        'status' => ['وضعیت', 'status', 'state', 'lifecycle'],
+    ];
+
+    /** Server / Storage / Network from a device type text, else Other (not counted). */
+    public static function deviceKind(string $text): string
+    {
+        $t = mb_strtolower($text);
+        return match (true) {
+            (bool) preg_match('/storage|\bsan\b|\bnas\b|ذخیره|استوریج|disk array|backup appliance/u', $t) => 'Storage',
+            (bool) preg_match('/switch|router|firewall|load ?balancer|network|سوئیچ|سوییچ|روتر|فایروال|شبکه/u', $t) => 'Network',
+            (bool) preg_match('/server|host|blade|hypervisor|compute|سرور|هاست|بلید/u', $t) => 'Server',
+            default => 'Other',
+        };
+    }
+
+    /**
+     * Reads the DCIM export: one row per device with its type and in-service date (Jalali, Gregorian or an Excel
+     * date), or its age in years. Devices whose status says stock, spare, retired or decommissioned are kept but not
+     * counted as in use.
+     * @return array{rows: array, skipped: int, columns: array}
+     */
+    public static function readDcim(string $path, string $name): array
+    {
+        $table = self::readTable($path, $name);
+        $map = [];
+        $start = 0;
+        foreach ($table as $i => $r) {
+            $found = self::matchColumns($r, self::DCIM_COLUMNS);
+            if (isset($found['hostname']) && isset($found['type']) && (isset($found['in_service']) || isset($found['age']))) {
+                $map = $found;
+                $start = $i + 1;
+                break;
+            }
+            if ($i > 10) {
+                break;
+            }
+        }
+        if (!$map) {
+            throw new RuntimeException('ستون‌ها شناخته نشد: فایل DCIM باید ستون‌های «نام دستگاه»، «نوع» و «تاریخ بهره‌برداری» (یا «عمر») را داشته باشد. نمونه فایل را ببینید.');
+        }
+        $rows = [];
+        $skipped = 0;
+        foreach (array_slice($table, $start) as $r) {
+            $get = fn($k) => isset($map[$k]) ? ($r[$map[$k]] ?? '') : '';
+            $host = trim((string) $get('hostname'));
+            $date = self::toDate($get('in_service'));
+            if ($date === null && is_numeric(self::number($get('age')))) {
+                $age = (float) self::number($get('age'));
+                $date = $age > 0 && $age < 60 ? date('Y-m-d', strtotime('-' . (int) round($age * 365.25) . ' day')) : null;
+            }
+            if ($host === '' || $date === null) {
+                $skipped++;
+                continue;
+            }
+            $status = trim((string) $get('status'));
+            $rows[] = [
+                'hostname' => mb_substr($host, 0, 255), 'kind' => self::deviceKind((string) $get('type') . ' ' . (string) $get('model')),
+                'type' => mb_substr(trim((string) $get('type')), 0, 100), 'model' => mb_substr(trim((string) $get('model')), 0, 255),
+                'manufacturer' => mb_substr(trim((string) $get('manufacturer')), 0, 255), 'serial' => mb_substr(trim((string) $get('serial')), 0, 255),
+                'in_service' => $date, 'location' => mb_substr(trim((string) $get('location')), 0, 255), 'rack' => mb_substr(trim((string) $get('rack')), 0, 100),
+                'status' => mb_substr($status, 0, 100),
+                'in_use' => preg_match('/stock|spare|retired|decommission|disposed|removed|broken|انبار|یدک|اسقاط|خارج از سرویس|جمع‌آوری|خراب/iu', $status) ? 0 : 1,
+            ];
+        }
+        return ['rows' => $rows, 'skipped' => $skipped, 'columns' => array_keys($map)];
+    }
+
+    /** Replaces the imported DCIM list (the sample list stays apart). */
+    public static function saveDcim(array $rows, string $file): int
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        self::ensureSchema();
+        $DB->delete(self::DCIM, ['is_demo' => 0]);
+        foreach ($rows as $r) {
+            $DB->insert(self::DCIM, $r + ['is_demo' => 0]);
+        }
+        self::setConfig(['dcim_imported' => date('Y-m-d H:i'), 'dcim_file' => $file]);
+        return count($rows);
+    }
+
+    public static function deleteDcim(): void
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        self::ensureSchema();
+        $DB->delete(self::DCIM, ['is_demo' => 0]);
+        self::setConfig(['dcim_imported' => '', 'dcim_file' => '']);
+    }
+
     public static function deleteClusters(): void
     {
         /** @var DBmysql $DB */
@@ -320,7 +446,9 @@ class PluginProjectreportsForecast
                         continue;
                     }
                     $hn = $norm($h);
-                    if ($hn !== '' && ($hn === $w || str_contains($hn, $w))) {
+                    // short words (age, vm, id, qty ...) only as a whole word, so "age" does not match "storage" or "usage"
+                    $hit = mb_strlen($w) <= 4 && preg_match('/^[a-z]+$/', $w) ? (bool) preg_match('/(^|[^a-z])' . $w . '([^a-z]|$)/', $hn) : str_contains($hn, $w);
+                    if ($hn !== '' && ($hn === $w || $hit)) {
                         $found[$key] = $i;
                         continue 3;
                     }
@@ -414,6 +542,21 @@ class PluginProjectreportsForecast
 
     // ---------------------------------------------------------------- data for the dashboard
 
+    /** The DCIM device list for the age check: the imported file, else the sample list; empty = use GLPI's assets. */
+    private static function dcimData(array $cfg): array
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        $real = $DB->request(['COUNT' => 'c', 'FROM' => self::DCIM, 'WHERE' => ['is_demo' => 0]])->current()['c'] > 0;
+        $rows = [];
+        foreach ($DB->request(['FROM' => self::DCIM, 'WHERE' => ['is_demo' => $real ? 0 : 1], 'ORDER' => 'in_service']) as $r) {
+            unset($r['id'], $r['is_demo']);
+            $r['in_use'] = (int) $r['in_use'];
+            $rows[] = $r;
+        }
+        return ['imported' => $cfg['dcim_imported'], 'file' => $cfg['dcim_file'], 'demo' => !$real && $rows, 'rows' => $rows];
+    }
+
     public static function data(): array
     {
         /** @var array $CFG_GLPI */
@@ -446,6 +589,7 @@ class PluginProjectreportsForecast
             'target_util' => (float) $cfg['fc_target_util'],
             'virops' => ['imported' => $cfg['virops_imported'], 'file' => $cfg['virops_file'],
                 'clusters' => $clusters, 'demo' => (bool) array_filter($clusters, fn($c) => $c['source'] === 'demo')],
+            'dcim' => self::dcimData($cfg),
             'icare' => ['imported' => $cfg['icare_imported'], 'file' => $cfg['icare_file'], 'trend' => $trend, 'demo' => $demo > 0],
             'settings_url' => self::canConfigure() ? $CFG_GLPI['root_doc'] . '/plugins/projectreports/front/forecast.php' : '',
         ];

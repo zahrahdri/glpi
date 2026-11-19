@@ -906,7 +906,17 @@
     var asked = {};
     open.forEach(function (d) { if (d.request_type === 'Modernization' && d.hostname) { asked[String(d.hostname).toLowerCase()] = d; } });
     var ages = FC.ages || {};
-    var mod = INV.filter(function (r) { return AGE_KIND[r.kind] && stKey(r.state) === 'use' && r.in_service; }).map(function (r) {
+    // the DCIM device list when one is imported (linked to the GLPI asset of the same name), else GLPI's own assets
+    var DC = (FC.dcim || {}).rows || [];
+    var byName = {};
+    INV.forEach(function (r) { byName[String(r.name).toLowerCase()] = r; });
+    var DCKIND = { Server: 'Server', Storage: 'Storage', Network: 'Switch' };
+    var devices = DC.length ? DC.filter(function (d) { return d.in_use && DCKIND[d.kind]; }).map(function (d) {
+      var g = byName[String(d.hostname).toLowerCase()] || {};
+      return { name: d.hostname, kind: DCKIND[d.kind], model: d.model || g.model || '', in_service: d.in_service, url: g.url || '',
+        rack: d.rack, rack_url: '', datacenter: d.location, location: d.location, dcim: true, typeLabel: d.type };
+    }) : INV.filter(function (r) { return AGE_KIND[r.kind] && stKey(r.state) === 'use' && r.in_service; });
+    var mod = devices.map(function (r) {
       var limit = Number(ages[AGE_KIND[r.kind]] || 0);
       var start = new Date(String(r.in_service).slice(0, 10) + 'T00:00:00');
       var due = new Date(start.getTime()); due.setMonth(due.getMonth() + Math.round(limit * 12));
@@ -982,14 +992,14 @@
       var uc = unitCost(r);
       x.cost = uc === null ? null : x.net * uc;
     });
-    return { m: m, open: open, mod: mod, CL: CL, years: years, series: series, stock: stock, end: end, target: target };
+    return { m: m, open: open, mod: mod, fromDcim: DC.length > 0, CL: CL, years: years, series: series, stock: stock, end: end, target: target };
   }
 
   function renderForecast() {
     var title = '<div class="db-section-h">پیش‌بینی زیرساخت موردنیاز برای ۱۲ ماه آینده (تا ' + jdate(new Date(TODAY.getTime() + 365 * 864e5).toISOString().slice(0, 10)) + ')</div>';
     if (!ok('forecast')) { return title + need(['forecast']); }
     var M = fcModel(), m = M.m;
-    var settings = FC.settings_url ? link(FC.settings_url, 'تنظیمات پیش‌بینی', 'عمر مجاز و ورود فایل‌های VirOPS و iCare') : '';
+    var settings = FC.settings_url ? link(FC.settings_url, 'تنظیمات پیش‌بینی', 'عمر مجاز و ورود فایل‌های DCIM، VirOPS و iCare') : '';
     var q = function (v, r) { return r === 'Storage' ? decimal(v, v >= 100 ? 0 : 1) : num(Math.round(v)); };
     var dash = '<span class="db-dash">—</span>';
     var cost = sum(FC_RES, function (r) { return m[r].cost || 0; });
@@ -1018,7 +1028,7 @@
       + FC_SRC.map(function (s) { return '<th class="num"><i class="db-dot" style="background:' + s[2] + '"></i>' + esc(s[1]) + '</th>'; }).join('')
       + '<th class="num">جمع نیاز</th><th class="num">موجودی انبار</th><th class="num">نیاز خالص</th><th class="num">هزینه برآوردی</th></tr></thead><tbody>'
       + (rows || '<tr><td colspan="9" class="db-empty">نیازی پیش‌بینی نشد.</td></tr>') + '</tbody></table></div>'
-      + '<div class="db-note">درخواست‌های باز: درخواست‌های ظرفیت تأییدنشده یا در جریان (به‌جز ردشده و آزادسازی). نوسازی: دستگاه‌های در حال استفاده که تا پایان دوره به عمر مجاز نوع خود می‌رسند (سرور '
+      + '<div class="db-note">درخواست‌های باز: درخواست‌های ظرفیت تأییدنشده یا در جریان (به‌جز ردشده و آزادسازی). نوسازی: دستگاه‌های در حال استفاده (فهرست DCIM) که تا پایان دوره به عمر مجاز نوع خود می‌رسند (سرور '
       + fa((FC.ages || {}).Server || 0) + '، ذخیره‌سازی ' + fa((FC.ages || {}).Storage || 0) + '، شبکه ' + fa((FC.ages || {}).Network || 0) + ' سال)، مگر درخواست جایگزینی آن ثبت شده باشد. '
       + 'توسعه VM: کمبود کلاسترها (فایل VirOPS) با رشد ماهانه و سقف بهره‌برداری ' + fa(Math.round(M.target * 100)) + '٪، منهای درخواست‌های توسعه باز. '
       + 'روند iCare: آنچه روند تحویل دوره‌های ۱۲ماهه گذشته بیش از موارد شناخته‌شده پیش‌بینی می‌کند. ' + (settings ? settings : '') + '</div>';
@@ -1091,14 +1101,19 @@
     // devices reaching their age limit
     var modTbl = M.mod.length ? table('db-fc-mod-tbl', [
       { h: 'تجهیز', f: function (x) { return link(x.r.url, '<b>' + esc(x.r.name) + '</b>', 'باز کردن در GLPI') + '<div class="db-sub-t">' + esc(x.r.model || '') + '</div>'; } },
-      { h: 'نوع', f: function (x) { return esc(IKIND_FA[x.r.kind] || x.r.kind); } },
-      { h: 'شروع به کار', f: function (x) { return jdate(x.r.in_service); } },
+      { h: 'نوع', f: function (x) { return esc(x.r.typeLabel || IKIND_FA[x.r.kind] || x.r.kind); } },
+      { h: 'تاریخ بهره‌برداری', f: function (x) { return jdate(x.r.in_service); } },
       { h: 'عمر فعلی', num: true, f: function (x) { return decimal(x.age, 1) + ' سال'; } },
       { h: 'عمر مجاز', num: true, f: function (x) { return fa(x.limit) + ' سال'; } },
       { h: 'موعد نوسازی', f: function (x) { return x.due <= TODAY ? chip('گذشته', 'bad') + ' ' + jdate(x.due.toISOString().slice(0, 10)) : jdate(x.due.toISOString().slice(0, 10)); } },
-      { h: 'محل', f: function (x) { return x.r.rack ? link(x.r.rack_url, esc(x.r.datacenter) + ' / رک ' + esc(x.r.rack)) : (esc(String(x.r.location || '').replace(/^DEMO /, '')) || dash); } },
+      { h: 'محل', f: function (x) { return x.r.rack ? link(x.r.rack_url, esc(String(x.r.datacenter || '').replace(/^DEMO /, '')) + ' / رک ' + esc(x.r.rack)) : (esc(String(x.r.location || '').replace(/^DEMO /, '')) || dash); } },
       { h: 'درخواست جایگزینی', f: function (x) { return x.req ? link(rec('Ticket', x.req.ticket_id), chip('ثبت شده #' + fa(x.req.ticket_id), 'ok')) : chip('ثبت نشده', 'warn'); } }
-    ], M.mod, 2000) : '<div class="db-empty">هیچ دستگاه در حال استفاده‌ای تا ۱۲ ماه آینده به عمر مجاز نمی‌رسد' + (INV.some(function (r) { return r.in_service; }) ? '.' : ' (تاریخ شروع به کار در اطلاعات مالی دستگاه‌ها ثبت نشده است).') + '</div>';
+    ], M.mod, 2000) : '<div class="db-empty">هیچ دستگاه در حال استفاده‌ای تا ۱۲ ماه آینده به عمر مجاز نمی‌رسد.</div>';
+
+    var dc = FC.dcim || {};
+    var dcimNote = '<div class="db-note">' + (M.fromDcim
+      ? (dc.demo ? chip('داده نمونه', 'warn') + ' ' : '') + 'منبع: فهرست دستگاه‌های DCIM' + (dc.file ? ' (' + esc(dc.file) + (dc.imported ? '، ' + esc(dc.imported) : '') + ')' : '') + '؛ دستگاه‌هایی که در GLPI هم هستند به رکورد GLPI پیوند دارند.'
+      : 'منبع: دارایی‌های GLPI (تاریخ شروع به کار در اطلاعات مالی). برای استفاده از DCIM، فایل Excel آن را در ' + (settings || 'تنظیمات پیش‌بینی') + ' وارد کنید.') + '</div>';
 
     // open requests
     var demTbl = M.open.length ? table('db-fc-dem-tbl', [
@@ -1134,7 +1149,7 @@
       + card(6, 'سهم هر عامل در نیاز هر منبع', chartHtml('c-fc-mix', 300))
       + trendCard.replace('<section class="db-card s6"', '<section class="db-card s6" id="fc-trend"')
       + sec('fc-vm', 12, 'کلاسترهای مجازی (VirOPS): ظرفیت و رشد', vmBody + vmNote)
-      + sec('fc-mod', 12, 'نوسازی: دستگاه‌هایی که تا ۱۲ ماه آینده به عمر مجاز می‌رسند', modTbl)
+      + sec('fc-mod', 12, 'نوسازی: دستگاه‌هایی که تا ۱۲ ماه آینده به عمر مجاز می‌رسند', modTbl + dcimNote)
       + sec('fc-dem', 12, 'درخواست‌های ظرفیت باز (تیم‌ها، پروژه‌های جدید و جایگزینی)', demTbl)
       + sec('fc-stock', 12, 'موجودی آماده در انبار', stockTbl)
       + '</div>';
