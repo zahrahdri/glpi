@@ -419,12 +419,12 @@
       tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, TIP),
       legend: { bottom: 0, itemWidth: 12, itemHeight: 12, textStyle: { color: COL.ink, fontSize: 12 } },
       grid: { left: 8, right: 16, top: 8, bottom: 56, containLabel: true },
-      xAxis: { type: 'value', minInterval: 1, axisLabel: { color: COL.muted, formatter: function (v) { return num(v); } }, splitLine: { lineStyle: { color: '#eef0f3' } } },
+      xAxis: { type: 'value', minInterval: 1, axisLabel: { show: false }, splitLine: { lineStyle: { color: '#eef0f3' } } },
       yAxis: { type: 'category', inverse: true, data: types.map(function (t) { return String(RTYPE_FA[t] || t).replace(' (Swap)', ''); }), axisTick: { show: false },
         axisLine: { show: false }, axisLabel: { color: COL.ink, fontSize: 12, fontWeight: 600 } },
       series: series.map(function (sr) {
         return { name: sr.name, type: 'bar', stack: 'req', data: sr.data, barWidth: 22, itemStyle: { color: sr.color },
-          label: { show: true, color: '#fff', fontSize: 11, formatter: function (p) { return p.value ? num(p.value) : ''; } } };
+          label: { show: false } };
       })
     };
     chart('c-rtype', opt, function (e) {
@@ -433,8 +433,13 @@
     });
 
     // table: per type, requests by approval and the resources asked for, in their own units
-    var qty = function (list, c) { return sum(list.filter(function (d) { return rcatOf(d) === c && d.request_type !== 'Modernization'; }), function (d) { return d.quantity; })
-      + (list.length && list.every(function (d) { return d.request_type === 'Modernization'; }) ? sum(list.filter(function (d) { return rcatOf(d) === c; }), function (d) { return d.quantity; }) : 0); };
+    // quantity of one resource: servers, GPUs and network devices in units (a swapped device counts as one new unit),
+    // storage in TB, and storage swaps (devices, not TB) apart
+    var qty = function (list, c, swaps) {
+      return sum(list.filter(function (d) {
+        return rcatOf(d) === c && d.request_type !== 'Release old resources' && (c !== 'Storage' || (d.request_type === 'Modernization') === !!swaps);
+      }), function (d) { return d.quantity; });
+    };
     var cell = function (t, c, v, unit) {
       return v ? filterLink({ rtype: t, rcat: c }, num(Math.round(v * 10) / 10) + (unit ? ' <small>' + unit + '</small>' : ''), 'requests') : '<span class="db-dash">—</span>';
     };
@@ -457,15 +462,16 @@
         + '<td class="num">' + (r.n ? filterLink({ rtype: t, rcat: '' }, num(r.n), 'requests') : '0') + '</td>'
         + '<td class="num">' + num(r.ok) + '</td><td class="num">' + num(r.wait) + '</td><td class="num">' + num(r.no) + '</td>'
         + RCATS.map(function (c) {
-            var swap = r.t === 'Modernization';
-            var v = r.t === 'Release old resources' ? 0 : qty(r.L.filter(function (d) { return d.request_type !== 'Release old resources'; }), c);
-            return '<td class="num">' + cell(t, c, v, swap ? 'دستگاه' : (c === 'Storage' ? 'TB' : '')) + '</td>';
+            if (c !== 'Storage') { return '<td class="num">' + cell(t, c, qty(r.L, c), '') + '</td>'; }
+            var tb = qty(r.L, c, false), dev = qty(r.L, c, true);
+            if (tb && dev) { return '<td class="num">' + cell(t, c, tb, 'TB') + ' + ' + cell(t, c, dev, 'دستگاه') + '</td>'; }
+            return '<td class="num">' + (dev ? cell(t, c, dev, 'دستگاه') : cell(t, c, tb, 'TB')) + '</td>';
           }).join('')
         + '<td class="num">' + (r.cost ? num(Math.round(r.cost)) : '<span class="db-dash">—</span>') + '</td></tr>';
     };
     var tbl = '<div class="db-tbl-wrap"><table id="db-rtype-tbl" class="db-tbl db-compare"><thead>' + head + '</thead><tbody>'
       + rows.map(function (r) { return line(r, false); }).join('') + line(total, true) + '</tbody></table></div>'
-      + '<div class="db-note">سرور و GPU به عدد و فضای ذخیره‌سازی به ترابایت؛ در «نوسازی و جایگزینی» هر درخواست یک دستگاه برای جایگزینی است و در ردیف جمع حساب نمی‌شود. برای دیدن درخواست‌ها روی هر عدد کلیک کنید.</div>';
+      + '<div class="db-note">سرور، GPU و تجهیز شبکه به عدد و فضای ذخیره‌سازی به ترابایت. «نوسازی و جایگزینی» هم زیرساخت جدید است: هر درخواست یک دستگاه نو است و در جمع حساب می‌شود (ذخیره‌سازی آن به دستگاه، کنار ترابایت). برای دیدن درخواست‌ها روی هر عدد کلیک کنید.</div>';
 
     return { table: card(12, title, tbl), chart: card(6, 'تعداد درخواست به تفکیک نوع و منبع', chartHtml('c-rtype', 300)) };
   }
