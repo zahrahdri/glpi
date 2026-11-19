@@ -472,6 +472,11 @@ PRSQL;
             } elseif ($cat === 'GPU') {
                 $qty = $num('Number of GPUs');
                 $unit = 'GPU(s)';
+            } elseif ($cat === '' && $get('Device type') !== '') {
+                // Modernization / swap form: one existing device to replace, by its type
+                $cat = ['Server' => 'Compute', 'Storage' => 'Storage', 'Network device' => 'Network'][$get('Device type')] ?? 'Other';
+                $qty = 1;
+                $unit = 'device';
             }
             $boq = $committed_amt = $pipeline = $canceled_amt = 0.0;
             $names = [];
@@ -517,6 +522,8 @@ PRSQL;
                 'approval' => $approval[(int) $r['global_validation']] ?? '',
                 'status' => $status[(int) $r['status']] ?? '',
                 'required_by' => $get('Required by (go-live date)'),
+                'site' => $get('Site'),
+                'estimate' => $num('Estimated cost (Rial)'),
             ];
         }
         return $out;

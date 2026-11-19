@@ -101,6 +101,14 @@ class PluginProjectreportsDemocommand extends AbstractCommand
         ['Expansion', 'GPU', '', 8, 'DEMO DC-EXPANSION', 140000, 'Waiting', 'Video analytics GPUs'],
         ['Release old resources', '', '', 0, 'DEMO CRM', 0, 'Approved', 'Return old CRM test VMs'],
         ['New project', 'Compute', 'Physical server', 20, 'new:DEMO Edge sites', 300000, 'Refused', 'Edge computing pilot'],
+        ['New project', 'Storage', '', 200, 'new:DEMO Data lake', 90000, 'Approved', 'Data lake object storage'],
+        ['New project', 'Compute', 'Physical server', 8, 'new:DEMO OSS', 120000, 'Approved', 'OSS platform servers'],
+        ['Modernization', 'Network', '', 1, 'DEMO 5G-CORE', 45000, 'Approved', 'Swap core switch line cards'],
+        ['Modernization', 'Compute', 'Physical server', 1, 'DEMO CRM', 18000, 'Waiting', 'Swap CRM database server'],
+        ['Modernization', 'Network', '', 1, 'DEMO DC-EXPANSION', 30000, 'Waiting', 'Replace end-of-life firewalls'],
+        ['Modernization', 'Storage', '', 1, 'DEMO 5G-CORE', 70000, 'Approved', 'Swap legacy SAN controller'],
+        ['Expansion', 'Storage', '', 80, 'DEMO DC-EXPANSION', 25000, 'Approved', 'Backup target capacity'],
+        ['Release old resources', '', '', 0, 'DEMO BSS-UPGRADE', 0, 'Waiting', 'Return billing test servers'],
     ];
 
     // BOQs per project: [name suffix, state key, month offset (0..1 of elapsed time, >1 = future), [ref index => qty]]
@@ -287,9 +295,9 @@ class PluginProjectreportsDemocommand extends AbstractCommand
             $created++;
         }
         $output->writeln(sprintf('Requests: %d', $created));
-        $this->createDetails($output);
-
+        // capacity requests first, so the details below (people, equipment, installation) cover them too
         $this->createDemands($output, $projects, $teams);
+        $this->createDetails($output);
     }
 
     private function createBoqs(OutputInterface $output, array $projects, array &$alloc): void
@@ -547,29 +555,37 @@ class PluginProjectreportsDemocommand extends AbstractCommand
     {
         /** @var DBmysql $DB */
         global $DB;
-        if ($demands === null && (!$this->refs || !$DB->tableExists('glpi_plugin_projectreports_kits'))) {
-            $output->writeln('<comment>No demo capacity requests: needs the Orders plugin and Project reports 1.6 or later.</comment>');
+        if ($demands === null && !$this->refs) {
+            $output->writeln('<comment>No demo capacity requests: needs the Orders plugin.</comment>');
             return;
         }
-        $form = $DB->request([
-            'SELECT' => 's.forms_forms_id', 'FROM' => 'glpi_forms_questions AS q',
-            'INNER JOIN' => ['glpi_forms_sections AS s' => ['ON' => ['s' => 'id', 'q' => 'forms_sections_id']]],
-            'WHERE' => ['q.name' => 'Resource category'], 'ORDER' => 's.forms_forms_id DESC', 'LIMIT' => 1,
-        ])->current();
-        if (!$form) {
-            $output->writeln('<comment>No demo capacity requests: import the capacity request form first (Administration › Forms › Import).</comment>');
-            return;
-        }
-        $form_id = (int) $form['forms_forms_id'];
-        $questions = [];
+        // the capacity request forms: one per request type (New project, Expansion, Modernization, Release), or one for all
+        $forms = [];   // request type label => [form id, questions by name]
         foreach ($DB->request([
-            'SELECT' => ['q.id', 'q.name', 'q.type', 'q.extra_data'], 'FROM' => 'glpi_forms_questions AS q',
-            'INNER JOIN' => ['glpi_forms_sections AS s' => ['ON' => ['s' => 'id', 'q' => 'forms_sections_id']]],
-            'WHERE' => ['s.forms_forms_id' => $form_id],
-        ]) as $q) {
-            $questions[$q['name']] ??= ['id' => (int) $q['id'], 'type' => $q['type'], 'options' => json_decode((string) $q['extra_data'], true)['options'] ?? []];
+            'SELECT' => ['s.forms_forms_id', 'q.extra_data'], 'FROM' => 'glpi_forms_questions AS q',
+            'INNER JOIN' => ['glpi_forms_sections AS s' => ['ON' => ['s' => 'id', 'q' => 'forms_sections_id']],
+                'glpi_forms_forms AS f' => ['ON' => ['f' => 'id', 's' => 'forms_forms_id']]],
+            'WHERE' => ['q.name' => 'Request type', 'f.is_deleted' => 0], 'ORDER' => 's.forms_forms_id',
+        ]) as $row) {
+            $fid = (int) $row['forms_forms_id'];
+            $questions = [];
+            foreach ($DB->request([
+                'SELECT' => ['q.id', 'q.name', 'q.type', 'q.extra_data'], 'FROM' => 'glpi_forms_questions AS q',
+                'INNER JOIN' => ['glpi_forms_sections AS s' => ['ON' => ['s' => 'id', 'q' => 'forms_sections_id']]],
+                'WHERE' => ['s.forms_forms_id' => $fid],
+            ]) as $q) {
+                $questions[$q['name']] ??= ['id' => (int) $q['id'], 'type' => $q['type'], 'options' => json_decode((string) $q['extra_data'], true)['options'] ?? []];
+            }
+            foreach (json_decode((string) $row['extra_data'], true)['options'] ?? [] as $label) {
+                $forms[$label] = [$fid, $questions];
+            }
         }
-        $answer = function (string $label, $value) use ($questions) {
+        if (!$forms) {
+            $output->writeln('<comment>No demo capacity requests: import the capacity request forms first (plugins:projectreports:import-forms).</comment>');
+            return;
+        }
+        $questions = [];
+        $answer = function (string $label, $value) use (&$questions) {
             $q = $questions[$label] ?? null;
             if ($q === null) {
                 return null;
@@ -591,18 +607,23 @@ class PluginProjectreportsDemocommand extends AbstractCommand
                 $r = $this->refs[$ri];
                 $lines[] = ['part' => $r['part'], 'spare' => '', 'model' => '', 'desc' => $r['desc'], 'qty' => $qty, 'price' => $r['price'], 'itemtype' => $r['itemtype']];
             }
-            $id = $this->ins('glpi_plugin_projectreports_kits', ['name' => $name, 'category' => $cat, 'resource_type' => $type,
-                'units_per_kit' => $per, 'suppliers_id' => $this->supplier, 'lines' => json_encode($lines), 'is_active' => 1, 'date_mod' => $now]);
+            $id = $DB->tableExists('glpi_plugin_projectreports_kits')
+                ? $this->ins('glpi_plugin_projectreports_kits', ['name' => $name, 'category' => $cat, 'resource_type' => $type,
+                    'units_per_kit' => $per, 'suppliers_id' => $this->supplier, 'lines' => json_encode($lines), 'is_active' => 1, 'date_mod' => $now])
+                : 0;
             $kits[$cat . '|' . $type] = ['id' => $id, 'name' => $name, 'per' => $per, 'parts' => $parts];
         }
 
         $by_name = array_column($projects, null, 'name');
-        $index = (int) ($DB->request(['SELECT' => ['MAX' => '`index` AS m'], 'FROM' => 'glpi_forms_answerssets', 'WHERE' => ['forms_forms_id' => $form_id]])->current()['m'] ?? 0);
+        $index = [];
         $approval = ['Waiting' => 2, 'Approved' => 3, 'Refused' => 4];
         $nb = $nb_boq = 0;
         foreach (($demands ?? self::DEMANDS) as $n => [$rtype, $cat, $restype, $qty, $proj, $estimate, $appr, $title]) {
             $opened = (new DateTime())->modify('-' . (3 + $n * 4) . ' day')->format('Y-m-d H:i:s');
             $p = str_starts_with($proj, 'new:') ? null : ($by_name[$proj] ?? null);
+            [$form_id, $questions] = $forms[$rtype] ?? reset($forms);
+            $index[$form_id] ??= (int) ($DB->request(['SELECT' => ['MAX' => '`index` AS m'], 'FROM' => 'glpi_forms_answerssets', 'WHERE' => ['forms_forms_id' => $form_id]])->current()['m'] ?? 0);
+            $modernize = !isset($questions['Resource category']) && isset($questions['Device type']);
             $ans = array_filter([
                 $answer('Request type', $rtype),
                 $p ? $answer('Project', ['itemtype' => 'Project', 'items_id' => (string) $p['id']]) : $answer('New project name', substr($proj, 4)),
@@ -615,12 +636,16 @@ class PluginProjectreportsDemocommand extends AbstractCommand
                 $cat === 'Storage' ? $answer('Unit', 'TB') : null,
                 $cat === 'GPU' ? $answer('Number of GPUs', (string) $qty) : null,
                 $rtype === 'Release old resources' ? $answer('Resources to release', $title) : null,
+                $modernize && $cat ? $answer('Device type', ['Compute' => 'Server', 'Storage' => 'Storage', 'GPU' => 'Server', 'Network' => 'Network device'][$cat] ?? 'Server') : null,
+                $modernize ? $answer('What should change?', $title) : null,
+                $answer('Site', ['T1', 'T2', 'Karaj', 'Esfahan', 'Shiraz'][$n % 5]),
+                $estimate ? $answer('Estimated cost (Rial)', (string) $estimate) : null,
             ]);
             $tid = $this->ins('glpi_tickets', ['entities_id' => 0, 'name' => '[DEMO] ' . $title, 'content' => '<p>' . htmlspecialchars($title) . '</p>',
                 'date' => $opened, 'date_creation' => $opened, 'date_mod' => $now, 'status' => $appr === 'Refused' ? 6 : 2, 'type' => 2,
                 'urgency' => 3, 'impact' => 3, 'priority' => 3, 'global_validation' => $approval[$appr], 'requesttypes_id' => 1, 'is_deleted' => 0]);
             $set = $this->ins('glpi_forms_answerssets', ['forms_forms_id' => $form_id, 'entities_id' => 0, 'users_id' => 0,
-                'name' => 'DEMO capacity request #' . $tid, 'date_creation' => $opened, 'date_mod' => $opened, 'index' => ++$index,
+                'name' => 'DEMO capacity request #' . $tid, 'date_creation' => $opened, 'date_mod' => $opened, 'index' => ++$index[$form_id],
                 'answers' => json_encode(array_values($ans))]);
             $this->ins('glpi_forms_destinations_answerssets_formdestinationitems', ['forms_answerssets_id' => $set, 'itemtype' => 'Ticket', 'items_id' => $tid]);
             if ($p) {
@@ -782,7 +807,14 @@ class PluginProjectreportsDemocommand extends AbstractCommand
             $n++;
             [$kind, $code, $qty] = $plan[$catname[$t['itilcategories_id']] ?? ''] ?? ['server', 'DEMO-SRV-2U', 1];
             $opened = new DateTime($t['date']);
-            if ($orders_ok && isset($refs[$code])) {
+            $has_order = $orders_ok && $DB->request(['FROM' => 'glpi_items_tickets', 'WHERE' => ['tickets_id' => $t['id'], 'itemtype' => 'PluginOrderOrder'], 'LIMIT' => 1])->count() > 0;
+            // a request to release resources buys nothing: no order for it
+            $has_order = $has_order || ($DB->tableExists('glpi_forms_destinations_answerssets_formdestinationitems') && $DB->request([
+                'FROM' => 'glpi_forms_destinations_answerssets_formdestinationitems AS l',
+                'INNER JOIN' => ['glpi_forms_answerssets AS a' => ['ON' => ['a' => 'id', 'l' => 'forms_answerssets_id']]],
+                'WHERE' => ['l.itemtype' => 'Ticket', 'l.items_id' => $t['id'], 'a.answers' => ['LIKE', '%Resources to release%']], 'LIMIT' => 1,
+            ])->count() > 0);
+            if ($orders_ok && isset($refs[$code]) && !$has_order) {
                 [$rid, $itemtype, $price] = $refs[$code];
                 $order_date = (clone $opened)->modify('+' . (2 + $n % 5) . ' day');
                 $arrival = (clone $order_date)->modify('+' . (10 + $n % 20) . ' day');

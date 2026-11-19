@@ -27,7 +27,7 @@
   var F = { time: 'all', team: '', project: '', status: '', category: '', supplier: '' };
   var TIMES = [['all', 'همه زمان‌ها'], ['30', '۳۰ روز اخیر'], ['90', '۹۰ روز اخیر'], ['365', '۱۲ ماه اخیر']];
   // drill-down filters set by clicking a chart or a card (not in the filter panel)
-  var X = { group: '', age: '', sla: '', open: '', atype: '' };
+  var X = { group: '', age: '', sla: '', open: '', atype: '', rtype: '', rcat: '' };
   var U = D.urls || {};
   (function readAddress() {
     var q = new URLSearchParams(window.location.search);
@@ -43,6 +43,15 @@
   var STAGE_FA = { committed: 'تأییدشده', estimate: 'برآورد', 'no BOQ': 'بدون BOQ', canceled: 'لغو شده' };
   var ASSET_FA = { Server: 'سرور', 'Network device': 'تجهیز شبکه', Storage: 'فضای ذخیره‌سازی', 'SAN storage': 'فضای ذخیره‌سازی', 'Patch panel': 'پچ‌پنل', 'Core switch': 'سوئیچ هسته', Switch: 'سوئیچ' };
   var AGE_FA = ['۰ تا ۷ روز', '۸ تا ۳۰ روز', '۳۱ تا ۹۰ روز', 'بیش از ۹۰ روز'];
+  // capacity request types (one form each) and the resources they ask for
+  var RTYPES = ['New project', 'Expansion', 'Modernization', 'Release old resources'];
+  var RTYPE_FA = { 'New project': 'پروژه جدید', Expansion: 'توسعه', Modernization: 'نوسازی و جایگزینی (Swap)', 'Release old resources': 'آزادسازی منابع' };
+  var RCATS = ['Compute', 'Storage', 'GPU', 'Network'];
+  var RCAT_FA = { Compute: 'سرور', Storage: 'فضای ذخیره‌سازی', GPU: 'GPU', Network: 'تجهیز شبکه', Other: 'سایر' };
+  var RCAT_COL = { Compute: '#2f7de1', Storage: '#f5b800', GPU: '#7c5cf0', Network: '#0fb5a6', Other: '#94a3b8' };
+  function rcatOf(d) { return RCATS.indexOf(d.category) >= 0 ? d.category : 'Other'; }
+  var DEMAP = {};
+  DEM.forEach(function (d) { DEMAP[d.ticket_id] = d; });
   var PAGE_FA = { overview: 'نمای کلی', requests: 'درخواست‌ها', budget: 'بودجه و هزینه', assets: 'دارایی‌ها و تمدید' };
   var COL = { gold: '#f5b800', blue: '#2f7de1', green: '#16a34a', red: '#e5484d', grey: '#cbd5e1', ink: '#334155', muted: '#64748b' };
   var PALETTE = ['#f5b800', '#2f7de1', '#16a34a', '#7c5cf0', '#e5484d', '#0fb5a6', '#f97316', '#64748b'];
@@ -170,7 +179,9 @@
       && (!X.group || GROUP[r.status] === X.group)
       && (!X.age || String(r.open_age || '').charAt(0) === X.age)
       && (!X.sla || r.sla === X.sla)
-      && (!X.open || String(r.is_open) === X.open);
+      && (!X.open || String(r.is_open) === X.open)
+      && (!X.rtype || (DEMAP[r.ticket_id] && DEMAP[r.ticket_id].request_type === X.rtype))
+      && (!X.rcat || (DEMAP[r.ticket_id] && rcatOf(DEMAP[r.ticket_id]) === X.rcat));
   }
   function reqs() { return REQ.filter(passReq); }
   function reqIds() {
@@ -216,7 +227,7 @@
     // page tabs keep the filter panel's choices (the drill-down filters belong to the page they were set on)
     document.querySelectorAll('.db-nav a').forEach(function (a) {
       var k = new URLSearchParams((a.getAttribute('href') || '').split('?')[1] || '').get('page');
-      if (k) { a.setAttribute('href', query(k, { group: '', age: '', sla: '', open: '', atype: '' })); }
+      if (k) { a.setAttribute('href', query(k, { group: '', age: '', sla: '', open: '', atype: '', rtype: '', rcat: '' })); }
     });
   }
   // the drill-down filters in force, each removable
@@ -226,7 +237,9 @@
       age: function (v) { return 'سن درخواست: ' + (AGE_FA[Number(v) - 1] || v); },
       sla: function (v) { return v === 'Overdue' ? 'دیرکرد' : 'به‌موقع'; },
       open: function (v) { return v === '1' ? 'فقط باز' : 'بسته'; },
-      atype: function (v) { return 'نوع دارایی: ' + (ASSET_FA[v] || v); }
+      atype: function (v) { return 'نوع دارایی: ' + (ASSET_FA[v] || v); },
+      rtype: function (v) { return 'نوع درخواست: ' + (RTYPE_FA[v] || v); },
+      rcat: function (v) { return 'منبع: ' + (RCAT_FA[v] || v); }
     };
     var on = Object.keys(X).filter(function (k) { return X[k]; });
     if (!on.length) { return ''; }
@@ -380,6 +393,83 @@
       + '<div class="db-gauge-txt"><div class="db-gauge-v">' + fa(pct) + '٪</div><span>' + num(done) + ' از ' + num(total) + ' درخواست تکمیل شده</span></div></div>');
   }
 
+  // ---------- comparison of the request types (New project / Expansion / Modernization / Release) ----------
+  function compareCards(Dm) {
+    var title = 'مقایسه نوع درخواست‌ها و منابع موردنیاز';
+    if (!ok('demands')) { return { table: noticeCard(12, title, 'demands'), chart: '' }; }
+    if (!Dm.length) {
+      return { table: card(12, title, '<div class="db-empty">هنوز درخواست ظرفیتی از فرم‌های «Capacity request» ثبت نشده است.</div>'), chart: '' };
+    }
+    var types = RTYPES.filter(function (t) { return Dm.some(function (d) { return d.request_type === t; }); });
+    Dm.forEach(function (d) { if (types.indexOf(d.request_type) < 0) { types.push(d.request_type); } });
+    var cats = RCATS.concat(['Other']).filter(function (c) { return Dm.some(function (d) { return d.request_type !== 'Release old resources' && rcatOf(d) === c; }); });
+
+    // chart: requests per type, split by the resource asked for
+    var series = cats.map(function (c) {
+      return { name: RCAT_FA[c], color: RCAT_COL[c], stack: 'req', cat: c,
+        data: types.map(function (t) { return Dm.filter(function (d) { return d.request_type === t && rcatOf(d) === c && t !== 'Release old resources'; }).length; }) };
+    });
+    var rel = types.indexOf('Release old resources');
+    if (rel >= 0) {
+      series.push({ name: RTYPE_FA['Release old resources'], color: '#cbd5e1', stack: 'req', cat: '',
+        data: types.map(function (t) { return t === 'Release old resources' ? Dm.filter(function (d) { return d.request_type === t; }).length : 0; }) });
+    }
+    var opt = {
+      textStyle: { fontFamily: FONT },
+      tooltip: Object.assign({ trigger: 'axis', axisPointer: { type: 'shadow' } }, TIP),
+      legend: { bottom: 0, itemWidth: 12, itemHeight: 12, textStyle: { color: COL.ink, fontSize: 12 } },
+      grid: { left: 8, right: 16, top: 8, bottom: 56, containLabel: true },
+      xAxis: { type: 'value', minInterval: 1, axisLabel: { color: COL.muted, formatter: function (v) { return num(v); } }, splitLine: { lineStyle: { color: '#eef0f3' } } },
+      yAxis: { type: 'category', inverse: true, data: types.map(function (t) { return String(RTYPE_FA[t] || t).replace(' (Swap)', ''); }), axisTick: { show: false },
+        axisLine: { show: false }, axisLabel: { color: COL.ink, fontSize: 12, fontWeight: 600 } },
+      series: series.map(function (sr) {
+        return { name: sr.name, type: 'bar', stack: 'req', data: sr.data, barWidth: 22, itemStyle: { color: sr.color },
+          label: { show: true, color: '#fff', fontSize: 11, formatter: function (p) { return p.value ? num(p.value) : ''; } } };
+      })
+    };
+    chart('c-rtype', opt, function (e) {
+      var c = series[e.seriesIndex] ? series[e.seriesIndex].cat : '';
+      go('requests', { rtype: types[e.dataIndex], rcat: c });
+    });
+
+    // table: per type, requests by approval and the resources asked for, in their own units
+    var qty = function (list, c) { return sum(list.filter(function (d) { return rcatOf(d) === c && d.request_type !== 'Modernization'; }), function (d) { return d.quantity; })
+      + (list.length && list.every(function (d) { return d.request_type === 'Modernization'; }) ? sum(list.filter(function (d) { return rcatOf(d) === c; }), function (d) { return d.quantity; }) : 0); };
+    var cell = function (t, c, v, unit) {
+      return v ? filterLink({ rtype: t, rcat: c }, num(Math.round(v * 10) / 10) + (unit ? ' <small>' + unit + '</small>' : ''), 'requests') : '<span class="db-dash">—</span>';
+    };
+    var rows = types.map(function (t) {
+      var L = Dm.filter(function (d) { return d.request_type === t; });
+      var by = countBy(L, function (d) { return d.approval; });
+      return { t: t, L: L, n: L.length, ok: by.Approved || 0, wait: (by.Waiting || 0) + (by['Not required'] || 0), no: by.Refused || 0,
+        cost: sum(L, function (d) { return d.boq_cost; }), est: sum(L, function (d) { return d.estimate; }) };
+    });
+    var total = { t: '', L: Dm, n: Dm.length, ok: sum(rows, function (r) { return r.ok; }), wait: sum(rows, function (r) { return r.wait; }),
+      no: sum(rows, function (r) { return r.no; }), cost: sum(rows, function (r) { return r.cost; }), est: sum(rows, function (r) { return r.est; }) };
+    var unitOf = { Compute: 'عدد', Storage: 'TB', GPU: 'عدد', Network: 'عدد' };
+    var head = '<tr><th>نوع درخواست</th><th class="num">درخواست</th><th class="num">تأییدشده</th><th class="num">در انتظار</th><th class="num">ردشده</th>'
+      + RCATS.map(function (c) { return '<th class="num">' + esc(RCAT_FA[c]) + '</th>'; }).join('')
+      + '<th class="num">هزینه برآورد BOQ</th></tr>';
+    var line = function (r, isTotal) {
+      var name = isTotal ? '<b>جمع</b>' : filterLink({ rtype: r.t, rcat: '' }, '<span class="db-rtype"><i style="background:' + (r.t === 'Release old resources' ? '#cbd5e1' : '#f5b800') + '"></i>' + esc(RTYPE_FA[r.t] || r.t) + '</span>', 'requests');
+      var t = isTotal ? '' : r.t;
+      return '<tr' + (isTotal ? ' class="db-total"' : '') + '><td>' + name + '</td>'
+        + '<td class="num">' + (r.n ? filterLink({ rtype: t, rcat: '' }, num(r.n), 'requests') : '0') + '</td>'
+        + '<td class="num">' + num(r.ok) + '</td><td class="num">' + num(r.wait) + '</td><td class="num">' + num(r.no) + '</td>'
+        + RCATS.map(function (c) {
+            var swap = r.t === 'Modernization';
+            var v = r.t === 'Release old resources' ? 0 : qty(r.L.filter(function (d) { return d.request_type !== 'Release old resources'; }), c);
+            return '<td class="num">' + cell(t, c, v, swap ? 'دستگاه' : (c === 'Storage' ? 'TB' : '')) + '</td>';
+          }).join('')
+        + '<td class="num">' + (r.cost ? num(Math.round(r.cost)) : '<span class="db-dash">—</span>') + '</td></tr>';
+    };
+    var tbl = '<div class="db-tbl-wrap"><table id="db-rtype-tbl" class="db-tbl db-compare"><thead>' + head + '</thead><tbody>'
+      + rows.map(function (r) { return line(r, false); }).join('') + line(total, true) + '</tbody></table></div>'
+      + '<div class="db-note">سرور و GPU به عدد و فضای ذخیره‌سازی به ترابایت؛ در «نوسازی و جایگزینی» هر درخواست یک دستگاه برای جایگزینی است و در ردیف جمع حساب نمی‌شود. برای دیدن درخواست‌ها روی هر عدد کلیک کنید.</div>';
+
+    return { table: card(12, title, tbl), chart: card(6, 'تعداد درخواست به تفکیک نوع و منبع', chartHtml('c-rtype', 300)) };
+  }
+
   // ---------- pages ----------
   function renderOverview() {
     var top = need(['requests']);
@@ -398,6 +488,7 @@
     var wait = grp.Waiting || 0;
     var pct = n ? Math.round(done / n * 100) : 0;
     var cost = sum(Dm, function (d) { return d.boq_cost; });
+    var cmp = compareCards(Dm);
 
     var kpis = kpi('کل درخواست‌ها', num(n), growth(R), 'gold', query('requests', { group: '' }))
       + kpi('در حال پیگیری / اجرا', num(prog), growth(R.filter(function (r) { return GROUP[r.status] === 'In progress'; })), 'blue', query('requests', { group: 'In progress' }))
@@ -478,9 +569,11 @@
       + card(4, 'وضعیت کلی درخواست‌ها', chartHtml('c-status', 260))
       + card(5, 'درخواست‌ها بر اساس تیم', chartHtml('c-team', 260))
       + card(3, 'درخواست‌ها بر اساس مرحله', chartHtml('c-hstatus', 260))
+      + cmp.table
+      + cmp.chart
       + gaugeCard(pct, done, n)
       + assetsCard
-      + costCard
+      + costCard.replace('db-card s6', 'db-card s12')
       + latestCard
       + '</div>';
   }

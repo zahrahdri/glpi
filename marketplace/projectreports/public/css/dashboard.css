@@ -266,3 +266,11 @@
   background: #fff8db; border: 1px solid #f5d77a; color: #6b4e00; font-weight: 700; }
 .db-active-chip b { font-size: 15px; line-height: 1; }
 .db-active-chip:hover { background: #ffefb0; color: #6b4e00; }
+
+/* ---------- request type comparison ---------- */
+.db-compare td, .db-compare th { white-space: nowrap; }
+.db-compare tr.db-total td { background: #f8fafc; font-weight: 800; border-top: 1px solid var(--line); }
+.db-compare small { color: var(--muted); font-size: 11px; }
+.db-rtype { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+.db-rtype i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.db-note { color: var(--muted); font-size: 12px; margin-top: 10px; line-height: 1.7; }
