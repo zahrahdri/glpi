@@ -133,3 +133,21 @@
   .prwf-step, .prwf-decision { break-inside: avoid; }
   .prwf-num, .prwf-yes b, .prwf-no b, .prwf-role { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* capacity request forms: smaller text (html.prwf-compact is set by js/form-workflow.js) */
+html.prwf-compact #forms_form_answers h1.form-title { font-size: 1.25rem; }
+html.prwf-compact #forms_form_answers .form-description { font-size: .8rem; }
+html.prwf-compact #forms_form_answers [data-glpi-form-renderer-section] h2 { font-size: 1rem; }
+html.prwf-compact #forms_form_answers [data-glpi-form-renderer-section] h3 { font-size: .85rem; }
+html.prwf-compact #forms_form_answers [data-glpi-form-renderer-section] .text-muted,
+html.prwf-compact #forms_form_answers [data-glpi-form-renderer-section] .form-text,
+html.prwf-compact #forms_form_answers [data-glpi-form-renderer-section] p { font-size: .78rem; }
+html.prwf-compact #forms_form_answers .form-check-label,
+html.prwf-compact #forms_form_answers .form-control,
+html.prwf-compact #forms_form_answers .form-select,
+html.prwf-compact #forms_form_answers .select2-selection,
+html.prwf-compact #forms_form_answers .select2-results__option,
+html.prwf-compact #forms_form_answers .tox-tinymce,
+html.prwf-compact #forms_form_answers .btn { font-size: .8rem; }
+html.prwf-compact #forms_form_answers .form-control,
+html.prwf-compact #forms_form_answers .form-select { padding-top: .3rem; padding-bottom: .3rem; }

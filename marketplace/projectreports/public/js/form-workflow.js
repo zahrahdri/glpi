@@ -101,6 +101,35 @@
     yes: 'The resources are reserved for you and installation starts right away.',
     no: 'The missing hardware goes through the procurement process first, then it is installed.'
   };
+  // HW installation in detail (administrators only, Setup > Request workflow)
+  var INSTALL_DETAIL = [
+    { id: 'material', role: 'delivery', title: 'Material request', box: 'Material request',
+      does: ['The installation team requests the equipment and accessories (rails, cables, transceivers, PDUs) from the warehouse for this request.'],
+      out: 'Material issued from the warehouse', status: 'processing' },
+    { id: 'physical', role: 'delivery', title: 'Physical installation', box: 'Physical installation',
+      does: ['Mounts the hardware in the planned rack and position (DCIM).', 'Work on production racks is done in the approved Change window.'],
+      out: 'Hardware mounted in the rack', status: 'processing' },
+    { id: 'cabling', role: 'delivery', title: 'Cabling', box: 'Cabling',
+      does: ['Connects power, network and storage cables according to the cabling plan.'],
+      out: 'Cabling done as planned', status: 'processing' },
+    { id: 'labeling', role: 'delivery', title: 'Labeling', box: 'Labeling',
+      does: ['Labels the device and both ends of every cable; rack position and connections are recorded in GLPI / DCIM.'],
+      out: 'Device and cables labeled and recorded', status: 'processing' },
+    { id: 'poweron', role: 'delivery', title: 'Power on', box: 'Power on',
+      does: ['Powers the device on and checks hardware health, firmware level and both power feeds.'],
+      out: 'Device healthy, firmware at the standard level', status: 'processing' },
+    { id: 'network', role: 'delivery', title: 'Network configuration', box: 'Network configuration',
+      does: ['Configures management access, IP addresses, VLANs and switch ports, and storage zoning when needed.'],
+      out: 'Device reachable on its networks', status: 'processing' },
+    { id: 'qc', role: 'delivery', title: 'QC process', box: 'QC process',
+      does: ['Quality check against the checklist: hardware, cabling, labels, configuration, monitoring and the GLPI record.',
+        'Findings are fixed before the delivery.'],
+      out: 'QC checklist passed; ready for delivery', status: 'processing' }
+  ];
+  var MIGRATION = { id: 'migration', role: 'delivery', title: 'Migration', box: 'Migration',
+    does: ['Migrates the services to the new device in the agreed window and checks them; the old device stays ready for a rollback.'],
+    out: 'Services running on the new device', status: 'processing' };
+
   var change = 'Work on production systems is done through a GLPI Change: planned, approved and scheduled, so you know when it happens.';
 
   var WORKFLOWS = {
@@ -127,7 +156,7 @@
           'Or provisions the resources on an existing platform (virtual machines, storage).',
           'The installed equipment is recorded in GLPI and linked to your request.', change],
         out: 'Hardware installed, configured and recorded in GLPI',
-        status: 'processing'
+        status: 'processing', detail: INSTALL_DETAIL
       }, delivery]
     },
     expansion: {
@@ -152,7 +181,7 @@
         does: ['Installs the extra hardware (hosts, disks, storage) or adds capacity on the existing platform.',
           'The installed equipment is recorded in GLPI and linked to your request.', change],
         out: 'Capacity installed and recorded in GLPI',
-        status: 'processing'
+        status: 'processing', detail: INSTALL_DETAIL
       }, delivery]
     },
     modernization: {
@@ -176,7 +205,7 @@
         does: ['Installs the new hardware and migrates the services in the agreed window.',
           'Checks that everything runs on the new device; the old one stays ready for a rollback.', change],
         out: 'New hardware installed; services running on it',
-        status: 'processing'
+        status: 'processing', detail: INSTALL_DETAIL.concat([MIGRATION])
       }, delivery, {
         id: 'dismantle', role: 'delivery', title: 'Dismantle the old device', box: 'Dismantle old one',
         does: ['After your confirmation of the delivery, the old device is switched off and dismantled from the rack.',
@@ -231,7 +260,7 @@
     var idx = function (id) { for (var i = 0; i < items.length; i++) { if (items[i].id === id) { return i; } } return -1; };
 
     var out = [];
-    out.push('<svg class="prwf-lanes" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(NAME + ': ' + wf.label) + ' swimlane diagram">');
+    out.push('<svg class="prwf-lanes" viewBox="0 0 ' + W + ' ' + H + '" style="min-width:' + Math.round(Math.max(760, W * 0.78)) + 'px" role="img" aria-label="' + esc(NAME + ': ' + wf.label) + ' swimlane diagram">');
     var arrowId = 'prwf-arr-' + type + (detailed ? '-d' : '');
     out.push('<defs><marker id="' + arrowId + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
       + '<path d="M0,0 L10,5 L0,10 z" class="prwf-arrhead"/></marker></defs>');
@@ -264,7 +293,7 @@
       out.push('<path class="prwf-edge ' + (cls || '') + '" d="' + d + '" ' + mk + '/>');
       if (label) { out.push('<text class="prwf-edge-t ' + cls + '" x="' + (lx || (x1 + 6)) + '" y="' + (ly || (A.y - 6)) + '">' + label + '</text>'); }
     };
-    var iDec = idx('decision'), iProc = idx(detailed ? 'order' : 'procurement'), iDel = idx('install');
+    var iDec = idx('decision'), iProc = idx(detailed ? 'order' : 'procurement'), iDel = idx(detailed ? 'material' : 'install');
     for (var i = 0; i < items.length - 1; i++) {
       if (i === iDec) { continue; }
       edge(i, i + 1);
@@ -328,7 +357,7 @@
 
     return '<div class="prwf">'
       + '<p class="prwf-intro"><span class="prwf-kicker">' + esc(NAME) + '</span>' + esc(wf.intro) + '</p>'
-      + (detailed ? '<div class="prwf-admin-note"><i class="ti ti-lock"></i> Administrator view: the procurement process is shown in detail (order, purchase, warehouse inbound). Requesters see it as one step.</div>' : '')
+      + (detailed ? '<div class="prwf-admin-note"><i class="ti ti-lock"></i> Administrator view: the procurement process and the HW installation are shown in detail. Requesters see each of them as one step.</div>' : '')
       + swimlane(type, detailed) + gates
       + '<ol class="prwf-steps">' + body + '</ol>'
       + '<div class="prwf-track"><b>Follow your request:</b> Assistance › Tickets (or "My tickets"). The ticket shows its status, '
@@ -377,6 +406,10 @@
   function initForm() {
     var title = document.querySelector('h1.form-title, [data-testid="form-title"]');
     if (!title || title.getAttribute('data-prwf')) { return; }
+    if (/capacity request/i.test(title.textContent)) {   // all capacity request forms: compact text
+      document.documentElement.classList.add('prwf-compact');
+      addCss();
+    }
     var type = typeOfTitle(title.textContent);
     if (!type) { return; }
     title.setAttribute('data-prwf', '1');

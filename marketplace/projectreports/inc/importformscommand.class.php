@@ -21,6 +21,29 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class PluginProjectreportsImportformscommand extends AbstractCommand
 {
+    /**
+     * Changes for forms that were imported before (run by the plugin install and by this command; safe to repeat):
+     *  - all on one page (no "Continue" between the sections, only "Submit" at the end),
+     *  - New project: shorter introduction.
+     */
+    public static function updateExisting(): int
+    {
+        /** @var DBmysql $DB */
+        global $DB;
+        if (!$DB->tableExists('glpi_forms_forms')) {
+            return 0;
+        }
+        $n = 0;
+        $DB->update('glpi_forms_forms', ['render_layout' => 'single_page'], ['name' => ['LIKE', 'Capacity request: %'], 'render_layout' => 'step_by_step']);
+        $n += $DB->affectedRows();
+        $DB->update('glpi_forms_forms',
+            ['header' => '<p>Submit one request per resource type (compute, storage or GPU).</p>'],
+            ['name' => 'Capacity request: New project',
+                'header' => '<p>Request infrastructure for a <b>new project</b> that does not exist in GLPI yet. Submit one request per resource type (compute, storage or GPU).</p>']);
+        $n += $DB->affectedRows();
+        return $n;
+    }
+
     protected function configure()
     {
         parent::configure();
@@ -108,7 +131,8 @@ class PluginProjectreportsImportformscommand extends AbstractCommand
             }
         }
 
-        $output->writeln(sprintf('Forms imported: %d, already there: %d, failed: %d', $imported, $skipped, $failed));
+        $updated = self::updateExisting();
+        $output->writeln(sprintf('Forms imported: %d, already there: %d, failed: %d, settings updated: %d', $imported, $skipped, $failed, $updated));
         return $failed ? 1 : 0;
     }
 }

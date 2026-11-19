@@ -10,7 +10,7 @@
    "entity_name": "Root Entity",
    "is_recursive": true,
    "is_active": true,
-   "render_layout": "step_by_step",
+   "render_layout": "single_page",
    "submit_button_visibility_strategy": "always_visible",
    "illustration": "asset-server",
    "submit_button_conditions": [],
