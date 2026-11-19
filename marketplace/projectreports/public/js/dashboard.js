@@ -27,7 +27,7 @@
   var F = { time: 'all', team: '', project: '', status: '', category: '', supplier: '' };
   var TIMES = [['all', 'همه زمان‌ها'], ['30', '۳۰ روز اخیر'], ['90', '۹۰ روز اخیر'], ['365', '۱۲ ماه اخیر']];
   // drill-down filters set by clicking a chart or a card (not in the filter panel)
-  var X = { group: '', age: '', sla: '', open: '', atype: '', rtype: '', rcat: '', ikind: '', istate: '', cfree: '' };
+  var X = { group: '', age: '', sla: '', open: '', atype: '', rtype: '', rcat: '', ikind: '', istate: '' };
   var U = D.urls || {};
   (function readAddress() {
     var q = new URLSearchParams(window.location.search);
@@ -227,7 +227,7 @@
     // page tabs keep the filter panel's choices (the drill-down filters belong to the page they were set on)
     document.querySelectorAll('.db-nav a').forEach(function (a) {
       var k = new URLSearchParams((a.getAttribute('href') || '').split('?')[1] || '').get('page');
-      if (k) { a.setAttribute('href', query(k, { group: '', age: '', sla: '', open: '', atype: '', rtype: '', rcat: '', ikind: '', istate: '', cfree: '' })); }
+      if (k) { a.setAttribute('href', query(k, { group: '', age: '', sla: '', open: '', atype: '', rtype: '', rcat: '', ikind: '', istate: '' })); }
     });
   }
   // the drill-down filters in force, each removable
@@ -241,8 +241,7 @@
       rtype: function (v) { return 'نوع درخواست: ' + (RTYPE_FA[v] || v); },
       rcat: function (v) { return 'منبع: ' + (RCAT_FA[v] || v); },
       ikind: function (v) { return 'تجهیز: ' + (IKIND_FA[v] || v); },
-      istate: function (v) { return 'وضعیت: ' + stLabel(v); },
-      cfree: function () { return 'کابل‌های با سر آزاد'; }
+      istate: function (v) { return 'وضعیت: ' + stLabel(v); }
     };
     var on = Object.keys(X).filter(function (k) { return X[k]; });
     if (!on.length) { return ''; }
@@ -720,13 +719,12 @@
     var srv = all.filter(function (r) { return r.kind === 'Server'; });
     var sto = all.filter(function (r) { return r.kind === 'Storage'; });
     var nUse = srv.filter(function (r) { return stKey(r.state) === 'use'; }).length;
-    var freeCab = CABLES.filter(function (c) { return !c.a || !c.b; });
     var nSpare = sum(SPARES, function (x) { return x.n; });
     var kpis = kpi('سرورها', num(srv.length), { plain: true, txt: num(nUse) + ' در حال استفاده' }, 'gold', query('assets', { ikind: 'Server', istate: '' }) + '#db-inv')
       + kpi('فضای ذخیره‌سازی (خام)', size(sum(sto, function (r) { return r.disk_mb; })), { plain: true, txt: num(sto.length) + ' دستگاه' }, 'blue', query('assets', { ikind: 'Storage', istate: '' }) + '#db-inv')
       + kpi('رم نصب‌شده', size(sum(srv, function (r) { return r.ram_mb; })), { plain: true, txt: num(sum(srv, function (r) { return r.ram_modules; })) + ' ماژول' }, 'violet', query('assets', { ikind: 'Server', istate: '' }) + '#db-inv')
       + kpi('دیسک سرورها', size(sum(srv, function (r) { return r.disk_mb; })), { plain: true, txt: num(sum(srv, function (r) { return r.disks; })) + ' دیسک' }, 'green', query('assets', { ikind: 'Server', istate: '' }) + '#db-inv')
-      + kpi('کابل‌ها', num(CABLES.length), { plain: true, txt: num(freeCab.length) + ' با سر آزاد' }, 'gold', query('assets', { cfree: '' }) + '#db-cab')
+      + kpi('کابل‌ها', num(CABLES.length), { plain: true, txt: num(Object.keys(countBy(CABLES, function (c) { return c.type || '-'; })).length) + ' نوع کابل' }, 'gold', query('assets', {}) + '#db-cab')
       + kpi('قطعات یدکی', num(nSpare), { plain: true, txt: 'رم و دیسک در انبار' }, 'red', query('assets', {}) + '#db-spare');
 
     // 1. how many of each kind, by status (every count opens the list below)
@@ -811,11 +809,11 @@
     ], SPARES.slice().sort(function (a, b) { return b.n - a.n; }), 200);
 
     // 5. cables, with both ends
-    var C = CABLES.filter(function (c) { return !X.cfree || !c.a || !c.b; });
+    var C = CABLES;
     var ctypes = countBy(CABLES, function (c) { return c.type || 'بدون نوع'; });
-    var end = function (e) { return e ? link(e.url, esc(e.name)) : chip('آزاد', 'warn'); };
+    var end = function (e) { return e ? link(e.url, esc(e.name)) : '<span class="db-dash">—</span>'; };
     var cabTbl = '<div class="db-cab-types">' + Object.keys(ctypes).map(function (t) { return chip(String(t).replace(/^DEMO /, '') + ': ' + num(ctypes[t]), 'info'); }).join(' ')
-      + ' ' + (freeCab.length ? filterLink({ cfree: X.cfree ? '' : '1' }, chip((X.cfree ? 'همه کابل‌ها' : 'فقط سر آزاد') + ' (' + num(freeCab.length) + ')', 'warn')) : '') + '</div>'
+      + '</div>'
       + table('db-cab-tbl', [
         { h: 'کابل', f: function (c) { return link(c.url, '<b>' + esc(c.name) + '</b>') + (c.color ? ' <i class="db-swatch" style="background:' + esc(c.color) + '"></i>' : ''); } },
         { h: 'نوع', f: function (c) { return esc(String(c.type || '').replace(/^DEMO /, '')); } },

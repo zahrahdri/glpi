@@ -962,9 +962,6 @@ class PluginProjectreportsDemocommand extends AbstractCommand
                 }
             }
         }
-        for ($i = 0; $i < 6; $i++) {   // patched on one side only, waiting for the other end
-            $cable($i % 2 ? 'fiber' : 'dac', '#94a3b8', 'NetworkEquipment', $core[$i % max(1, count($core))] ?? 0, '', 0);
-        }
         $output->writeln(sprintf('Inventory: 4 statuses, warehouse, 4 servers in stock, SAN disks, %d spare parts, %d cables', $spares, $nb));
     }
 
