@@ -25,6 +25,18 @@ function plugin_init_projectreports()
         $PLUGIN_HOOKS['add_javascript']['projectreports'] = ['js/form-workflow.js?m=' . (int) @filemtime(__DIR__ . '/public/js/form-workflow.js')];
     }
 
+    // Home page: "Reporting dashboard" is the first tab and the one that opens; GLPI's own Dashboard tab is hidden
+    // (js/central-tabs.js). Users who cannot see the Reporting dashboard keep GLPI's tabs as they are.
+    if (preg_match('#/front/central\.php#', (string) ($_SERVER['REQUEST_URI'] ?? '')) && Session::getLoginUserID()
+        && Session::getCurrentInterface() === 'central' && PluginProjectreportsDashboardmenu::canView()) {
+        $PLUGIN_HOOKS['add_javascript']['projectreports'] = ['js/central-tabs.js?m=' . (int) @filemtime(__DIR__ . '/public/js/central-tabs.js')];
+        $tab = Session::getActiveTab('Central');
+        if ($tab === '' || $tab === 'Central$0' || ($_GET['forcetab'] ?? '') === 'Central$0') {
+            Session::setActiveTab('Central', 'PluginProjectreportsCentral$1');
+            unset($_GET['forcetab']);
+        }
+    }
+
     // When a form creates a ticket, link the ticket to the project chosen in the form.
     $PLUGIN_HOOKS['item_add']['projectreports'] = [
         'Glpi\\Form\\Destination\\AnswersSet_FormDestinationItem' => 'plugin_projectreports_link_form_project',
