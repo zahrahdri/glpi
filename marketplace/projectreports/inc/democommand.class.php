@@ -158,11 +158,11 @@ class PluginProjectreportsDemocommand extends AbstractCommand
         mt_srand(2026);
         if ($input->getOption('mix')) {
             $this->createMix($output);
-            $output->writeln('<info>Done. Open Tools > Project reports. Remove it later with: php bin/console plugins:projectreports:demo --remove</info>');
+            $output->writeln('<info>Done. Open Tools > Reporting dashboard. Remove it later with: php bin/console plugins:projectreports:demo --remove</info>');
             return 0;
         }
         $this->create($output, max(10, (int) $input->getOption('requests')));
-        $output->writeln('<info>Done. Open Tools > Project reports. Remove it later with: php bin/console plugins:projectreports:demo --remove</info>');
+        $output->writeln('<info>Done. Open Tools > Reporting dashboard. Remove it later with: php bin/console plugins:projectreports:demo --remove</info>');
         return 0;
     }
 
