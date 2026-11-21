@@ -24,7 +24,7 @@
   var pendingCharts = [];
 
   // slicer state; time is 'all' or a number of days
-  var F = { time: 'all', team: '', project: '', phase: '', site: '', res: '', status: '', category: '', supplier: '' };
+  var F = { time: 'all', team: '', project: '', phase: '', site: '', res: '', stage: '', status: '', category: '', supplier: '' };
   var TIMES = [['all', 'همه زمان‌ها'], ['30', '۳۰ روز اخیر'], ['90', '۹۰ روز اخیر'], ['365', '۱۲ ماه اخیر']];
   // drill-down filters set by clicking a chart or a card (not in the filter panel)
   var X = { group: '', age: '', sla: '', open: '', atype: '', rtype: '', rcat: '', ikind: '', istate: '' };
@@ -72,6 +72,19 @@
     if (d.stage === 'estimate') { return 'purchase'; }
     return 'technical';
   }
+  var D2D_LABEL = {}, D2D_CLS = {};
+  D2D.forEach(function (k) { D2D_LABEL[k[0]] = k[1]; D2D_CLS[k[0]] = k[2]; });
+  var D2D_COL = { refused: '#e5484d', approval: '#f5b800', technical: '#7c5cf0', purchase: '#f97316', delivery: '#2f7de1', done: '#16a34a' };
+  // in progress = after manager approval and before delivery
+  var ACTIVE = { technical: 1, purchase: 1, delivery: 1 };
+  function stageOfReq(r) {
+    var d = DEMAP[r.ticket_id];
+    if (d) { return d2dStage(d); }
+    if (r.status === 'Solved' || r.status === 'Closed') { return 'done'; }
+    return r.status === 'New' ? 'approval' : 'technical';
+  }
+  function stageLabel(v) { return v === 'active' ? 'در حال اجرا' : (D2D_LABEL[v] || v); }
+  function stageChip(r) { var st = stageOfReq(r); return filterLink({ stage: st }, chip(D2D_LABEL[st], D2D_CLS[st]), 'requests'); }
   // a request that does not come from a capacity request form (incident, renewal, ...) has no phase, data center or resource
   var NO_CAP = '<span class="db-dash" title="درخواست ظرفیت نیست">—</span>';
   function siteSort(a, b) { return (a === NOT_SET) - (b === NOT_SET) || String(a).localeCompare(String(b)); }
@@ -200,6 +213,7 @@
       && (!F.team || r.requesting_team === F.team)
       && (!F.project || r.project === F.project)
       && (!F.status || r.status === F.status)
+      && (!F.stage || (F.stage === 'active' ? !!ACTIVE[stageOfReq(r)] : stageOfReq(r) === F.stage))
       && (!F.category || r.category === F.category)
       && (!F.phase || phaseOf(DEMAP[r.ticket_id]) === F.phase && !!DEMAP[r.ticket_id])
       && (!F.site || siteOf(DEMAP[r.ticket_id]) === F.site && !!DEMAP[r.ticket_id])
@@ -313,7 +327,6 @@
   function renderSlicers() {
     var teams = uniq(REQ.map(function (r) { return r.requesting_team; }));
     var projects = uniq(REQ.map(function (r) { return r.project; }).concat(FIN.map(function (f) { return f.project; })));
-    var statuses = STATUSES.filter(function (s) { return REQ.some(function (r) { return r.status === s; }); });
     var cats = uniq(REQ.map(function (r) { return r.category; }));
     var phases = uniq(DEM.map(phaseOf)).sort(phaseSort);
     var sites = uniq(DEM.map(siteOf)).sort(siteSort);
@@ -330,7 +343,7 @@
       + sel('phase', 'فاز پروژه', phases, phaseFa)
       + sel('site', 'دیتاسنتر', sites, siteFa)
       + sel('res', 'نوع منبع', ress, function (c) { return RCAT_FA[c] || c; })
-      + sel('status', 'وضعیت درخواست', statuses, function (s) { return STATUS_FA[s] || s; })
+      + sel('stage', 'مرحله در ورک‌فلو', ['approval', 'active', 'technical', 'purchase', 'delivery', 'done', 'refused'], stageLabel)
       + sel('category', 'دسته‌بندی', cats)
       + sel('supplier', 'تأمین‌کننده', sups)
       + '<button type="button" class="db-reset">بازنشانی فیلترها</button></div>';
@@ -447,10 +460,10 @@
     };
   }
   function gaugeCard(pct, done, total) {
-    chart('c-gauge', gaugeOpt(pct), function () { go('requests', { group: 'Completed' }); });
+    chart('c-gauge', gaugeOpt(pct), function () { go('requests', { stage: 'done' }); });
     return card(3, 'پیشرفت کلی',
       '<div class="db-gauge">' + chartHtml('c-gauge', 210)
-      + '<div class="db-gauge-txt"><div class="db-gauge-v">' + fa(pct) + '٪</div><span>' + num(done) + ' از ' + num(total) + ' درخواست تکمیل شده</span></div></div>');
+      + '<div class="db-gauge-txt"><div class="db-gauge-v">' + fa(pct) + '٪</div><span>' + num(done) + ' از ' + num(total) + ' درخواست تحویل شده (بدون ردشده‌ها)</span></div></div>');
   }
 
   // ---------- comparison of the request types (New project / Expansion / Modernization / Release) ----------
@@ -547,28 +560,28 @@
     var Fn = moneyOk ? fins() : [];
     var A = moneyOk ? asts() : [];
 
-    var grp = countBy(R, function (r) { return GROUP[r.status] || 'Other'; });
+    var stg = countBy(R, stageOfReq);
     var n = R.length;
-    var done = grp.Completed || 0;
-    var prog = grp['In progress'] || 0;
-    var wait = grp.Waiting || 0;
-    var pct = n ? Math.round(done / n * 100) : 0;
+    var done = stg.done || 0;
+    var refused = stg.refused || 0;
+    var wait = stg.approval || 0;
+    var prog = (stg.technical || 0) + (stg.purchase || 0) + (stg.delivery || 0);
+    // progress: delivered out of the requests that go ahead (refused ones are left out)
+    var pct = n - refused ? Math.round(done / (n - refused) * 100) : 0;
+    var inStage = function (k) { return R.filter(function (r) { return k === 'active' ? ACTIVE[stageOfReq(r)] : stageOfReq(r) === k; }); };
     var cost = sum(Dm, function (d) { return d.boq_cost; });
     var cmp = compareCards(Dm);
 
-    var kpis = kpi('کل درخواست‌ها', num(n), growth(R), 'gold', query('requests', { group: '' }))
-      + kpi('در حال پیگیری / اجرا', num(prog), growth(R.filter(function (r) { return GROUP[r.status] === 'In progress'; })), 'blue', query('requests', { group: 'In progress' }))
-      + kpi('تکمیل‌شده', num(done), growth(R.filter(function (r) { return GROUP[r.status] === 'Completed'; })), 'green', query('requests', { group: 'Completed' }))
-      + kpi('در انتظار اقدام', num(wait), growth(R.filter(function (r) { return GROUP[r.status] === 'Waiting'; })), 'red', query('requests', { group: 'Waiting' }))
+    var kpis = kpi('کل درخواست‌ها', num(n), growth(R), 'gold', query('requests', { group: '', stage: '' }))
+      + kpi('در انتظار تأیید مدیر', num(wait), growth(inStage('approval')), 'red', query('requests', { group: '', stage: 'approval' }))
+      + kpi('در حال اجرا', num(prog), growth(inStage('active')), 'blue', query('requests', { group: '', stage: 'active' }))
+      + kpi('تحویل‌شده', num(done), growth(inStage('done')), 'green', query('requests', { group: '', stage: 'done' }))
       + kpi('جمع هزینه خرید (BOQ)', demOk ? compact(cost) : '—', demOk ? growth(Dm) : null, 'green', D.root + '/plugins/projectreports/front/demand.php');
 
-    // status donut
-    var order = ['Completed', 'In progress', 'Waiting'];
-    var colors = { Completed: COL.green, 'In progress': COL.blue, Waiting: COL.gold };
-    var statusItems = order.filter(function (g) { return grp[g]; }).map(function (g) {
-      return { name: GROUP_LABEL[g], value: grp[g], key: g, itemStyle: { color: colors[g] } };
-    });
-    chart('c-status', donutOpt(statusItems, 'درخواست'), function (e) { if (e.data && e.data.key) { go('requests', { group: e.data.key }); } });
+    // overall: waiting for approval, in progress, delivered, refused
+    var statusItems = [['approval', wait, D2D_COL.approval], ['active', prog, D2D_COL.delivery], ['done', done, D2D_COL.done], ['refused', refused, D2D_COL.refused]]
+      .filter(function (x) { return x[1]; }).map(function (x) { return { name: stageLabel(x[0]), value: x[1], key: x[0], itemStyle: { color: x[2] } }; });
+    chart('c-status', donutOpt(statusItems, 'درخواست'), function (e) { if (e.data && e.data.key) { go('requests', { stage: e.data.key }); } });
 
     // requests by team
     var teamC = countBy(R, function (r) { return r.requesting_team; });
@@ -576,11 +589,10 @@
     chart('c-team', vbarOpt(teams, [{ name: 'درخواست', data: teams.map(function (t) { return teamC[t]; }), color: COL.gold }]),
       function (e) { go('requests', { team: teams[e.dataIndex] }); });
 
-    // requests by status
-    var sc = countBy(R, function (r) { return r.status; });
-    var stl = STATUSES.filter(function (s) { return sc[s]; });
-    chart('c-hstatus', hbarOpt(stl.map(function (s) { return STATUS_FA[s]; }), stl.map(function (s) { return sc[s]; }), COL.gold),
-      function (e) { go('requests', { status: stl[e.dataIndex] }); });
+    // requests by stage of the workflow, in workflow order
+    var stl = D2D.map(function (k) { return k[0]; }).filter(function (k) { return k !== 'refused'; }).concat(['refused']).filter(function (k) { return stg[k]; });
+    var hopt = hbarOpt(stl.map(function (k) { return D2D_LABEL[k]; }), stl.map(function (k) { return { value: stg[k], itemStyle: { color: D2D_COL[k] } }; }), COL.gold);
+    chart('c-hstatus', hopt, function (e) { go('requests', { stage: stl[e.dataIndex] }); });
 
     var assetsCard = moneyOk
       ? (function () {
@@ -626,7 +638,7 @@
       { h: 'دیتاسنتر', f: many('datacenter') },
       { h: 'برنامه نصب', f: day('install') },
       { h: 'پیگیری‌کننده', f: function (r) { var v = det(r, 'follower'); return v ? link(det(r, 'follower_url'), esc(v)) : (r.assigned_to ? esc(r.assigned_to) : dash); } },
-      { h: 'وضعیت', f: function (r) { return filterLink({ status: r.status }, chip(STATUS_FA[r.status] || r.status, GROUP_CLS[GROUP[r.status]]), 'requests'); } }
+      { h: 'مرحله', f: stageChip }
     );
     var latestCard = card(12, 'آخرین وضعیت درخواست‌ها', table('db-latest', latestCols, latest, 500));
 
@@ -634,10 +646,10 @@
       + '<div class="db-grid">'
       + card(4, 'وضعیت کلی درخواست‌ها', chartHtml('c-status', 260))
       + card(5, 'درخواست‌ها بر اساس تیم', chartHtml('c-team', 260))
-      + card(3, 'درخواست‌ها بر اساس مرحله', chartHtml('c-hstatus', 260))
+      + card(3, 'درخواست‌ها بر اساس مرحله ورک‌فلو', chartHtml('c-hstatus', 260))
       + cmp.table
       + cmp.chart
-      + gaugeCard(pct, done, n)
+      + gaugeCard(pct, done, n - refused)
       + assetsCard
       + costCard.replace('db-card s6', 'db-card s12')
       + latestCard
@@ -760,7 +772,7 @@
       { h: 'دیتاسنتر', f: function (r) { var d = DEMAP[r.ticket_id]; return d ? filterLink({ site: siteOf(d) }, esc(siteFa(siteOf(d)))) : NO_CAP; } },
       { h: 'منبع', f: function (r) { var d = DEMAP[r.ticket_id]; return d && d.request_type !== 'Release old resources' ? filterLink({ res: rcatOf(d) }, esc(RCAT_FA[rcatOf(d)] || rcatOf(d))) : NO_CAP; } },
       { h: 'دسته‌بندی', f: function (r) { return filterLink({ category: r.category }, esc(r.category)); } },
-      { h: 'وضعیت', f: function (r) { return filterLink({ status: r.status }, chip(STATUS_FA[r.status] || r.status, GROUP_CLS[GROUP[r.status]])); } },
+      { h: 'مرحله', f: stageChip },
       { h: 'SLA', f: function (r) { return r.sla ? chip(r.sla === 'Overdue' ? 'دیرکرد' : 'به‌موقع', r.sla === 'Overdue' ? 'bad' : 'ok') : ''; } },
       { h: 'تاریخ ثبت', f: function (r) { return jdate(r.opened); } },
       { h: 'سررسید', f: function (r) { return jdate(r.due); } }

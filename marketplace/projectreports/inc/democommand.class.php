@@ -671,8 +671,12 @@ class PluginProjectreportsDemocommand extends AbstractCommand
                 // phases spread so most projects have several (UAT and Production, sometimes POC or DR)
                 $answer('Project phase', ['UAT / IAT', 'Production', 'Production', 'UAT / IAT', 'DR', 'POC', 'Production'][$n % 7]),
             ]);
+            // about half of the approved requests are already delivered (ticket closed after the requester's confirmation)
+            $delivered = $appr === 'Approved' && $n % 2 === 0;
+            $closed_at = $delivered ? min((new DateTime($opened))->modify('+' . (25 + $n) . ' day'), new DateTime())->format('Y-m-d H:i:s') : null;
             $tid = $this->ins('glpi_tickets', ['entities_id' => 0, 'name' => '[DEMO] ' . $title, 'content' => '<p>' . htmlspecialchars($title) . '</p>',
-                'date' => $opened, 'date_creation' => $opened, 'date_mod' => $now, 'status' => $appr === 'Refused' ? 6 : 2, 'type' => 2,
+                'solvedate' => $closed_at, 'closedate' => $closed_at,
+                'date' => $opened, 'date_creation' => $opened, 'date_mod' => $now, 'status' => $appr === 'Refused' || $delivered ? 6 : 2, 'type' => 2,
                 'urgency' => 3, 'impact' => 3, 'priority' => 3, 'global_validation' => $approval[$appr], 'requesttypes_id' => 1, 'is_deleted' => 0,
                 'itilcategories_id' => $rtype_cat[$rtype] ?? 0]);
             $set = $this->ins('glpi_forms_answerssets', ['forms_forms_id' => $form_id, 'entities_id' => 0, 'users_id' => 0,
