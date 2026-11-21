@@ -61,6 +61,17 @@
     var ia = PHASES.indexOf(a), ib = PHASES.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || String(a).localeCompare(String(b));
   }
+  // stage of a capacity request in the Demand-to-Delivery workflow, from its approval, BOQ / order and ticket status
+  var D2D = [['refused', 'ردشده', 'bad'], ['approval', 'در انتظار تأیید مدیر', 'warn'], ['technical', 'بررسی فنی', 'info'],
+    ['purchase', 'در انتظار خرید', 'info'], ['delivery', 'تأمین و نصب', 'info'], ['done', 'تحویل‌شده', 'ok']];
+  function d2dStage(d) {
+    if (d.refused || d.approval === 'Refused') { return 'refused'; }
+    if (d.status === 'Solved' || d.status === 'Closed') { return 'done'; }
+    if (d.approval === 'Waiting') { return 'approval'; }
+    if (d.stage === 'committed') { return 'delivery'; }
+    if (d.stage === 'estimate') { return 'purchase'; }
+    return 'technical';
+  }
   // a request that does not come from a capacity request form (incident, renewal, ...) has no phase, data center or resource
   var NO_CAP = '<span class="db-dash" title="درخواست ظرفیت نیست">—</span>';
   function siteSort(a, b) { return (a === NOT_SET) - (b === NOT_SET) || String(a).localeCompare(String(b)); }
@@ -667,16 +678,16 @@
       var dev = sum(M.filter(function (d) { return d.request_type === 'Modernization'; }), function (d) { return d.quantity; });
       return filterLink(f, [tb ? num(Math.round(tb * 10) / 10) + ' <small>TB</small>' : '', dev ? num(dev) + ' <small>دستگاه</small>' : ''].filter(Boolean).join(' + '), 'requests');
     };
+    // where the requests are in the Demand-to-Delivery workflow (each stage once, no counts)
     var progress = function (L) {
-      var g = countBy(L, function (d) { return GROUP[d.status] || 'Other'; });
-      return ['Waiting', 'In progress', 'Completed'].filter(function (k) { return g[k]; }).map(function (k) {
-        return '<span class="db-chip ' + GROUP_CLS[k] + '">' + esc(GROUP_LABEL[k]) + ' ' + num(g[k]) + '</span>';
-      }).join(' ');
+      var on = {};
+      L.forEach(function (d) { on[d2dStage(d)] = 1; });
+      return D2D.filter(function (k) { return on[k[0]]; }).map(function (k) { return chip(k[1], k[2]); }).join(' ');
     };
     var one = !!F.project;
     var head = '<tr>' + (one ? '' : '<th>پروژه</th>') + '<th>فاز</th><th>دیتاسنتر</th><th class="num">درخواست</th>'
       + res.map(function (c) { return '<th class="num">' + esc(RCAT_FA[c]) + '</th>'; }).join('')
-      + '<th>وضعیت</th><th class="num">هزینه برآورد BOQ</th></tr>';
+      + '<th>مرحله</th><th class="num">هزینه برآورد BOQ</th></tr>';
     var rows = [];
     var projects = uniq(Dm.map(function (d) { return d.project; }));
     projects.forEach(function (pr) {
