@@ -308,3 +308,10 @@
 .db-kpi-sm { font-size: .72em; white-space: nowrap; }
 #db-fc-sum th { white-space: normal; min-width: 70px; line-height: 1.5; }
 #db-fc-sum td { padding: 9px 10px; }
+
+/* project view: a project's requests by phase, data center and resource */
+.db-projview td.db-proj, .db-projview td.db-phase { vertical-align: top; background: #fcfcfd; }
+.db-projview td.db-proj { min-width: 170px; white-space: normal; }
+.db-projview .db-proj-sub { color: var(--muted); font-size: 11px; margin-top: 3px; font-weight: 400; }
+.db-projview tr.db-proj-first td { border-top: 2px solid var(--line); }
+.db-projview .db-chip { margin-left: 4px; }

@@ -24,7 +24,7 @@
   var pendingCharts = [];
 
   // slicer state; time is 'all' or a number of days
-  var F = { time: 'all', team: '', project: '', status: '', category: '', supplier: '' };
+  var F = { time: 'all', team: '', project: '', phase: '', site: '', res: '', status: '', category: '', supplier: '' };
   var TIMES = [['all', 'همه زمان‌ها'], ['30', '۳۰ روز اخیر'], ['90', '۹۰ روز اخیر'], ['365', '۱۲ ماه اخیر']];
   // drill-down filters set by clicking a chart or a card (not in the filter panel)
   var X = { group: '', age: '', sla: '', open: '', atype: '', rtype: '', rcat: '', ikind: '', istate: '' };
@@ -50,6 +50,18 @@
   var RCAT_FA = { Compute: 'سرور', Storage: 'فضای ذخیره‌سازی', GPU: 'GPU', Network: 'تجهیز شبکه', Other: 'سایر' };
   var RCAT_COL = { Compute: '#2f7de1', Storage: '#f5b800', GPU: '#7c5cf0', Network: '#0fb5a6', Other: '#94a3b8' };
   function rcatOf(d) { return RCATS.indexOf(d.category) >= 0 ? d.category : 'Other'; }
+  // project phase and data center (site) of a capacity request, from its form
+  var PHASES = ['POC', 'UAT / IAT', 'Production', 'DR'];
+  var NOT_SET = '(not set)';
+  function phaseOf(d) { return (d && d.phase) || NOT_SET; }
+  function siteOf(d) { return (d && d.site) || NOT_SET; }
+  function phaseFa(v) { return v === NOT_SET ? 'نامشخص' : v; }
+  function siteFa(v) { return v === NOT_SET ? 'نامشخص' : v; }
+  function phaseSort(a, b) {
+    var ia = PHASES.indexOf(a), ib = PHASES.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || String(a).localeCompare(String(b));
+  }
+  function siteSort(a, b) { return (a === NOT_SET) - (b === NOT_SET) || String(a).localeCompare(String(b)); }
   var DEMAP = {};
   DEM.forEach(function (d) { DEMAP[d.ticket_id] = d; });
   var PAGE_FA = { overview: 'نمای کلی', requests: 'درخواست‌ها', budget: 'بودجه و هزینه', assets: 'دارایی‌ها', forecast: 'پیش‌بینی' };
@@ -176,6 +188,9 @@
       && (!F.project || r.project === F.project)
       && (!F.status || r.status === F.status)
       && (!F.category || r.category === F.category)
+      && (!F.phase || phaseOf(DEMAP[r.ticket_id]) === F.phase && !!DEMAP[r.ticket_id])
+      && (!F.site || siteOf(DEMAP[r.ticket_id]) === F.site && !!DEMAP[r.ticket_id])
+      && (!F.res || (DEMAP[r.ticket_id] && rcatOf(DEMAP[r.ticket_id]) === F.res))
       && (!X.group || GROUP[r.status] === X.group)
       && (!X.age || String(r.open_age || '').charAt(0) === X.age)
       && (!X.sla || r.sla === X.sla)
@@ -287,6 +302,9 @@
     var projects = uniq(REQ.map(function (r) { return r.project; }).concat(FIN.map(function (f) { return f.project; })));
     var statuses = STATUSES.filter(function (s) { return REQ.some(function (r) { return r.status === s; }); });
     var cats = uniq(REQ.map(function (r) { return r.category; }));
+    var phases = uniq(DEM.map(phaseOf)).sort(phaseSort);
+    var sites = uniq(DEM.map(siteOf)).sort(siteSort);
+    var ress = RCATS.concat(['Other']).filter(function (c) { return DEM.some(function (d) { return rcatOf(d) === c; }); });
     var sups = uniq(DEM.reduce(function (a, d) { return a.concat(String(d.supplier || '').split(', ')); }, []));
 
     var time = '<label class="db-sl"><span>زمان ثبت درخواست</span><select data-key="time">' + TIMES.map(function (t) {
@@ -296,6 +314,9 @@
     slicers.innerHTML = '<div class="db-sl-inner"><div class="db-sl-head">فیلترها</div>' + time
       + sel('team', 'تیم درخواست‌دهنده', teams)
       + sel('project', 'پروژه', projects)
+      + sel('phase', 'فاز پروژه', phases, phaseFa)
+      + sel('site', 'دیتاسنتر', sites, siteFa)
+      + sel('res', 'نوع منبع', ress, function (c) { return RCAT_FA[c] || c; })
       + sel('status', 'وضعیت درخواست', statuses, function (s) { return STATUS_FA[s] || s; })
       + sel('category', 'دسته‌بندی', cats)
       + sel('supplier', 'تأمین‌کننده', sups)
@@ -610,6 +631,89 @@
       + '</div>';
   }
 
+  // ---------- project view: a project's requests by phase (POC, UAT, Production, DR), resource and data center ----------
+  function projectCards() {
+    if (!ok('demands')) { return noticeCard(12, 'درخواست‌های پروژه به تفکیک فاز، منبع و دیتاسنتر', 'demands'); }
+    var Dm = dems().filter(function (d) { return d.request_type !== 'Release old resources'; });
+    if (!Dm.length) {
+      return card(12, 'درخواست‌های پروژه به تفکیک فاز، منبع و دیتاسنتر', '<div class="db-empty">موردی با فیلترهای انتخابی یافت نشد.</div>');
+    }
+    var res = RCATS.concat(['Other']).filter(function (c) { return Dm.some(function (d) { return rcatOf(d) === c; }); });
+    var stacked = function (id, keys, keyOf, label, filterKey) {
+      var series = res.map(function (c) {
+        return { name: RCAT_FA[c], color: RCAT_COL[c], stack: 'r',
+          data: keys.map(function (k) { return Dm.filter(function (d) { return keyOf(d) === k && rcatOf(d) === c; }).length; }) };
+      });
+      var opt = vbarOpt(keys.map(label), series);
+      opt.legend = { bottom: 0, itemWidth: 12, itemHeight: 12, textStyle: { color: COL.ink, fontSize: 12 } };
+      opt.grid.top = 16; opt.grid.bottom = 36;
+      opt.yAxis.minInterval = 1;
+      chart(id, opt, function (e) { var c = {}; c[filterKey] = keys[e.dataIndex]; c.res = res[e.seriesIndex]; go('requests', c); });
+    };
+    var phases = uniq(Dm.map(phaseOf)).sort(phaseSort);
+    var sites = uniq(Dm.map(siteOf)).sort(siteSort);
+    stacked('c-phase', phases, phaseOf, phaseFa, 'phase');
+    stacked('c-site', sites, siteOf, siteFa, 'site');
+
+    // quantity of each resource, in its own unit (storage swaps are devices, not TB)
+    var qtyCell = function (L, c, flt) {
+      var M = L.filter(function (d) { return rcatOf(d) === c; });
+      if (!M.length) { return '<span class="db-dash">—</span>'; }
+      var f = Object.assign({ res: c }, flt);
+      if (c !== 'Storage') { return filterLink(f, num(Math.round(sum(M, function (d) { return d.quantity; }) * 10) / 10), 'requests'); }
+      var tb = sum(M.filter(function (d) { return d.request_type !== 'Modernization'; }), function (d) { return d.quantity; });
+      var dev = sum(M.filter(function (d) { return d.request_type === 'Modernization'; }), function (d) { return d.quantity; });
+      return filterLink(f, [tb ? num(Math.round(tb * 10) / 10) + ' <small>TB</small>' : '', dev ? num(dev) + ' <small>دستگاه</small>' : ''].filter(Boolean).join(' + '), 'requests');
+    };
+    var progress = function (L) {
+      var g = countBy(L, function (d) { return GROUP[d.status] || 'Other'; });
+      return ['Waiting', 'In progress', 'Completed'].filter(function (k) { return g[k]; }).map(function (k) {
+        return '<span class="db-chip ' + GROUP_CLS[k] + '">' + esc(GROUP_LABEL[k]) + ' ' + num(g[k]) + '</span>';
+      }).join(' ');
+    };
+    var one = !!F.project;
+    var head = '<tr>' + (one ? '' : '<th>پروژه</th>') + '<th>فاز</th><th>دیتاسنتر</th><th class="num">درخواست</th>'
+      + res.map(function (c) { return '<th class="num">' + esc(RCAT_FA[c]) + '</th>'; }).join('')
+      + '<th>وضعیت</th><th class="num">هزینه برآورد BOQ</th></tr>';
+    var rows = [];
+    var projects = uniq(Dm.map(function (d) { return d.project; }));
+    projects.forEach(function (pr) {
+      var Lp = Dm.filter(function (d) { return d.project === pr; });
+      var ph = uniq(Lp.map(phaseOf)).sort(phaseSort);
+      var nProj = 0;
+      var projRows = [];
+      ph.forEach(function (f) {
+        var Lf = Lp.filter(function (d) { return phaseOf(d) === f; });
+        var st = uniq(Lf.map(siteOf)).sort(siteSort);
+        st.forEach(function (site, si) {
+          var L = Lf.filter(function (d) { return siteOf(d) === site; });
+          var flt = { project: pr, phase: f, site: site };
+          projRows.push('<tr>'
+            + (si === 0 ? '<td rowspan="' + st.length + '" class="db-phase">' + filterLink({ project: pr, phase: f, site: '' }, '<b>' + esc(phaseFa(f)) + '</b>', 'requests') + '</td>' : '')
+            + '<td>' + filterLink(flt, esc(siteFa(site)), 'requests') + '</td>'
+            + '<td class="num">' + filterLink(Object.assign({ res: '' }, flt), num(L.length), 'requests') + '</td>'
+            + res.map(function (c) { return '<td class="num">' + qtyCell(L, c, flt) + '</td>'; }).join('')
+            + '<td>' + progress(L) + '</td>'
+            + '<td class="num">' + (sum(L, function (d) { return d.boq_cost; }) ? num(Math.round(sum(L, function (d) { return d.boq_cost; }))) : '<span class="db-dash">—</span>') + '</td></tr>');
+          nProj++;
+        });
+      });
+      if (!one) {
+        projRows[0] = projRows[0].replace('<tr>', '<tr class="db-proj-first"><td rowspan="' + nProj + '" class="db-proj">'
+          + filterLink({ project: pr, phase: '', site: '' }, '<b>' + esc(pr) + '</b>', 'requests')
+          + '<div class="db-proj-sub">' + num(Lp.length) + ' درخواست · ' + num(ph.length) + ' فاز</div></td>');
+      }
+      rows = rows.concat(projRows);
+    });
+    var title = one ? 'پروژه «' + F.project + '»: درخواست‌ها به تفکیک فاز، دیتاسنتر و منبع' : 'درخواست‌های هر پروژه به تفکیک فاز، دیتاسنتر و منبع';
+    var tbl = '<div class="db-tbl-wrap"><table class="db-tbl db-compare db-projview"><thead>' + head + '</thead><tbody>' + rows.join('') + '</tbody></table></div>'
+      + '<div class="db-note">سرور، GPU و تجهیز شبکه به عدد و فضای ذخیره‌سازی به ترابایت (نوسازی ذخیره‌سازی به دستگاه). روی هر پروژه، فاز، دیتاسنتر یا عدد کلیک کنید تا درخواست‌های همان بخش را ببینید.'
+      + (one ? '' : ' برای دیدن یک پروژه، آن را از فیلتر «پروژه» انتخاب کنید.') + '</div>';
+    return card(6, 'درخواست‌ها بر اساس فاز پروژه', chartHtml('c-phase', 260))
+      + card(6, 'درخواست‌ها بر اساس دیتاسنتر', chartHtml('c-site', 260))
+      + card(12, title, tbl);
+  }
+
   function renderRequests() {
     var miss = need(['requests']);
     if (miss) { return miss; }
@@ -639,6 +743,9 @@
       { h: 'عنوان', f: function (r) { return link(rec('Ticket', r.ticket_id), esc(r.title)); } },
       { h: 'پروژه', f: function (r) { return link(rec('Project', r.project_id), esc(r.project)); } },
       { h: 'تیم', f: function (r) { return link(rec('Group', r.team_id), esc(r.requesting_team)); } },
+      { h: 'فاز', f: function (r) { var d = DEMAP[r.ticket_id]; return d ? filterLink({ phase: phaseOf(d) }, esc(phaseFa(phaseOf(d)))) : ''; } },
+      { h: 'دیتاسنتر', f: function (r) { var d = DEMAP[r.ticket_id]; return d ? filterLink({ site: siteOf(d) }, esc(siteFa(siteOf(d)))) : ''; } },
+      { h: 'منبع', f: function (r) { var d = DEMAP[r.ticket_id]; return d && d.request_type !== 'Release old resources' ? filterLink({ res: rcatOf(d) }, esc(RCAT_FA[rcatOf(d)] || rcatOf(d))) : ''; } },
       { h: 'دسته‌بندی', f: function (r) { return filterLink({ category: r.category }, esc(r.category)); } },
       { h: 'وضعیت', f: function (r) { return filterLink({ status: r.status }, chip(STATUS_FA[r.status] || r.status, GROUP_CLS[GROUP[r.status]])); } },
       { h: 'SLA', f: function (r) { return r.sla ? chip(r.sla === 'Overdue' ? 'دیرکرد' : 'به‌موقع', r.sla === 'Overdue' ? 'bad' : 'ok') : ''; } },
@@ -648,6 +755,7 @@
 
     return '<div class="db-kpis">' + kpis + '</div>'
       + '<div class="db-grid">'
+      + projectCards()
       + card(4, 'درخواست‌های باز بر اساس سن', chartHtml('c-age', 240))
       + card(8, 'درخواست‌ها بر اساس دسته‌بندی (ده مورد اول)', chartHtml('c-cat', 240))
       + card(12, 'همه درخواست‌ها', '<input type="search" class="db-search" placeholder="جستجو در درخواست‌ها">' + tbl)

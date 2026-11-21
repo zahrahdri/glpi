@@ -526,6 +526,8 @@ PRSQL;
                 'status' => $status[(int) $r['status']] ?? '',
                 'required_by' => $get('Required by (go-live date)'),
                 'site' => $get('Site'),
+                'phase' => $get('Project phase'),
+                'environment' => $get('Environment'),
                 'estimate' => $num('Estimated cost (Rial)'),
                 'hostname' => $get('Device hostname'),
                 'status_id' => (int) $r['status'],
