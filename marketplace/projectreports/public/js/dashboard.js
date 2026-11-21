@@ -61,6 +61,8 @@
     var ia = PHASES.indexOf(a), ib = PHASES.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || String(a).localeCompare(String(b));
   }
+  // a request that does not come from a capacity request form (incident, renewal, ...) has no phase, data center or resource
+  var NO_CAP = '<span class="db-dash" title="درخواست ظرفیت نیست">—</span>';
   function siteSort(a, b) { return (a === NOT_SET) - (b === NOT_SET) || String(a).localeCompare(String(b)); }
   var DEMAP = {};
   DEM.forEach(function (d) { DEMAP[d.ticket_id] = d; });
@@ -615,7 +617,7 @@
       { h: 'پیگیری‌کننده', f: function (r) { var v = det(r, 'follower'); return v ? link(det(r, 'follower_url'), esc(v)) : (r.assigned_to ? esc(r.assigned_to) : dash); } },
       { h: 'وضعیت', f: function (r) { return filterLink({ status: r.status }, chip(STATUS_FA[r.status] || r.status, GROUP_CLS[GROUP[r.status]]), 'requests'); } }
     );
-    var latestCard = card(12, 'آخرین وضعیت درخواست‌ها', table('db-latest', latestCols, latest, 10));
+    var latestCard = card(12, 'آخرین وضعیت درخواست‌ها', table('db-latest', latestCols, latest, 500));
 
     return '<div class="db-kpis">' + kpis + '</div>'
       + '<div class="db-grid">'
@@ -743,9 +745,9 @@
       { h: 'عنوان', f: function (r) { return link(rec('Ticket', r.ticket_id), esc(r.title)); } },
       { h: 'پروژه', f: function (r) { return link(rec('Project', r.project_id), esc(r.project)); } },
       { h: 'تیم', f: function (r) { return link(rec('Group', r.team_id), esc(r.requesting_team)); } },
-      { h: 'فاز', f: function (r) { var d = DEMAP[r.ticket_id]; return d ? filterLink({ phase: phaseOf(d) }, esc(phaseFa(phaseOf(d)))) : ''; } },
-      { h: 'دیتاسنتر', f: function (r) { var d = DEMAP[r.ticket_id]; return d ? filterLink({ site: siteOf(d) }, esc(siteFa(siteOf(d)))) : ''; } },
-      { h: 'منبع', f: function (r) { var d = DEMAP[r.ticket_id]; return d && d.request_type !== 'Release old resources' ? filterLink({ res: rcatOf(d) }, esc(RCAT_FA[rcatOf(d)] || rcatOf(d))) : ''; } },
+      { h: 'فاز', f: function (r) { var d = DEMAP[r.ticket_id]; return d && d.request_type !== 'Release old resources' ? filterLink({ phase: phaseOf(d) }, esc(phaseFa(phaseOf(d)))) : NO_CAP; } },
+      { h: 'دیتاسنتر', f: function (r) { var d = DEMAP[r.ticket_id]; return d ? filterLink({ site: siteOf(d) }, esc(siteFa(siteOf(d)))) : NO_CAP; } },
+      { h: 'منبع', f: function (r) { var d = DEMAP[r.ticket_id]; return d && d.request_type !== 'Release old resources' ? filterLink({ res: rcatOf(d) }, esc(RCAT_FA[rcatOf(d)] || rcatOf(d))) : NO_CAP; } },
       { h: 'دسته‌بندی', f: function (r) { return filterLink({ category: r.category }, esc(r.category)); } },
       { h: 'وضعیت', f: function (r) { return filterLink({ status: r.status }, chip(STATUS_FA[r.status] || r.status, GROUP_CLS[GROUP[r.status]])); } },
       { h: 'SLA', f: function (r) { return r.sla ? chip(r.sla === 'Overdue' ? 'دیرکرد' : 'به‌موقع', r.sla === 'Overdue' ? 'bad' : 'ok') : ''; } },
@@ -1300,7 +1302,7 @@
     syncAddress();
     pendingCharts = [];
 
-    ['db-req-tbl', 'db-inv-tbl', 'db-cab-tbl', 'db-rack-tbl', 'db-asset-tbl', 'db-fc-mod-tbl', 'db-fc-dem-tbl', 'db-fc-vm-tbl', 'db-fc-stock-tbl'].forEach(function (id) {
+    ['db-latest', 'db-bud-tbl', 'db-spare-tbl', 'db-req-tbl', 'db-inv-tbl', 'db-cab-tbl', 'db-rack-tbl', 'db-asset-tbl', 'db-fc-mod-tbl', 'db-fc-dem-tbl', 'db-fc-vm-tbl', 'db-fc-stock-tbl'].forEach(function (id) {
       var t = document.getElementById(id);
       var b = t && t.closest('.db-card-b');
       if (t) { pager(t, b ? b.querySelector('.db-search') : null, 10); }
