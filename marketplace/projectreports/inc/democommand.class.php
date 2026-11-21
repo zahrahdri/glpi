@@ -144,7 +144,7 @@ class PluginProjectreportsDemocommand extends AbstractCommand
         $this->setName('plugins:projectreports:demo');
         $this->setDescription('Create (or with --remove, delete) demo projects, budgets, assets and requests for the Project reports.');
         $this->addOption('remove', null, InputOption::VALUE_NONE, 'Delete all demo data created by this command');
-        $this->addOption('requests', null, InputOption::VALUE_REQUIRED, 'Number of demo requests to create', 120);
+        $this->addOption('requests', null, InputOption::VALUE_REQUIRED, 'Number of extra demo tickets that are not capacity requests (incidents, renewals...); 0 = only capacity requests', 0);
         $this->addOption('mix', null, InputOption::VALUE_NONE, 'Only the requested capacity requests: CRM and HCBS expansion, AI platform new project, XIO modernization');
     }
 
@@ -161,7 +161,7 @@ class PluginProjectreportsDemocommand extends AbstractCommand
             $output->writeln('<info>Done. Open Tools > Reporting dashboard. Remove it later with: php bin/console plugins:projectreports:demo --remove</info>');
             return 0;
         }
-        $this->create($output, max(10, (int) $input->getOption('requests')));
+        $this->create($output, max(0, (int) $input->getOption('requests')));
         $output->writeln('<info>Done. Open Tools > Reporting dashboard. Remove it later with: php bin/console plugins:projectreports:demo --remove</info>');
         return 0;
     }
@@ -192,7 +192,7 @@ class PluginProjectreportsDemocommand extends AbstractCommand
                 'date_creation' => $now, 'date_mod' => $now]);
         }
         $cats = [];
-        foreach (self::CATEGORIES as $name => [$type, $title]) {
+        foreach ($nb_requests > 0 ? self::CATEGORIES : [] as $name => [$type, $title]) {
             $cats[$name] = $this->ins('glpi_itilcategories', ['entities_id' => 0, 'is_recursive' => 1, 'name' => $name, 'completename' => $name,
                 'level' => 1, 'is_helpdeskvisible' => 1, 'is_incident' => 1, 'is_request' => 1, 'is_problem' => 1, 'is_change' => 1,
                 'date_creation' => $now, 'date_mod' => $now]);
@@ -623,6 +623,15 @@ class PluginProjectreportsDemocommand extends AbstractCommand
         }
 
         $by_name = array_column($projects, null, 'name');
+        // the capacity requests' ticket category: one per request type
+        $rtype_cat = [];
+        foreach (['New project' => 'DEMO New project', 'Expansion' => 'DEMO Expansion', 'Modernization' => 'DEMO Modernization',
+            'Release old resources' => 'DEMO Release resources'] as $rt => $cname) {
+            $found = $DB->request(['SELECT' => 'id', 'FROM' => 'glpi_itilcategories', 'WHERE' => ['name' => $cname], 'LIMIT' => 1])->current();
+            $rtype_cat[$rt] = $found ? (int) $found['id'] : $this->ins('glpi_itilcategories', ['entities_id' => 0, 'is_recursive' => 1,
+                'name' => $cname, 'completename' => $cname, 'level' => 1, 'is_helpdeskvisible' => 1, 'is_request' => 1,
+                'date_creation' => $now, 'date_mod' => $now]);
+        }
         $index = [];
         $approval = ['Waiting' => 2, 'Approved' => 3, 'Refused' => 4];
         $nb = $nb_boq = 0;
@@ -664,7 +673,8 @@ class PluginProjectreportsDemocommand extends AbstractCommand
             ]);
             $tid = $this->ins('glpi_tickets', ['entities_id' => 0, 'name' => '[DEMO] ' . $title, 'content' => '<p>' . htmlspecialchars($title) . '</p>',
                 'date' => $opened, 'date_creation' => $opened, 'date_mod' => $now, 'status' => $appr === 'Refused' ? 6 : 2, 'type' => 2,
-                'urgency' => 3, 'impact' => 3, 'priority' => 3, 'global_validation' => $approval[$appr], 'requesttypes_id' => 1, 'is_deleted' => 0]);
+                'urgency' => 3, 'impact' => 3, 'priority' => 3, 'global_validation' => $approval[$appr], 'requesttypes_id' => 1, 'is_deleted' => 0,
+                'itilcategories_id' => $rtype_cat[$rtype] ?? 0]);
             $set = $this->ins('glpi_forms_answerssets', ['forms_forms_id' => $form_id, 'entities_id' => 0, 'users_id' => 0,
                 'name' => 'DEMO capacity request #' . $tid, 'date_creation' => $opened, 'date_mod' => $opened, 'index' => ++$index[$form_id],
                 'answers' => json_encode(array_values($ans))]);
